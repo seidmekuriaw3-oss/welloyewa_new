@@ -12,6 +12,7 @@ from core.utils.currency import format_etb
 from apps.orders.services import OrderService
 from apps.orders.schemas import OrderCreate, OrderItemCreate
 from apps.users.services import UserService, UserAddress
+from apps.products.services import ProductService
 from infrastructure.database.session import get_db_session
 from infrastructure.payments.factory import process_payment
 from bot.handlers.cart import get_user_cart, clear_cart
@@ -360,9 +361,6 @@ async def cancel_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     """Cancel the checkout process."""
     await update.message.reply_text("❌ ግዢው ተሰርዟል።")
     return ConversationHandler.END
-
-
-from apps.products.services import ProductService
 
 __all__ = [
     "start_checkout",

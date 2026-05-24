@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 
 from core.logger import logger
 from core.config import settings
+from core.utils.currency import format_etb
 from apps.analytics.services import DashboardService, SalesAnalyticsService
 from apps.users.services import UserService
 from apps.orders.services import OrderService
@@ -219,11 +220,6 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     
     await show_admin_dashboard(update, context)
-
-
-def format_etb(amount: float) -> str:
-    """Format amount in Ethiopian Birr."""
-    return f"{amount:,.2f} ብር"
 
 
 __all__ = [

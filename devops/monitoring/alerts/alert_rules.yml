@@ -1,0 +1,237 @@
+# ============================
+# WOLLOYEWA STORE BOT - PROMETHEUS ALERT RULES
+# ============================
+
+groups:
+  - name: application_alerts
+    interval: 30s
+    rules:
+      # API Health Alerts
+      - alert: APIHighErrorRate
+        expr: |
+          (sum(rate(http_requests_total{status=~"5.."}[5m])) / 
+           sum(rate(http_requests_total[5m]))) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: "High API error rate"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+      
+      - alert: APIHighLatency
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "High API latency"
+          description: "P95 latency is {{ $value }}s for endpoint {{ $labels.endpoint }}"
+
+      # Bot Health Alerts
+      - alert: BotHighErrorRate
+        expr: |
+          rate(bot_messages_total{status="error"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: critical
+          service: bot
+        annotations:
+          summary: "High bot error rate"
+          description: "Bot error rate is {{ $value }} errors/second"
+
+      - alert: BotWebhookDown
+        expr: bot_webhook_health == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: bot
+        annotations:
+          summary: "Bot webhook is down"
+          description: "Telegram webhook is not responding"
+
+      # Database Alerts
+      - alert: DatabaseHighConnections
+        expr: db_connections > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "High database connections"
+          description: "Database connections are at {{ $value }}% of limit"
+
+      - alert: DatabaseReplicationLag
+        expr: pg_replication_lag_seconds > 60
+        for: 5m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "Database replication lag"
+          description: "Replication lag is {{ $value }} seconds"
+
+      # Redis Alerts
+      - alert: RedisHighMemory
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: cache
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is {{ $value }}%"
+
+      - alert: RedisMissingMaster
+        expr: redis_connected_slaves == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: cache
+        annotations:
+          summary: "Redis master missing"
+          description: "No Redis master instance found"
+
+      # Payment Alerts
+      - alert: PaymentFailureRate
+        expr: |
+          (sum(rate(payments_total{status="failed"}[10m])) / 
+           sum(rate(payments_total[10m]))) > 0.1
+        for: 10m
+        labels:
+          severity: critical
+          service: payments
+        annotations:
+          summary: "High payment failure rate"
+          description: "Payment failure rate is {{ $value | humanizePercentage }}"
+
+      # Queue Alerts
+      - alert: QueueBacklog
+        expr: queue_size > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: queue
+        annotations:
+          summary: "Queue backlog detected"
+          description: "Queue has {{ $value }} pending messages"
+
+      - alert: DeadLetterQueueGrowing
+        expr: increase(dead_letter_messages_total[1h]) > 100
+        for: 5m
+        labels:
+          severity: critical
+          service: queue
+        annotations:
+          summary: "Dead letter queue growing"
+          description: "{{ $value }} messages moved to DLQ in the last hour"
+
+      # Infrastructure Alerts
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}%"
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_free_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 15
+        for: 5m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Low disk space"
+          description: "Only {{ $value }}% disk space remaining"
+
+      # Business Alerts
+      - alert: RevenueDrop
+        expr: sum(increase(orders_value_total[1h])) < 1000
+        for: 2h
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "Revenue drop detected"
+          description: "Hourly revenue dropped below 1,000 ETB"
+
+      - alert: ZeroOrders
+        expr: sum(increase(orders_total[1h])) == 0
+        for: 3h
+        labels:
+          severity: critical
+          service: business
+        annotations:
+          summary: "No orders received"
+          description: "No orders in the last 3 hours"
+
+      # Security Alerts
+      - alert: MultipleFailedLogins
+        expr: increase(failed_login_attempts[5m]) > 10
+        for: 1m
+        labels:
+          severity: high
+          service: security
+        annotations:
+          summary: "Multiple failed login attempts"
+          description: "{{ $value }} failed logins in the last 5 minutes"
+
+      - alert: SuspiciousIPActivity
+        expr: rate_limit_exceeded_total[5m] > 5
+        for: 5m
+        labels:
+          severity: medium
+          service: security
+        annotations:
+          summary: "Suspicious IP activity"
+          description: "IP {{ $labels.ip }} exceeded rate limit {{ $value }} times"
+
+      # Certificate Alerts
+      - alert: CertificateExpiringSoon
+        expr: (ssl_certificate_expiry - time()) / 86400 < 30
+        for: 5m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "SSL certificate expiring soon"
+          description: "Certificate expires in {{ $value | humanizeDuration }}"
+
+      # External Service Alerts
+      - alert: PaymentGatewayDown
+        expr: probe_success{job="blackbox", instance=~".*chapa.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: payments
+        annotations:
+          summary: "Payment gateway is down"
+          description: "{{ $labels.instance }} is unreachable"
+
+      # Rate Limiting Alerts
+      - alert: RateLimitExceeded
+        expr: rate_limit_exceeded_total > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "High rate limit exceedances"
+          description: "{{ $value }} users exceeded rate limits"

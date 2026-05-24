@@ -1,0 +1,165 @@
+{
+  "dashboard": {
+    "title": "Wolloyewa Bot Metrics",
+    "description": "Telegram Bot Performance Dashboard",
+    "tags": ["wolloyewa", "telegram", "bot"],
+    "timezone": "africa/addis_ababa",
+    "editable": true,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Active Users (Last 24h)",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 4, "h": 3},
+        "targets": [
+          {
+            "expr": "sum(bot_active_users{period=\"daily\"})",
+            "legendFormat": "Active Users"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Messages per Second",
+        "type": "stat",
+        "gridPos": {"x": 4, "y": 0, "w": 4, "h": 3},
+        "targets": [
+          {
+            "expr": "rate(bot_messages_total[1m])",
+            "legendFormat": "MPS"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Command Usage (Last Hour)",
+        "type": "bargauge",
+        "gridPos": {"x": 8, "y": 0, "w": 8, "h": 6},
+        "targets": [
+          {
+            "expr": "sum by (command) (rate(bot_messages_total[1h]))",
+            "legendFormat": "{{command}}"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Response Time by Command",
+        "type": "heatmap",
+        "gridPos": {"x": 0, "y": 6, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "sum by (command) (bot_command_duration_seconds_bucket)",
+            "legendFormat": "{{command}}"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Error Rate",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 6, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "sum(rate(bot_messages_total{status=\"error\"}[5m])) / sum(rate(bot_messages_total[5m]))",
+            "legendFormat": "Error Rate"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "User Engagement (7d)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 12, "w": 8, "h": 6},
+        "targets": [
+          {
+            "expr": "bot_active_users{period=\"daily\"}",
+            "legendFormat": "Daily Active Users"
+          },
+          {
+            "expr": "bot_active_users{period=\"weekly\"}",
+            "legendFormat": "Weekly Active Users"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Top 10 Commands",
+        "type": "table",
+        "gridPos": {"x": 8, "y": 12, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "topk(10, sum by (command) (bot_messages_total))",
+            "format": "table"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Session Duration Distribution",
+        "type": "histogram",
+        "gridPos": {"x": 0, "y": 18, "w": 6, "h": 5},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.5, sum by (le) (rate(bot_session_duration_seconds_bucket[5m])))",
+            "legendFormat": "Median"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum by (le) (rate(bot_session_duration_seconds_bucket[5m])))",
+            "legendFormat": "P95"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Webhook Latency",
+        "type": "graph",
+        "gridPos": {"x": 6, "y": 18, "w": 6, "h": 5},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.5, sum by (le) (rate(bot_webhook_duration_seconds_bucket[5m])))",
+            "legendFormat": "Median"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum by (le) (rate(bot_webhook_duration_seconds_bucket[5m])))",
+            "legendFormat": "P95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum by (le) (rate(bot_webhook_duration_seconds_bucket[5m])))",
+            "legendFormat": "P99"
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "Prometheus",
+          "expr": "changes(kube_deployment_status_observed_generation{deployment=\"wolloyewa-bot\"}[1h])",
+          "titleFormat": "Deployment",
+          "tagKeys": "reason",
+          "iconColor": "blue"
+        },
+        {
+          "name": "Errors",
+          "datasource": "Prometheus",
+          "expr": "rate(bot_messages_total{status=\"error\"}[5m]) > 0.1",
+          "titleFormat": "High Error Rate",
+          "tagKeys": "command",
+          "iconColor": "red"
+        }
+      ]
+    }
+  }
+}

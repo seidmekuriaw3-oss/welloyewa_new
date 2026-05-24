@@ -1,0 +1,182 @@
+# ============================
+# WOLLOYEWA STORE BOT - PROMETHEUS CONFIGURATION
+# ============================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: production
+    project: wolloyewa
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+rule_files:
+  - "alerts/*.yml"
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # FastAPI Application Metrics
+  - job_name: 'wolloyewa-api'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets:
+          - 'api-1.wolloyewa.com:8000'
+          - 'api-2.wolloyewa.com:8000'
+          - 'api-3.wolloyewa.com:8000'
+        labels:
+          service: 'api'
+          component: 'backend'
+
+  # Telegram Bot Metrics
+  - job_name: 'wolloyewa-bot'
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - 'bot-1.wolloyewa.com:8000'
+          - 'bot-2.wolloyewa.com:8000'
+        labels:
+          service: 'bot'
+          component: 'telegram'
+
+  # Celery Worker Metrics
+  - job_name: 'wolloyewa-celery'
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - 'celery-worker-1:5555'
+          - 'celery-worker-2:5555'
+          - 'celery-worker-3:5555'
+        labels:
+          service: 'celery'
+          component: 'worker'
+
+  # PostgreSQL Metrics
+  - job_name: 'postgresql'
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - 'postgres-exporter:9187'
+        labels:
+          service: 'database'
+          component: 'postgresql'
+
+  # Redis Metrics
+  - job_name: 'redis'
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - 'redis-exporter:9121'
+        labels:
+          service: 'cache'
+          component: 'redis'
+
+  # Node Exporter (System Metrics)
+  - job_name: 'nodes'
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - 'node-exporter-1:9100'
+          - 'node-exporter-2:9100'
+          - 'node-exporter-3:9100'
+        labels:
+          service: 'system'
+          component: 'node'
+
+  # Nginx Metrics
+  - job_name: 'nginx'
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - 'nginx-exporter:9113'
+        labels:
+          service: 'web'
+          component: 'nginx'
+
+  # Blackbox Exporter (Probes)
+  - job_name: 'blackbox'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://wolloyewa.com
+          - https://api.wolloyewa.com
+          - https://admin.wolloyewa.com
+          - https://cdn.wolloyewa.com
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Kubernetes Pods (if running in K8s)
+  - job_name: 'kubernetes-pods'
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: (.+):(?:\d+);(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: kubernetes_namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: kubernetes_pod_name
+
+  # Service Endpoints
+  - job_name: 'kubernetes-services'
+    kubernetes_sd_configs:
+      - role: service
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+        action: keep
+        regex: true
+      - source_labels: [__address__]
+        target_label: __param_target
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Database Slow Query Monitoring
+  - job_name: 'postgres-slow-queries'
+    static_configs:
+      - targets:
+          - 'postgres-exporter:9187'
+    metrics_path: '/metrics/slow'
+    
+  # Business Metrics
+  - job_name: 'wolloyewa-business'
+    scrape_interval: 60s
+    static_configs:
+      - targets:
+          - 'api-1.wolloyewa.com:8000'
+        params:
+          metrics_path: ['/metrics/business']
+        labels:
+          service: 'business'
+          type: 'revenue'

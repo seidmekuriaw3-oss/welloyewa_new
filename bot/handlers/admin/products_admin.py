@@ -8,6 +8,7 @@ from telegram.ext import ContextTypes
 from datetime import datetime
 
 from core.logger import logger
+from core.utils.currency import format_etb
 from core.config import settings
 from apps.products.services import ProductService, CategoryService
 from infrastructure.database.session import get_db_session
@@ -66,7 +67,7 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         products_text += f"{status_emoji} *{product.name}*\n"
         products_text += f"   🆔 ID: {product.id}\n"
         products_text += f"   👤 ሻጭ: {product.vendor_id}\n"
-        products_text += f"   💰 ዋጋ: {product.price}\n"
+        products_text += f"   💰 ዋጋ: {format_etb(product.price)}\n"
         products_text += f"   📦 ክምችት: {product.stock_quantity}\n\n"
     
     # Pagination

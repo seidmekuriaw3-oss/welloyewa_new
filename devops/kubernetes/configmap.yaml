@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wolloyewa-config
+  namespace: wolloyewa
+  labels:
+    app: wolloyewa
+    component: config
+data:
+  ENVIRONMENT: "production"
+  DEBUG: "false"
+  PROJECT_NAME: "Wolloyewa_Store_Bot"
+  TIMEZONE: "Africa/Addis_Ababa"
+  HOST: "0.0.0.0"
+  PORT: "8000"
+  
+  # Database
+  POSTGRES_HOST: "postgres-primary.internal"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "welloyewadb"
+  DATABASE_POOL_SIZE: "50"
+  DATABASE_MAX_OVERFLOW: "100"
+  DATABASE_POOL_TIMEOUT: "30"
+  
+  # Redis
+  REDIS_HOST: "redis-cluster.internal"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_CACHE_TTL: "3600"
+  REDIS_SESSION_TTL: "86400"
+  
+  # Rate Limiting
+  RATE_LIMIT_ENABLED: "true"
+  RATE_LIMIT_PER_MINUTE: "60"
+  RATE_LIMIT_PER_HOUR: "1000"
+  RATE_LIMIT_STRATEGY: "sliding_window"
+  
+  # Storage
+  STORAGE_PROVIDER: "s3"
+  STORAGE_BASE_URL: "https://cdn.wolloyewa.com"
+  AWS_REGION: "eu-north-1"
+  
+  # Email
+  SMTP_HOST: "email-smtp.eu-north-1.amazonaws.com"
+  SMTP_PORT: "587"
+  EMAIL_FROM: "noreply@wolloyewa.com"
+  
+  # SMS
+  SMS_PROVIDER: "ethio_telecom"
+  SMS_SENDER_ID: "WOLLOYEWA"
+  
+  # Feature Flags
+  ENABLE_PUSH_NOTIFICATIONS: "true"
+  ENABLE_WEB_APP: "true"
+  ENABLE_AI_SUPPORT_BOT: "true"
+  ENABLE_LOYALTY_PROGRAM: "true"
+  ENABLE_ESCROW_SERVICE: "true"
+  ENABLE_AB_TESTING: "true"
+  
+  # Monitoring
+  PROMETHEUS_ENABLED: "true"
+  PROMETHEUS_PORT: "9090"
+  GRAFANA_ENABLED: "true"
+  OTEL_TRACING_ENABLED: "true"
+  
+  # Celery
+  CELERY_TASK_ALWAYS_EAGER: "false"
+  CELERY_WORKER_CONCURRENCY: "8"
+  
+  # Backup
+  BACKUP_ENABLED: "true"
+  BACKUP_SCHEDULE: "0 2 * * *"
+  BACKUP_RETENTION_DAYS: "30"
+  
+  # Session Limits
+  MAX_ACTIVE_SESSIONS: "1000"
+  MAX_IDLE_SESSIONS: "500"
+  SESSION_TIMEOUT_MINUTES: "30"
+  
+  # Security
+  JWT_ALGORITHM: "HS256"
+  JWT_EXPIRY_MINUTES: "1440"
+  GDPR_COMPLIANT: "true"
+  DATA_RETENTION_DAYS: "365"
+  AUDIT_LOG_ENABLED: "true"
+  
+  # Multi-tenancy
+  MULTI_TENANT_ENABLED: "true"
+  DEFAULT_TENANT_ID: "public"
+  
+  # External Services
+  ETHIOPIAN_HOLIDAYS_API: "https://api.ethiopianholidays.com/v1"
+  
+  # CDN
+  CDN_ENABLED: "true"
+  CDN_URL: "https://cdn.wolloyewa.com"
+  
+  # WebSocket
+  WEBSOCKET_ENABLED: "true"
+  WEBSOCKET_PATH: "/ws"
+  
+  # Logging
+  LOG_LEVEL: "WARNING"
+  LOG_FORMAT: "json"
+  LOG_FILE_PATH: "/var/log/wolloyewa/prod.log"

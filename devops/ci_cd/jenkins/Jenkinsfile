@@ -1,0 +1,266 @@
+// ============================
+// WOLLOYEWA STORE BOT - JENKINS PIPELINE
+// ============================
+
+pipeline {
+    agent any
+    
+    tools {
+        python 'Python-3.11'
+        docker 'Docker'
+    }
+    
+    environment {
+        DOCKER_REGISTRY = 'registry.hub.docker.com'
+        DOCKER_IMAGE = 'wolloyewa/store-bot'
+        DOCKER_TAG = "${env.BUILD_NUMBER}"
+        POSTGRES_USER = 'test_user'
+        POSTGRES_PASSWORD = 'test_pass'
+        POSTGRES_DB = 'test_db'
+        SONAR_HOST = 'https://sonarcloud.io'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Setup') {
+            steps {
+                sh '''
+                    python -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip
+                    pip install -r requirements-dev.txt
+                '''
+            }
+        }
+        
+        stage('Lint') {
+            parallel {
+                stage('Black') {
+                    steps {
+                        sh '. venv/bin/activate && black --check --line-length 100 .'
+                    }
+                }
+                stage('Flake8') {
+                    steps {
+                        sh '. venv/bin/activate && flake8 --max-line-length=100 .'
+                    }
+                }
+                stage('MyPy') {
+                    steps {
+                        sh '. venv/bin/activate && mypy --ignore-missing-imports .'
+                    }
+                }
+                stage('Isort') {
+                    steps {
+                        sh '. venv/bin/activate && isort --check-only --profile black .'
+                    }
+                }
+            }
+        }
+        
+        stage('Unit Tests') {
+            steps {
+                sh '''
+                    . venv/bin/activate
+                    alembic upgrade head
+                    pytest --cov=. --cov-report=xml --cov-report=html -v --junitxml=test-results.xml
+                '''
+            }
+            post {
+                always {
+                    junit 'test-results.xml'
+                    cobertura coberturaFile: 'coverage.xml'
+                }
+            }
+        }
+        
+        stage('Integration Tests') {
+            steps {
+                sh '''
+                    . venv/bin/activate
+                    pytest -m integration -v --junitxml=integration-results.xml
+                '''
+            }
+            post {
+                always {
+                    junit 'integration-results.xml'
+                }
+            }
+        }
+        
+        stage('Security Scan') {
+            parallel {
+                stage('Bandit') {
+                    steps {
+                        sh '. venv/bin/activate && bandit -r . -ll -f json -o bandit.json || true'
+                    }
+                    post {
+                        always {
+                            recordIssues(tools: [bandit(pattern: 'bandit.json')])
+                        }
+                    }
+                }
+                stage('Safety') {
+                    steps {
+                        sh '. venv/bin/activate && safety check -r requirements.txt --json > safety.json || true'
+                    }
+                }
+            }
+        }
+        
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh '''
+                        . venv/bin/activate
+                        sonar-scanner \
+                            -Dsonar.projectKey=wolloyewa-store-bot \
+                            -Dsonar.sources=. \
+                            -Dsonar.python.coverage.reportPaths=coverage.xml \
+                            -Dsonar.python.bandit.reportPaths=bandit.json
+                    '''
+                }
+            }
+        }
+        
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build("${env.DOCKER_IMAGE}:${env.DOCKER_TAG}", "--target production .")
+                }
+            }
+        }
+        
+        stage('Docker Security Scan') {
+            steps {
+                sh '''
+                    docker run --rm aquasec/trivy image \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 1 \
+                        ${DOCKER_IMAGE}:${DOCKER_TAG}
+                '''
+            }
+        }
+        
+        stage('Push to Registry') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    docker.withRegistry("https://${env.DOCKER_REGISTRY}", 'docker-hub-credentials') {
+                        docker.image("${env.DOCKER_IMAGE}:${env.DOCKER_TAG}").push()
+                        docker.image("${env.DOCKER_IMAGE}:${env.DOCKER_TAG}").push('latest')
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to Staging') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                sh '''
+                    kubectl set image deployment/wolloyewa-app \
+                        app=${DOCKER_IMAGE}:${DOCKER_TAG} \
+                        -n staging
+                    kubectl rollout status deployment/wolloyewa-app -n staging
+                '''
+            }
+        }
+        
+        stage('Smoke Tests') {
+            steps {
+                sh '''
+                    curl -f https://staging-api.wolloyewa.com/health
+                    curl -f https://staging.wolloyewa.com
+                '''
+            }
+        }
+        
+        stage('Deploy to Production') {
+            when {
+                branch 'main'
+            }
+            input {
+                message "Deploy to production?"
+                ok "Deploy"
+            }
+            steps {
+                sh '''
+                    kubectl set image deployment/wolloyewa-app \
+                        app=${DOCKER_IMAGE}:${DOCKER_TAG} \
+                        -n production
+                    kubectl rollout status deployment/wolloyewa-app -n production
+                '''
+            }
+        }
+        
+        stage('Post-Deployment Tests') {
+            steps {
+                sh '''
+                    # Run database migrations
+                    kubectl create job --from=cronjob/wolloyewa-migrate migrate-${BUILD_NUMBER} -n production
+                    
+                    # Health check
+                    sleep 30
+                    curl -f https://api.wolloyewa.com/health
+                    
+                    # Verify bot webhook
+                    curl -f https://api.wolloyewa.com/webhook/telegram/health
+                '''
+            }
+        }
+    }
+    
+    post {
+        success {
+            script {
+                def message = """
+                ✅ Pipeline Success!
+                Application: Wolloyewa Store Bot
+                Version: ${env.DOCKER_TAG}
+                Environment: ${env.BRANCH_NAME}
+                """
+                sendTelegram(message)
+            }
+        }
+        failure {
+            script {
+                def message = """
+                ❌ Pipeline Failed!
+                Application: Wolloyewa Store Bot
+                Stage: ${env.STAGE_NAME}
+                Build: ${env.BUILD_URL}
+                """
+                sendTelegram(message)
+            }
+        }
+        always {
+            cleanWs()
+        }
+    }
+}
+
+def sendTelegram(message) {
+    sh """
+        curl -s -X POST https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage \
+            -d chat_id=${ADMIN_CHAT_ID} \
+            -d text="${message}" \
+            -d parse_mode=Markdown
+    """
+}

@@ -5,13 +5,13 @@
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
+import asyncio
 
 from core.logger import logger
 from core.config import settings
 from apps.users.services import UserService
 from infrastructure.database.session import get_db_session
 from infrastructure.queues.task_deduplicator import deduplicate_task
-
 
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -174,9 +174,6 @@ async def broadcast_send_callback(update: Update, context: ContextTypes.DEFAULT_
     context.user_data.pop("awaiting_broadcast_message", None)
     context.user_data.pop("broadcast_message", None)
     context.user_data.pop("broadcast_type", None)
-
-
-import asyncio
 
 __all__ = [
     "broadcast_command",

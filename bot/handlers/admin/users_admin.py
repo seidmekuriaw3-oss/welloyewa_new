@@ -231,6 +231,14 @@ async def user_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     elif action == "admin_users_back":
         await users_admin_panel(update, context)
+        
+    elif action == "admin_approve_vendor":
+        await query.message.reply_text("✅ ሻጩን ለማጽደቅ እባክዎ የተጠቃሚ መታወቂያ (User ID) ይላኩ።")
+        context.user_data["admin_awaiting_vendor_approve"] = True
+
+    elif action == "admin_reject_vendor":
+        await query.message.reply_text("❌ ሻጩን ውድቅ ለማድረግ እባክዎ የተጠቃሚ መታወቂያ (User ID) ይላኩ።")
+        context.user_data["admin_awaiting_vendor_reject"] = True
 
 
 __all__ = [
