@@ -1,0 +1,289 @@
+# ============================
+# WOLLOYEWA STORE BOT - DOCKER COMPOSE CONFIGURATION
+# ============================
+# Version: 3.9
+# Services: PostgreSQL, Redis, Celery Worker, Flower, Nginx, Prometheus, Grafana
+
+version: '3.9'
+
+services:
+  # ============================
+  # PostgreSQL Database
+  # ============================
+  postgres:
+    image: postgres:15-alpine
+    container_name: wolloyewa_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-@99Nameallah}
+      POSTGRES_DB: ${POSTGRES_DB:-welloyewadb}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/backup.sh:/docker-entrypoint-initdb.d/backup.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-welloyewadb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wolloyewa_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================
+  # Redis Cache & Queue Broker
+  # ============================
+  redis:
+    image: redis:7-alpine
+    container_name: wolloyewa_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wolloyewa_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================
+  # Application API & Bot
+  # ============================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: wolloyewa_app
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DEBUG=${DEBUG:-True}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-@99Nameallah}@postgres:5432/${POSTGRES_DB:-welloyewadb}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ADMIN_IDS=${ADMIN_IDS}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+      - /app/__pycache__
+      - ./logs:/app/logs
+      - ./media:/app/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - wolloyewa_network
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================
+  # Celery Worker (Background Tasks)
+  # ============================
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: wolloyewa_celery
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-@99Nameallah}@postgres:5432/${POSTGRES_DB:-welloyewadb}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    volumes:
+      - ./:/app
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - wolloyewa_network
+    command: celery -A infrastructure.workers.celery_app worker --loglevel=info --concurrency=4
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================
+  # Celery Beat (Scheduled Tasks)
+  # ============================
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: wolloyewa_beat
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-@99Nameallah}@postgres:5432/${POSTGRES_DB:-welloyewadb}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+    volumes:
+      - ./:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - wolloyewa_network
+    command: celery -A infrastructure.workers.celery_app beat --loglevel=info
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================
+  # Flower (Celery Monitoring)
+  # ============================
+  flower:
+    image: mher/flower:2.0
+    container_name: wolloyewa_flower
+    restart: unless-stopped
+    environment:
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery_worker
+    networks:
+      - wolloyewa_network
+    command: celery --broker=redis://:${REDIS_PASSWORD:-}@redis:6379/0 flower --port=5555
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================
+  # Nginx Reverse Proxy
+  # ============================
+  nginx:
+    image: nginx:alpine
+    container_name: wolloyewa_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./devops/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./devops/nginx/ssl:/etc/nginx/ssl:ro
+      - ./bot/web_app/static:/var/www/static:ro
+      - ./media:/var/www/media:ro
+    depends_on:
+      - app
+    networks:
+      - wolloyewa_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================
+  # Prometheus (Metrics Collection)
+  # ============================
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: wolloyewa_prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./devops/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - wolloyewa_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================
+  # Grafana (Visualization)
+  # ============================
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: wolloyewa_grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./devops/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - wolloyewa_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ============================
+# Volumes
+# ============================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# ============================
+# Networks
+# ============================
+networks:
+  wolloyewa_network:
+    driver: bridge
+    name: wolloyewa_network

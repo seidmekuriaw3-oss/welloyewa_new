@@ -1,0 +1,374 @@
+# ============================
+# Python
+# ============================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+pythonenv*
+*.egg-info/
+*.egg
+dist/
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+.coverage.*
+.cover
+htmlcov/
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+prof/
+*.prof
+
+# ============================
+# Environment & Secrets
+# ============================
+.env
+.env.local
+.env.*.local
+.secrets
+.secrets.*
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+credentials.json
+service-account.json
+*_secret_key
+*_SECRET_KEY
+*_PASSWORD
+*_TOKEN
+.venv/
+.virtualenv/
+
+# ============================
+# IDE & Editors
+# ============================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.pydevproject
+.settings/
+*.sublime-*
+/.vscode/
+/.history/
+*.sublime-workspace
+
+# ============================
+# Database
+# ============================
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.pgsql
+*.bak
+*.backup
+*.sql.backup
+db_dump/
+postgres_data/
+pgdata/
+*.ldb
+
+# ============================
+# Redis
+# ============================
+dump.rdb
+appendonly.aof
+*.rdb
+*.aof
+
+# ============================
+# Logs
+# ============================
+logs/
+*.log
+*.logs
+*.out
+*.err
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+bot_errors.log
+api_errors.log
+payments.log
+audit.log
+security.log
+access.log
+*.log.*
+
+# ============================
+# Backups
+# ============================
+backups/
+*.backup
+*.bak
+*.old
+*.tmp
+temp/
+*.temp
+*.cache
+*.cached
+
+# ============================
+# Media & Uploads
+# ============================
+media/
+uploads/
+staticfiles/
+static_collected/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.mp4
+*.mp3
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+
+# ============================
+# Testing
+# ============================
+/.pytest_cache/
+/.coverage
+/.cover
+/htmlcov/
+/.tox/
+/.nox/
+/.hypothesis/
+*.cover
+.hypothesis/
+.pytest_cache/
+.coverage.*
+htmlcov/
+.tox/
+coverage.xml
+*.cover
+*.test.db
+test.db
+test_output/
+test_reports/
+junit.xml
+
+# ============================
+# Docker
+# ============================
+*.pid
+docker-compose.override.yml
+.dockerignore
+!docker-compose.yml
+docker-compose.*.yml
+!.dockerignore
+.docker/
+docker_data/
+volumes/
+
+# ============================
+# Kubernetes
+# ============================
+*.kubeconfig
+kubeconfig.yaml
+kubeconfig.yml
+.secret.yaml
+*.secret.yaml
+*.secret.yml
+secrets.yaml
+secrets.yml
+*.secrets
+k8s/secrets/
+
+# ============================
+# Terraform
+# ============================
+*.tfstate
+*.tfstate.*
+.terraform/
+terraform.tfvars
+terraform.tfvars.*
+*.tfplan
+*.tfvars
+override.tf
+override.tf.json
+*.override.tf
+*.override.tf.json
+.terraform.lock.hcl
+crash.log
+crash.*.log
+
+# ============================
+# CI/CD
+# ============================
+.env.ci
+.secrets.ci
+.ci/
+!.github/workflows/
+!.gitlab-ci.yml
+!.jenkins/
+!.circleci/
+
+# ============================
+# Monitoring
+# ============================
+prometheus_data/
+grafana_data/
+alertmanager_data/
+*.prom
+*.grafana
+data/
+*.metrics.db
+*.tsdb
+
+# ============================
+# Celery
+# ============================
+celerybeat-schedule
+celerybeat.pid
+celerybeat-schedule.db
+*.pid
+
+# ============================
+# Jupyter
+# ============================
+.ipynb_checkpoints/
+*.ipynb
+*.pynb
+notebooks/
+
+# ============================
+# OS generated files
+# ============================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.bak
+*.orig
+*.swp
+*.swo
+*~
+
+# ============================
+# Project Specific
+# ============================
+wolloyewa.egg-info/
+*.wolloyewa
+session_data/
+message_media/
+.bot_data/
+*.bot_cache
+web_app/static/css/*.css
+web_app/static/js/*.js
+!web_app/static/css/main.css
+!web_app/static/js/main.js
+*.min.css
+*.min.js
+*.bundle.js
+*.chunk.js
+
+# ============================
+# SSL Certificates (local)
+# ============================
+devops/nginx/ssl/*.crt
+devops/nginx/ssl/*.key
+devops/nginx/ssl/*.pem
+devops/nginx/ssl/*.p12
+*.csr
+
+# ============================
+# Temporary Files
+# ============================
+*.tmp
+*.temp
+*.cache
+*.cached
+*.swp
+*.swo
+*~
+~$*
+.~lock.*
+tmp_*
+temp_*
+*.lock
+*.lock.*
+*.lck
+
+# ============================
+# Reports
+# ============================
+reports/
+*.html
+*.pdf
+*.xlsx
+*.docx
+output/
+exports/
+generated/
+
+# ============================
+# Local development
+# ============================
+local_settings.py
+local.py
+dev.local.py
+config.local.py
+*.local.py
+*.dev.py
+*.staging.py
+*.prod.py
+!*.example.py
+
+# ============================
+# Debug files
+# ============================
+debug/
+debug.log
+debug.py
+dump.rdb
+heap.dump
+*.heapsnapshot
+*.heapprofile
+v8.log
+*.cpuprofile

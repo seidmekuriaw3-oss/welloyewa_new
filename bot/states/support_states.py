@@ -1,0 +1,73 @@
+# ============================
+# WOLLOYEWA STORE BOT - SUPPORT STATES
+# ============================
+"""Conversation states for customer support."""
+
+from enum import IntEnum
+
+
+class SupportStates(IntEnum):
+    """Support conversation states."""
+    
+    # Ticket creation states
+    AWAITING_TICKET_SUBJECT = 1
+    AWAITING_TICKET_CATEGORY = 2
+    AWAITING_TICKET_MESSAGE = 3
+    AWAITING_TICKET_ATTACHMENT = 4
+    
+    # Ticket viewing states
+    VIEWING_TICKET = 5
+    VIEWING_TICKET_LIST = 6
+    
+    # Ticket reply states
+    AWAITING_REPLY_MESSAGE = 7
+    AWAITING_REPLY_ATTACHMENT = 8
+    
+    # FAQ states
+    VIEWING_FAQ = 9
+    SEARCHING_FAQ = 10
+    FAQ_CATEGORY = 11
+    
+    # Feedback states
+    AWAITING_FEEDBACK_RATING = 12
+    AWAITING_FEEDBACK_MESSAGE = 13
+    
+    # Chatbot states
+    CHATBOT_SESSION = 14
+
+
+# State constants for easier imports
+AWAITING_TICKET_SUBJECT = SupportStates.AWAITING_TICKET_SUBJECT
+AWAITING_TICKET_MESSAGE = SupportStates.AWAITING_TICKET_MESSAGE
+AWAITING_TICKET_CATEGORY = SupportStates.AWAITING_TICKET_CATEGORY
+
+# Support states dictionary
+SUPPORT_STATES = {
+    "ticket": [
+        AWAITING_TICKET_SUBJECT,
+        AWAITING_TICKET_CATEGORY,
+        AWAITING_TICKET_MESSAGE,
+        AWAITING_TICKET_ATTACHMENT,
+    ],
+    "reply": [
+        AWAITING_REPLY_MESSAGE,
+        AWAITING_REPLY_ATTACHMENT,
+    ],
+    "faq": [
+        VIEWING_FAQ,
+        SEARCHING_FAQ,
+        FAQ_CATEGORY,
+    ],
+    "feedback": [
+        AWAITING_FEEDBACK_RATING,
+        AWAITING_FEEDBACK_MESSAGE,
+    ],
+}
+
+__all__ = [
+    "SupportStates",
+    "AWAITING_TICKET_SUBJECT",
+    "AWAITING_TICKET_MESSAGE",
+    "AWAITING_TICKET_CATEGORY",
+    "SUPPORT_STATES",
+]

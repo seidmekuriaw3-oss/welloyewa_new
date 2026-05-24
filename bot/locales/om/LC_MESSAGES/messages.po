@@ -1,0 +1,197 @@
+# ============================
+# WOLLOYEWA STORE BOT - OROMO TRANSLATION
+# ============================
+# Oromo translations for Wolloyewa Store Bot
+# Copyright (C) 2024 Wolloyewa Technologies PLC
+# This file is distributed under the same license as the Wolloyewa project.
+# 
+# Translator: Wolloyewa Team <translations@wolloyewa.com>
+
+msgid ""
+msgstr ""
+"Project-Id-Version: Wolloyewa Store Bot 1.0.0\n"
+"Report-Msgid-Bugs-To: support@wolloyewa.com\n"
+"POT-Creation-Date: 2024-01-01 00:00+0000\n"
+"PO-Revision-Date: 2024-01-01 00:00+0000\n"
+"Last-Translator: Wolloyewa Team <translations@wolloyewa.com>\n"
+"Language-Team: Oromo <om@li.org>\n"
+"Language: om\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+# ============================
+# Welcome and Greeting Messages
+# ============================
+
+msgid "welcome_message"
+msgstr "🌟 Baga nagaan dhufte Wolloyewa Store! Itoophiyaa keessatti first modern e-commerce Telegram bot."
+
+msgid "welcome_back_message"
+msgstr "👋 Baga nagaan deebite! Maalitti gargaaruu danda'uu?"
+
+msgid "help_message"
+msgstr "📖 Bot Gargaarsa\n\n/start - Bot eegaluuf\n/menu - Menu guddaa argachuuf\n/search - Urjii barbaaduuf\n/cart - Gaatarii keessan argachuuf\n/checkout - Bittaa xumuruuf\n/profile - Buufata keessan argachuuf\n/orders - Ajaja keessan hordofuuf\n/feedback - Yaada keessan erguuf"
+
+# ============================
+# Product Messages
+# ============================
+
+msgid "product_list_title"
+msgstr "📦 Urjiiwwan"
+
+msgid "product_detail_title"
+msgstr "📦 Ibsa Urji"
+
+msgid "product_not_found"
+msgstr "❌ Urjiin hin argamne."
+
+msgid "product_added_to_cart"
+msgstr "✅ Urjiin gaatarii keessatti dabale!"
+
+msgid "product_removed_from_cart"
+msgstr "🗑️ Urjiin gaatarii keessaa balleeffame!"
+
+msgid "out_of_stock"
+msgstr "❌ Handhuura hin jiru"
+
+msgid "in_stock"
+msgstr "✅ Handhuura jira"
+
+msgid "low_stock"
+msgstr "⚠️ Handhuura xiqqaa hafe"
+
+# ============================
+# Cart Messages
+# ============================
+
+msgid "cart_empty"
+msgstr "🛒 Gaatarii keessan duwwa!"
+
+msgid "cart_title"
+msgstr "🛒 Gaatarii Bittaa"
+
+msgid "cart_subtotal"
+msgstr "💰 Waligala xiqqaa"
+
+msgid "cart_total"
+msgstr "💎 Waligala"
+
+msgid "cart_updated"
+msgstr "✅ Gaatariin keessan haarome"
+
+msgid "cart_cleared"
+msgstr "🗑️ Gaatariin keessan haqame"
+
+# ============================
+# Order Messages
+# ============================
+
+msgid "order_created"
+msgstr "✅ Ajajni keessan uumame!"
+
+msgid "order_confirmed"
+msgstr "✅ Ajajni keessan mirkanaa'e!"
+
+msgid "order_shipped"
+msgstr "🚚 Ajajni keessan ergame!"
+
+msgid "order_delivered"
+msgstr "📦✅ Ajajni keessan ga'e!"
+
+msgid "order_cancelled"
+msgstr "❌ Ajajni keessan haqame"
+
+msgid "order_status_pending"
+msgstr "⏳ Eegamaa jira"
+
+msgid "order_status_processing"
+msgstr "🔄 Hojiirraa jira"
+
+msgid "order_status_completed"
+msgstr "✅ Xumurame"
+
+# ============================
+# Payment Messages
+# ============================
+
+msgid "payment_success"
+msgstr "✅ Kaffaltiin keessan milkaa'e!"
+
+msgid "payment_failed"
+msgstr "❌ Kaffaltiin hin milkaa'ine. Mee irra deebi'aa yaali"
+
+msgid "payment_processing"
+msgstr "⏳ Kaffaltiin keessan hojiirraa jira..."
+
+msgid "payment_method_selected"
+msgstr "✅ Karaan kaffaltii filatame"
+
+# ============================
+# Error Messages
+# ============================
+
+msgid "error_general"
+msgstr "❌ Dogoggorri hin eegamne ta'ee jira. Mee booda deebi'aa yaali."
+
+msgid "error_network"
+msgstr "🌌 Rakkoon internetii. Mee quunnamtii keessan ilaalaa."
+
+msgid "error_authentication"
+msgstr "🔒 Mee irra deebi'aa seendaa."
+
+msgid "error_permission"
+msgstr "🚫 Toleen kun hojjechuuf hayyamann hin qabaattan."
+
+msgid "error_not_found"
+msgstr "🔍 Wantoonni barbaaddan hin argamne."
+
+# ============================
+# Button Labels
+# ============================
+
+msgid "btn_back"
+msgstr "🔙 Duuba"
+
+msgid "btn_next"
+msgstr "Itti aansaa ▶️"
+
+msgid "btn_confirm"
+msgstr "✅ Mirkaneessi"
+
+msgid "btn_cancel"
+msgstr "❌ Haqui"
+
+msgid "btn_save"
+msgstr "💾 Kuusi"
+
+msgid "btn_delete"
+msgstr "🗑️ Haqi"
+
+msgid "btn_edit"
+msgstr "✏️ Gulaali"
+
+msgid "btn_search"
+msgstr "🔍 Barbaadi"
+
+msgid "btn_add_to_cart"
+msgstr "🛒 Gaatariitti dabali"
+
+msgid "btn_checkout"
+msgstr "✅ Bittaa xumuri"
+
+msgid "btn_view_order"
+msgstr "📋 Ajaja ilaali"
+
+msgid "btn_track_order"
+msgstr "📍 Ajaja hordofi"
+
+msgid "btn_contact_support"
+msgstr "💬 Gargaarsa quunnami"
+
+# ============================
+# Category Messages
+# ============================
+
+msg

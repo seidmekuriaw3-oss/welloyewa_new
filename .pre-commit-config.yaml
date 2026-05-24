@@ -1,0 +1,299 @@
+# ============================
+# Pre-commit Configuration for Wolloyewa Store Bot
+# ============================
+# Install: pre-commit install
+# Run all: pre-commit run --all-files
+# Update: pre-commit autoupdate
+
+repos:
+  # ============================
+  # General hooks
+  # ============================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        name: Remove trailing whitespace
+        description: Trim trailing whitespace from files
+        entry: trailing-whitespace-fixer
+        language: python
+        types: [text]
+        stages: [pre-commit, pre-push]
+        
+      - id: end-of-file-fixer
+        name: Fix end of files
+        description: Ensure files end with a newline character
+        entry: end-of-file-fixer
+        language: python
+        types: [text]
+        stages: [pre-commit, pre-push]
+        
+      - id: check-yaml
+        name: Check YAML syntax
+        description: Validate YAML file syntax
+        entry: check-yaml
+        language: python
+        types: [yaml]
+        args: ['--unsafe']
+        
+      - id: check-json
+        name: Check JSON syntax
+        description: Validate JSON file syntax
+        entry: check-json
+        language: python
+        types: [json]
+        
+      - id: check-toml
+        name: Check TOML syntax
+        description: Validate TOML file syntax
+        entry: check-toml
+        language: python
+        types: [toml]
+        
+      - id: check-merge-conflict
+        name: Check merge conflicts
+        description: Check for unresolved merge conflicts
+        entry: check-merge-conflict
+        language: python
+        types: [text]
+        
+      - id: check-added-large-files
+        name: Check large files
+        description: Prevent committing large files
+        entry: check-added-large-files
+        language: python
+        args: ['--maxkb=1000']
+        
+      - id: detect-private-key
+        name: Detect private keys
+        description: Detect accidental private key commits
+        entry: detect-private-key
+        language: python
+        types: [text]
+        
+      - id: fix-encoding-pragma
+        name: Fix encoding pragma
+        description: Remove encoding pragmas (Python 3)
+        entry: fix-encoding-pragma
+        language: python
+        args: ['--remove']
+        
+      - id: mixed-line-ending
+        name: Fix line endings
+        description: Normalize line endings to LF
+        entry: mixed-line-ending
+        language: python
+        args: ['--fix=lf']
+
+  # ============================
+  # Python code formatting
+  # ============================
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        name: Black code formatter
+        description: Format Python code with Black
+        language: python
+        types: [python]
+        args: ['--line-length=100']
+        
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: ISort import sorter
+        description: Sort Python imports
+        language: python
+        types: [python]
+        args: ['--profile=black', '--line-length=100']
+
+  # ============================
+  # Python linting
+  # ============================
+  - repo: https://github.com/astral-sh/ruff
+    rev: v0.1.11
+    hooks:
+      - id: ruff
+        name: Ruff linter
+        description: Fast Python linter
+        language: python
+        types: [python]
+        args: ['--fix', '--exit-non-zero-on-fix']
+        
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        name: Flake8 linter
+        description: Python style guide enforcement
+        language: python
+        types: [python]
+        args: ['--max-line-length=100', '--extend-ignore=E203,W503']
+        additional_dependencies: [
+          'flake8-bugbear',
+          'flake8-comprehensions',
+          'flake8-docstrings',
+          'flake8-simplify',
+          'pep8-naming'
+        ]
+
+  # ============================
+  # Type checking
+  # ============================
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        name: MyPy type checker
+        description: Static type checking for Python
+        language: python
+        types: [python]
+        args: ['--ignore-missing-imports', '--follow-imports=silent', '--show-error-codes']
+        additional_dependencies: [
+          'types-requests',
+          'types-redis',
+          'types-python-dateutil',
+          'types-PyYAML',
+          'sqlalchemy2-stubs'
+        ]
+        pass_filenames: true
+
+  # ============================
+  # Security scanning
+  # ============================
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        name: Detect secrets
+        description: Detect secrets in code
+        language: python
+        types: [text]
+        args: ['--baseline', '.secrets.baseline']
+        
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        name: Bandit security linter
+        description: Find common security issues
+        language: python
+        types: [python]
+        args: ['-c', 'pyproject.toml', '-r', '.']
+        additional_dependencies: ['bandit[toml]']
+
+  # ============================
+  # Secret scanning
+  # ============================
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.1
+    hooks:
+      - id: gitleaks
+        name: Gitleaks secret scanner
+        description: Scan for hardcoded secrets
+        language: docker
+        entry: ghcr.io/gitleaks/gitleaks:latest
+        args: ['detect', '--verbose', '--redact']
+
+  # ============================
+  # Dockerfile linting
+  # ============================
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint
+        name: Hadolint Dockerfile linter
+        description: Dockerfile best practices
+        language: docker
+        types: ['dockerfile']
+        entry: hadolint/hadolint:v2.12.0
+        args: ['--ignore', 'DL3008', '--ignore', 'DL3013']
+
+  # ============================
+  # YAML formatting
+  # ============================
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.33.0
+    hooks:
+      - id: yamllint
+        name: YAML linter
+        description: YAML file validation
+        language: python
+        types: [yaml]
+        args: ['-d', '{extends: relaxed, rules: {line-length: disable}}']
+
+  # ============================
+  # Markdown linting
+  # ============================
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.38.0
+    hooks:
+      - id: markdownlint
+        name: Markdown linter
+        description: Markdown style guide
+        language: node
+        types: [markdown]
+        args: ['--fix', '--disable', 'MD013', 'MD033']
+
+  # ============================
+  # Shell script formatting
+  # ============================
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.9.0.6
+    hooks:
+      - id: shellcheck
+        name: ShellCheck
+        description: Shell script static analysis
+        language: python
+        types: [shell]
+        args: ['--severity=warning']
+
+  # ============================
+  # Database migration checks
+  # ============================
+  - repo: local
+    hooks:
+      - id: check-migrations
+        name: Check Alembic migrations
+        description: Ensure migrations are up to date
+        language: system
+        entry: python -c "from alembic.config import Config; from alembic import command; command.check(Config('alembic.ini'))"
+        files: ^(apps/.*/models\.py|alembic/versions/.*\.py)$
+        stages: [pre-push]
+        pass_filenames: false
+        
+      - id: no-debug-statements
+        name: No debug statements
+        description: Check for debugger statements
+        language: pygrep
+        entry: '(pdb\.set_trace|breakpoint\(\)|import ipdb|IPython\.embed)'
+        types: [python]
+        exclude: ^tests/
+
+  # ============================
+  # Commit message formatting
+  # ============================
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.0.0
+    hooks:
+      - id: conventional-pre-commit
+        name: Conventional commit format
+        description: Validate commit messages
+        stages: [commit-msg]
+        args: [
+          'feat', 'fix', 'docs', 'style', 'refactor', 
+          'perf', 'test', 'build', 'ci', 'chore', 'revert'
+        ]
+
+# ============================
+# Global settings
+# ============================
+default_language_version:
+  python: python3.11
+  
+default_stages: [pre-commit]
+
+fail_fast: false
+
+minimum_pre_commit_version: '3.0.0'

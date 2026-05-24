@@ -1,0 +1,237 @@
+# ============================
+# WOLLOYEWA STORE BOT - DEVELOPMENT DOCKERFILE
+# ============================
+# Optimized for local development with hot-reload and debugging tools
+
+FROM python:3.11-slim as dev
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies for development
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Build tools
+    gcc \
+    g++ \
+    make \
+    # Database clients
+    libpq-dev \
+    postgresql-client \
+    # Redis client
+    redis-tools \
+    # Image processing
+    libjpeg-dev \
+    zlib1g-dev \
+    libpng-dev \
+    libwebp-dev \
+    # PDF & Document processing
+    libxml2-dev \
+    libxslt-dev \
+    # System tools
+    curl \
+    wget \
+    git \
+    vim \
+    nano \
+    htop \
+    # Networking
+    netcat-openbsd \
+    dnsutils \
+    # Security tools for testing
+    nmap \
+    # Debugging tools
+    gdb \
+    strace \
+    # Shell utilities
+    bash-completion \
+    tree \
+    jq \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Install development Python packages globally
+RUN pip install --upgrade pip && \
+    pip install \
+    # Debugging
+    debugpy \
+    ipython \
+    ipdb \
+    # Testing
+    pytest \
+    pytest-asyncio \
+    pytest-cov \
+    pytest-mock \
+    # Code quality
+    black \
+    isort \
+    ruff \
+    flake8 \
+    mypy \
+    # Development tools
+    watchdog \
+    pre-commit \
+    # Monitoring
+    prometheus-client \
+    # Utils
+    ipython \
+    jupyter \
+    # Database tools
+    pgcli \
+    mycli \
+    # HTTP client
+    httpie
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt requirements-dev.txt ./
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements-dev.txt
+
+# Copy the entire project
+COPY . .
+
+# Create necessary directories with proper permissions
+RUN mkdir -p logs media static backups test_reports coverage_html && \
+    chmod -R 755 logs media static backups
+
+# Create a non-root user for development
+RUN addgroup --system --gid 1000 devgroup && \
+    adduser --system --uid 1000 --gid 1000 devuser && \
+    chown -R devuser:devgroup /app
+
+# Switch to non-root user
+USER devuser
+
+# Expose ports for development
+EXPOSE 8000  # API
+EXPOSE 5678  # Debugpy
+EXPOSE 8888  # Jupyter
+EXPOSE 5555  # Flower
+
+# Set entrypoint
+ENTRYPOINT ["/app/scripts/entrypoint.sh"]
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Default command for development
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--log-level", "debug"]
+
+# ============================
+# Development with Hot Reload
+# ============================
+FROM dev as hot-reload
+
+# Install watchfiles for hot reload
+RUN pip install watchfiles
+
+# Override command with watchfiles
+CMD ["watchfiles", "uvicorn main:app --host 0.0.0.0 --port 8000 --reload", "/app"]
+
+# ============================
+# Development with Test Environment
+# ============================
+FROM dev as test
+
+# Set test environment variables
+ENV ENVIRONMENT=testing \
+    DEBUG=True \
+    DATABASE_URL=postgresql://test_user:test_pass@test_postgres:5432/test_db \
+    REDIS_URL=redis://test_redis:6379/0
+
+# Run tests by default
+CMD ["pytest", "-v", "--cov=.", "--cov-report=html", "--cov-report=term", "--tb=short"]
+
+# ============================
+# Development with Profiling
+# ============================
+FROM dev as profiling
+
+# Install profiling tools
+RUN pip install \
+    line-profiler \
+    memory-profiler \
+    snakeviz \
+    py-spy
+
+# Expose profiling ports
+EXPOSE 8080  # snakeviz
+
+# Default command with profiling
+CMD ["python", "-m", "cProfile", "-o", "/app/profiles/main.prof", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# ============================
+# Development with Jupyter Notebook
+# ============================
+FROM dev as jupyter
+
+# Install Jupyter
+RUN pip install jupyter notebook
+
+# Expose Jupyter port
+EXPOSE 8888
+
+# Set working directory for notebooks
+WORKDIR /app/notebooks
+
+# Create notebooks directory
+RUN mkdir -p /app/notebooks
+
+# Default command for Jupyter
+CMD ["jupyter", "notebook", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''", "--NotebookApp.password=''"]
+
+# ============================
+# Development with Database Tools
+# ============================
+FROM dev as db-tools
+
+# Install database migration tools
+RUN pip install alembic sqlalchemy
+
+# Copy database scripts
+COPY scripts/ /app/scripts/
+
+# Make scripts executable
+RUN chmod +x /app/scripts/*.sh
+
+# Create alias for database commands
+RUN echo 'alias migrate="alembic upgrade head"' >> ~/.bashrc && \
+    echo 'alias makemigrations="alembic revision --autogenerate"' >> ~/.bashrc
+
+# Default command for database tools
+CMD ["/bin/bash"]
+
+# ============================
+# Development with All Services
+# ============================
+FROM dev as full
+
+# Install additional service dependencies
+RUN pip install \
+    flower \
+    celery[redis] \
+    uvicorn[standard]
+
+# Expose all ports
+EXPOSE 8000 5678 8888 5555 8080
+
+# Default command with all services
+CMD ["/bin/bash", "-c", "uvicorn main:app --host 0.0.0.0 --port 8000 --reload & celery -A infrastructure.workers.celery_app worker --loglevel=debug --concurrency=2 & wait"]
+
+# ============================
+# LABELS
+# ============================
+LABEL maintainer="Wolloyewa Team" \
+      version="1.0.0-dev" \
+      description="Wolloyewa Store Bot - Development Environment" \
+      environment="development" \
+      com.docker.compose.project="wolloyewa-dev"

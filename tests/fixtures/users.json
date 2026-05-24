@@ -1,0 +1,158 @@
+{
+  "users": [
+    {
+      "telegram_id": 123456789,
+      "username": "testuser1",
+      "first_name": "Test",
+      "last_name": "User One",
+      "phone_number": "0912345678",
+      "email": "test1@example.com",
+      "role": "customer",
+      "status": "active",
+      "language": "am",
+      "is_verified": true
+    },
+    {
+      "telegram_id": 987654321,
+      "username": "testuser2",
+      "first_name": "Test",
+      "last_name": "User Two",
+      "phone_number": "0987654321",
+      "email": "test2@example.com",
+      "role": "customer",
+      "status": "active",
+      "language": "en",
+      "is_verified": true
+    },
+    {
+      "telegram_id": 555555555,
+      "username": "vendor_user",
+      "first_name": "Vendor",
+      "last_name": "User",
+      "phone_number": "0911223344",
+      "email": "vendor@example.com",
+      "role": "vendor",
+      "status": "active",
+      "language": "am",
+      "is_verified": true
+    },
+    {
+      "telegram_id": 5848843259,
+      "username": "admin_user",
+      "first_name": "Admin",
+      "last_name": "User",
+      "phone_number": "0912345680",
+      "email": "admin@wolloyewa.com",
+      "role": "admin",
+      "status": "active",
+      "language": "am",
+      "is_verified": true
+    },
+    {
+      "telegram_id": 111111111,
+      "username": "inactive_user",
+      "first_name": "Inactive",
+      "last_name": "User",
+      "phone_number": "0911111111",
+      "email": "inactive@example.com",
+      "role": "customer",
+      "status": "inactive",
+      "language": "am",
+      "is_verified": false
+    },
+    {
+      "telegram_id": 222222222,
+      "username": "suspended_user",
+      "first_name": "Suspended",
+      "last_name": "User",
+      "phone_number": "0922222222",
+      "email": "suspended@example.com",
+      "role": "customer",
+      "status": "suspended",
+      "language": "am",
+      "is_verified": true
+    },
+    {
+      "telegram_id": 333333333,
+      "username": "new_user",
+      "first_name": "New",
+      "last_name": "User",
+      "phone_number": "0933333333",
+      "email": "new@example.com",
+      "role": "customer",
+      "status": "active",
+      "language": "en",
+      "is_verified": false
+    }
+  ],
+  "vendors": [
+    {
+      "user_id": 555555555,
+      "business_name": "Test Vendor Store",
+      "business_license": "LIC123456",
+      "tin_number": "1234567890",
+      "business_address": "123 Vendor St, Addis Ababa",
+      "business_phone": "0911223344",
+      "business_email": "vendor@example.com",
+      "is_approved": true,
+      "rating": 4.5,
+      "total_sales": 150
+    },
+    {
+      "user_id": 666666666,
+      "business_name": "Pending Vendor",
+      "business_license": "LIC789012",
+      "tin_number": "0987654321",
+      "business_address": "456 Pending St, Addis Ababa",
+      "business_phone": "0944444444",
+      "business_email": "pending@example.com",
+      "is_approved": false,
+      "rating": 0,
+      "total_sales": 0
+    }
+  ],
+  "addresses": [
+    {
+      "user_id": 123456789,
+      "address_line1": "123 Main St",
+      "city": "Addis Ababa",
+      "subcity": "Bole",
+      "woreda": "03",
+      "recipient_name": "Test User One",
+      "recipient_phone": "0912345678",
+      "is_default": true,
+      "address_type": "home"
+    },
+    {
+      "user_id": 987654321,
+      "address_line1": "456 Work St",
+      "city": "Addis Ababa",
+      "subcity": "Kirkos",
+      "woreda": "05",
+      "recipient_name": "Test User Two",
+      "recipient_phone": "0987654321",
+      "is_default": true,
+      "address_type": "work"
+    }
+  ],
+  "preferences": [
+    {
+      "user_id": 123456789,
+      "email_notifications": true,
+      "sms_notifications": true,
+      "push_notifications": true,
+      "marketing_emails": false,
+      "language": "am",
+      "currency": "ETB"
+    },
+    {
+      "user_id": 987654321,
+      "email_notifications": true,
+      "sms_notifications": false,
+      "push_notifications": true,
+      "marketing_emails": true,
+      "language": "en",
+      "currency": "ETB"
+    }
+  ]
+}

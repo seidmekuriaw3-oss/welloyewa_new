@@ -1,0 +1,56 @@
+# ============================
+# WOLLOYEWA STORE BOT - AUTH STATES
+# ============================
+"""Conversation states for user authentication."""
+
+from enum import IntEnum
+
+
+class AuthStates(IntEnum):
+    """Authentication conversation states."""
+    
+    # Registration states
+    AWAITING_PHONE = 1
+    AWAITING_OTP = 2
+    AWAITING_EMAIL = 3
+    AWAITING_NAME = 4
+    
+    # Login states
+    AWAITING_LOGIN_PHONE = 5
+    AWAITING_LOGIN_OTP = 6
+    
+    # Password reset states
+    AWAITING_RESET_PHONE = 7
+    AWAITING_RESET_OTP = 8
+    AWAITING_NEW_PASSWORD = 9
+    AWAITING_CONFIRM_PASSWORD = 10
+    
+    # Profile update states
+    AWAITING_NEW_PHONE = 11
+    AWAITING_PHONE_OTP = 12
+    AWAITING_NEW_EMAIL = 13
+    AWAITING_EMAIL_OTP = 14
+
+
+# State constants for easier imports
+AWAITING_PHONE = AuthStates.AWAITING_PHONE
+AWAITING_OTP = AuthStates.AWAITING_OTP
+AWAITING_EMAIL = AuthStates.AWAITING_EMAIL
+AWAITING_NAME = AuthStates.AWAITING_NAME
+
+# Authentication states dictionary
+AUTH_STATES = {
+    "register": [AWAITING_PHONE, AWAITING_OTP, AWAITING_EMAIL, AWAITING_NAME],
+    "login": [AWAITING_LOGIN_PHONE, AWAITING_LOGIN_OTP],
+    "reset": [AWAITING_RESET_PHONE, AWAITING_RESET_OTP, AWAITING_NEW_PASSWORD, AWAITING_CONFIRM_PASSWORD],
+    "update": [AWAITING_NEW_PHONE, AWAITING_PHONE_OTP, AWAITING_NEW_EMAIL, AWAITING_EMAIL_OTP],
+}
+
+__all__ = [
+    "AuthStates",
+    "AWAITING_PHONE",
+    "AWAITING_OTP",
+    "AWAITING_EMAIL",
+    "AWAITING_NAME",
+    "AUTH_STATES",
+]
