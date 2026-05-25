@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = Field(default="welloyewadb")
     POSTGRES_HOST: str = Field(default="localhost")
     POSTGRES_PORT: int = Field(default=5432)
-    DATABASE_URL: Optional[PostgresDsn] = None
+    DATABASE_URL: Optional[str] = None
     DATABASE_POOL_SIZE: int = Field(default=20)
     DATABASE_MAX_OVERFLOW: int = Field(default=40)
     DATABASE_POOL_TIMEOUT: int = Field(default=30)
@@ -62,9 +62,14 @@ class Settings(BaseSettings):
     def build_database_url(cls, v: Optional[str], info) -> str:
         """Build database URL from individual components if not provided."""
         if v:
-            return v
+            url = str(v)
+            if url.startswith("postgresql://"):
+                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            elif url.startswith("postgres://"):
+                url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+            return url
         data = info.data
-        return f"postgresql://{data.get('POSTGRES_USER')}:{data.get('POSTGRES_PASSWORD')}@{data.get('POSTGRES_HOST')}:{data.get('POSTGRES_PORT')}/{data.get('POSTGRES_DB')}"
+        return f"postgresql+asyncpg://{data.get('POSTGRES_USER')}:{data.get('POSTGRES_PASSWORD')}@{data.get('POSTGRES_HOST')}:{data.get('POSTGRES_PORT')}/{data.get('POSTGRES_DB')}"
     
     # ============================
     # Redis
@@ -73,7 +78,7 @@ class Settings(BaseSettings):
     REDIS_PORT: int = Field(default=6379)
     REDIS_PASSWORD: Optional[str] = Field(default=None)
     REDIS_DB: int = Field(default=0)
-    REDIS_URL: Optional[RedisDsn] = None
+    REDIS_URL: Optional[str] = None
     REDIS_CACHE_TTL: int = Field(default=3600)
     REDIS_SESSION_TTL: int = Field(default=86400)
     
@@ -211,9 +216,10 @@ class Settings(BaseSettings):
     def build_celery_urls(cls, v: Optional[str], info) -> str:
         """Build Celery URLs from Redis URL if not provided."""
         if v:
-            return v
+            return str(v)
         data = info.data
-        return data.get("REDIS_URL", "redis://localhost:6379/0")
+        redis_url = data.get("REDIS_URL", "redis://localhost:6379/0")
+        return str(redis_url)
     
     # ============================
     # Logging

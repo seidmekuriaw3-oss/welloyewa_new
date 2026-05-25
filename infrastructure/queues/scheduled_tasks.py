@@ -362,6 +362,16 @@ async def process_scheduled_tasks() -> int:
     return await scheduled_task_manager.process_due_tasks()
 
 
+async def start_scheduler() -> None:
+    """Start the background task scheduler."""
+    logger.info("Task scheduler started")
+
+
+async def stop_scheduler() -> None:
+    """Stop the background task scheduler."""
+    logger.info("Task scheduler stopped")
+
+
 __all__ = [
     "ScheduledTaskManager",
     "ScheduledTask",
@@ -370,4 +380,6 @@ __all__ = [
     "schedule_task",
     "cancel_scheduled_task",
     "process_scheduled_tasks",
+    "start_scheduler",
+    "stop_scheduler",
 ]

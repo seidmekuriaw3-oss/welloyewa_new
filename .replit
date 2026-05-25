@@ -1,0 +1,52 @@
+modules = ["python-3.11", "bash"]
+[agent]
+expertMode = true
+stack = "BEST_EFFORT_FALLBACK"
+
+[nix]
+channel = "stable-25_05"
+packages = ["cargo", "file", "fontconfig", "ghostscript", "glib", "glibcLocales", "gmp", "harfbuzz", "libGL", "libGLU", "libiconv", "libxcrypt", "libyaml", "openssl", "pango", "pkg-config", "postgresql", "rustc", "xsimd"]
+
+[userenv]
+
+[userenv.shared]
+ENVIRONMENT = "development"
+DEBUG = "True"
+PORT = "5000"
+HOST = "0.0.0.0"
+LOG_LEVEL = "INFO"
+LOG_FORMAT = "json"
+REDIS_HOST = "localhost"
+REDIS_PORT = "6379"
+REDIS_DB = "0"
+ENABLE_WEB_APP = "True"
+CORS_ALLOWED_ORIGINS = "[\"*\"]"
+STORAGE_PROVIDER = "local"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python3 main.py"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[ports]]
+localPort = 5000
+externalPort = 80

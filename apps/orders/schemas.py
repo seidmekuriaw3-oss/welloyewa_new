@@ -148,7 +148,7 @@ class OrderTrackRequest(BaseSchema):
     email: Optional[str] = Field(None, description="Customer email")
     phone: Optional[str] = Field(None, description="Customer phone number")
     
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def validate_contact(cls, values):
         if not values.get('email') and not values.get('phone'):
             raise ValueError('Either email or phone is required')

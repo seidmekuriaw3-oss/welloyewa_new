@@ -4,7 +4,7 @@
 """Pydantic schemas for inventory request/response validation."""
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from decimal import Decimal
 from pydantic import Field, validator
 

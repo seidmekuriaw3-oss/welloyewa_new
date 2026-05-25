@@ -232,7 +232,8 @@ async def check_database() -> tuple:
         
         async for session in get_db_session():
             # Execute a simple query
-            result = await session.execute("SELECT 1")
+            from sqlalchemy import text
+            result = await session.execute(text("SELECT 1"))
             await session.close()
             return True, "Database connected", {"type": "postgresql"}
     except Exception as e:
@@ -316,7 +317,7 @@ async def check_telegram_bot() -> tuple:
     try:
         from bot.bot_instance import get_bot
         
-        bot = await get_bot()
+        bot = get_bot()
         me = await bot.get_me()
         return True, f"Bot connected: @{me.username}", {
             "bot_id": me.id,

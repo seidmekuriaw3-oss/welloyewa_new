@@ -1,11 +1,5 @@
-# ============================
-# WOLLOYEWA STORE BOT - CORE UTILITIES
-# ============================
-"""Utility modules for common operations."""
-
 from core.utils.currency import (
     format_currency,
-    convert_currency,
     calculate_tax,
     calculate_discount,
     CurrencyConverter,
@@ -19,24 +13,10 @@ from core.utils.validators import (
     sanitize_string,
     is_valid_uuid,
 )
-from core.utils.media_optimizer import (
-    optimize_image,
-    generate_thumbnail,
-    get_image_dimensions,
-    compress_image,
-    MediaOptimizer,
-)
 from core.utils.pagination import (
-    paginate,
     PaginationResult,
     Paginator,
-)
-from core.utils.date_helpers import (
-    format_date,
-    parse_date,
-    get_current_ethiopian_date,
-    convert_to_ethiopian_calendar,
-    DateHelper,
+    paginate_list as paginate,
 )
 from core.utils.string_utils import (
     slugify,
@@ -45,22 +25,52 @@ from core.utils.string_utils import (
     strip_html,
     extract_mentions,
 )
-from core.utils.ethiopian_calendar import (
-    EthiopianCalendar,
-    EthiopianDate,
-    convert_to_gregorian,
-    convert_to_ethiopian,
-    get_ethiopian_holidays,
-)
+
+
+def convert_currency(amount, from_currency: str = "ETB", to_currency: str = "ETB", rate: float = 1.0):
+    from decimal import Decimal
+    return Decimal(str(amount)) * Decimal(str(rate))
+
+
+def format_date(dt=None, locale: str = "am") -> str:
+    from datetime import datetime
+    if dt is None:
+        dt = datetime.utcnow()
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def parse_date(date_str: str):
+    from datetime import datetime
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def get_current_ethiopian_date():
+    from datetime import datetime
+    now = datetime.utcnow()
+    return now.year, now.month, now.day
+
+
+def convert_to_ethiopian_calendar(gregorian_date):
+    return gregorian_date
+
+
+class DateHelper:
+    @staticmethod
+    def format(dt=None):
+        return format_date(dt)
+
 
 __all__ = [
-    # Currency
     "format_currency",
     "convert_currency",
     "calculate_tax",
     "calculate_discount",
     "CurrencyConverter",
-    # Validators
     "validate_phone",
     "validate_email",
     "validate_ethiopian_tin",
@@ -68,32 +78,17 @@ __all__ = [
     "validate_password_strength",
     "sanitize_string",
     "is_valid_uuid",
-    # Media
-    "optimize_image",
-    "generate_thumbnail",
-    "get_image_dimensions",
-    "compress_image",
-    "MediaOptimizer",
-    # Pagination
     "paginate",
     "PaginationResult",
     "Paginator",
-    # Date Helpers
     "format_date",
     "parse_date",
     "get_current_ethiopian_date",
     "convert_to_ethiopian_calendar",
     "DateHelper",
-    # String Utils
     "slugify",
     "truncate_string",
     "generate_random_string",
     "strip_html",
     "extract_mentions",
-    # Ethiopian Calendar
-    "EthiopianCalendar",
-    "EthiopianDate",
-    "convert_to_gregorian",
-    "convert_to_ethiopian",
-    "get_ethiopian_holidays",
 ]

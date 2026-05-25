@@ -43,9 +43,6 @@ async def init_bot() -> Application:
     # Configure persistence for conversation states
     persistence = PicklePersistence(
         filepath="bot_data.pickle",
-        store_bot_data=True,
-        store_user_data=True,
-        store_chat_data=True,
     )
     
     # Build application

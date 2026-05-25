@@ -11,7 +11,7 @@ from core.config import settings
 from core.security import verify_token, verify_telegram_webhook
 from core.logger import logger, LoggerContext, request_id_var
 from core.exceptions import AuthenticationError, PermissionError, RateLimitError
-from infrastructure.database.session import get_db_session, AsyncSessionLocal
+from infrastructure.database.session import get_db_session
 from infrastructure.redis.client import get_redis_client, RedisClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
