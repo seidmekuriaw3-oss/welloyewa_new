@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 
 from core.logger import logger
-from core.redis.client import get_redis_client
+from infrastructure.redis.client import get_redis_client
 
 
 class ChurnRiskLevel(str, Enum):

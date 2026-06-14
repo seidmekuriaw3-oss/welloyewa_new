@@ -111,19 +111,19 @@ class SoftDeleteMixin:
 class MetadataMixin:
     """Mixin for storing additional metadata as JSON."""
     
-    metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    extra_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     
     def get_meta(self, key: str, default: Any = None) -> Any:
         """Get a value from metadata."""
-        if not self.metadata:
+        if not self.extra_data:
             return default
-        return self.metadata.get(key, default)
+        return self.extra_data.get(key, default)
     
     def set_meta(self, key: str, value: Any) -> None:
         """Set a value in metadata."""
-        if self.metadata is None:
-            self.metadata = {}
-        self.metadata[key] = value
+        if self.extra_data is None:
+            self.extra_data = {}
+        self.extra_data[key] = value
 
 
 class StatusMixin:

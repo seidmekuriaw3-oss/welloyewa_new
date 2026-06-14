@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from core.config import settings
 from core.logger import logger
-from core.redis.client import get_redis_client
+from infrastructure.redis.client import get_redis_client
 
 
 @dataclass

@@ -383,10 +383,13 @@ def audit_action(
     return decorator
 
 
+AuditEvent = AuditEntry
+
 __all__ = [
     "AuditLogger",
     "AuditEventType",
     "AuditEntry",
+    "AuditEvent",
     "audit_logger",
     "audit_log",
     "get_audit_logs",

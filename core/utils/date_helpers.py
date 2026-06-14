@@ -342,9 +342,15 @@ def convert_to_ethiopian_calendar(gregorian_date: DateType) -> tuple:
     return (et_date.year, et_date.month, et_date.day)
 
 
+def parse_date(dt) -> "datetime":
+    """Parse a date/string into a datetime object."""
+    return DateHelper.parse_date(dt)
+
+
 __all__ = [
     "DateHelper",
     "format_date",
+    "parse_date",
     "time_ago",
     "get_current_ethiopian_date",
     "convert_to_ethiopian_calendar",

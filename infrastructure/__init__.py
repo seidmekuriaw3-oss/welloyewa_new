@@ -34,14 +34,12 @@ from infrastructure.payments import (
     TelebirrProvider,
     CBEBirrProvider,
     process_payment,
-    verify_payment,
 )
 from infrastructure.notifications import (
     NotificationProvider,
     EmailService,
-    SMSService,
+    SMSGateway,
     TelegramNotifier,
-    send_notification,
 )
 
 __all__ = [
@@ -73,11 +71,9 @@ __all__ = [
     "TelebirrProvider",
     "CBEBirrProvider",
     "process_payment",
-    "verify_payment",
     # Notifications
     "NotificationProvider",
     "EmailService",
-    "SMSService",
+    "SMSGateway",
     "TelegramNotifier",
-    "send_notification",
 ]

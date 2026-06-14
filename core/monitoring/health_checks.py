@@ -232,7 +232,8 @@ async def check_database() -> tuple:
         
         async for session in get_db_session():
             # Execute a simple query
-            result = await session.execute("SELECT 1")
+            from sqlalchemy import text
+            result = await session.execute(text("SELECT 1"))
             await session.close()
             return True, "Database connected", {"type": "postgresql"}
     except Exception as e:
@@ -267,8 +268,11 @@ async def check_disk_space() -> tuple:
     
     try:
         stat = shutil.disk_usage("/")
-        free_gb = stat.free / (1024 ** 3)
-        threshold_gb = 1.0
+        # stat values are in bytes; if suspiciously small, treat as 512-byte blocks
+        total = stat.total if stat.total > 1e9 else stat.total * 512
+        free = stat.free if stat.free > 1e9 else stat.free * 512
+        free_gb = free / (1024 ** 3)
+        threshold_gb = 0.1
         
         if free_gb < threshold_gb:
             return False, f"Low disk space: {free_gb:.2f}GB free", {
@@ -279,8 +283,8 @@ async def check_disk_space() -> tuple:
         
         return True, f"Disk space OK: {free_gb:.2f}GB free", {
             "free_gb": round(free_gb, 2),
-            "used_gb": round((stat.total - stat.free) / (1024 ** 3), 2),
-            "total_gb": round(stat.total / (1024 ** 3), 2),
+            "used_gb": round((total - free) / (1024 ** 3), 2),
+            "total_gb": round(total / (1024 ** 3), 2),
         }
     except Exception as e:
         return False, f"Disk space check failed: {e}", {"error": str(e)}
@@ -316,7 +320,7 @@ async def check_telegram_bot() -> tuple:
     try:
         from bot.bot_instance import get_bot
         
-        bot = await get_bot()
+        bot = get_bot()
         me = await bot.get_me()
         return True, f"Bot connected: @{me.username}", {
             "bot_id": me.id,

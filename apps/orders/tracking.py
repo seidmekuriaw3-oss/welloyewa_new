@@ -10,7 +10,7 @@ from enum import Enum
 
 from core.logger import logger
 from core.exceptions import NotFoundError
-from core.redis.client import get_redis_client
+from infrastructure.redis.client import get_redis_client
 
 
 class TrackingStatus(str, Enum):

@@ -11,7 +11,7 @@ from infrastructure.payments.base import (
     PaymentStatus,
     PaymentError,
 )
-from infrastructure.payments.factory import PaymentFactory, get_payment_provider
+from infrastructure.payments.factory import PaymentFactory, get_payment_provider, process_payment
 from infrastructure.payments.chapa import ChapaProvider
 from infrastructure.payments.telebirr import TelebirrProvider
 from infrastructure.payments.cbe_birr import CBEBirrProvider
@@ -29,6 +29,7 @@ __all__ = [
     # Factory
     "PaymentFactory",
     "get_payment_provider",
+    "process_payment",
     # Providers
     "ChapaProvider",
     "TelebirrProvider",

@@ -5,6 +5,7 @@
 
 import re
 import uuid
+from decimal import Decimal
 from typing import Any, Dict, List, Optional, Union
 from email_validator import validate_email as validate_email_lib, EmailNotValidError
 

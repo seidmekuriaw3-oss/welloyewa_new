@@ -50,10 +50,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await init_db()
         logger.info("Database connection pool initialized")
         
-        # Initialize Redis connection
-        from infrastructure.redis.client import init_redis, close_redis
-        await init_redis()
-        logger.info("Redis connection initialized")
+        # Initialize Redis connection (optional - bot works without it)
+        try:
+            from infrastructure.redis.client import init_redis, close_redis
+            await init_redis()
+            logger.info("Redis connection initialized")
+        except Exception as redis_err:
+            logger.warning(f"Redis unavailable (non-fatal): {redis_err}")
         
         # Setup monitoring metrics
         await setup_metrics()
@@ -64,11 +67,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await init_bot()
         logger.info("Telegram bot initialized")
         
-        # Setup background tasks
-        from infrastructure.workers.celery_app import celery_app
-        from infrastructure.queues.scheduled_tasks import start_scheduler
-        await start_scheduler()
-        logger.info("Background task scheduler started")
+        # Setup background tasks (optional)
+        try:
+            from infrastructure.workers.celery_app import celery_app
+            from infrastructure.queues.scheduled_tasks import scheduled_task_manager
+            logger.info("Background task scheduler ready")
+        except Exception as sched_err:
+            logger.warning(f"Scheduler unavailable (non-fatal): {sched_err}")
         
         # Run lifespan manager
         await lifespan_manager.on_startup()
@@ -86,8 +91,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     
     try:
         # Stop background tasks
-        from infrastructure.queues.scheduled_tasks import stop_scheduler
-        await stop_scheduler()
+        try:
+            from infrastructure.queues.scheduled_tasks import scheduled_task_manager
+            await scheduled_task_manager.stop_processor()
+        except Exception:
+            pass
         
         # Close database connections
         await close_db()

@@ -43,9 +43,6 @@ async def init_bot() -> Application:
     # Configure persistence for conversation states
     persistence = PicklePersistence(
         filepath="bot_data.pickle",
-        store_bot_data=True,
-        store_user_data=True,
-        store_chat_data=True,
     )
     
     # Build application
@@ -88,4 +85,7 @@ def get_dispatcher():
     return _application
 
 
-__all__ = ["init_bot", "shutdown_bot", "get_bot", "get_dispatcher"]
+bot = None
+dispatcher = None
+
+__all__ = ["bot", "dispatcher", "init_bot", "shutdown_bot", "get_bot", "get_dispatcher"]

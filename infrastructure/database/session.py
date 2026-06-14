@@ -54,8 +54,13 @@ class DatabaseSessionManager:
         else:
             engine_kwargs["poolclass"] = AsyncAdaptedQueuePool
         
+        raw_url = str(settings.DATABASE_URL)
+        # Strip sslmode from URL (asyncpg uses connect_args instead)
+        import re
+        raw_url = re.sub(r'[?&]sslmode=[^&]*', '', raw_url).rstrip('?')
+        db_url = raw_url.replace("postgresql://", "postgresql+asyncpg://")
         self._engine = create_async_engine(
-            settings.DATABASE_URL,
+            db_url,
             **engine_kwargs,
         )
         
@@ -159,8 +164,12 @@ async def get_transaction_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+AsyncSessionLocal = _session_manager._sessionmaker
+
+
 __all__ = [
     "DatabaseSessionManager",
+    "AsyncSessionLocal",
     "init_db",
     "close_db",
     "get_db_session",

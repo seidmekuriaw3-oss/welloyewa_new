@@ -311,10 +311,14 @@ class PromotionRepository(BaseRepository[Promotion]):
         await self.db.flush()
 
 
+LoyaltyRepository = LoyaltyTransactionRepository
+
+
 __all__ = [
     "CouponRepository",
     "CouponUsageRepository",
     "LoyaltyTransactionRepository",
+    "LoyaltyRepository",
     "CampaignRepository",
     "PromotionRepository",
 ]

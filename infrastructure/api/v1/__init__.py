@@ -29,14 +29,23 @@ api_router.include_router(analytics.router, prefix="/analytics", tags=["analytic
 api_router.include_router(payments.router, prefix="/payments", tags=["payments"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 
+health_router = health.router
+webhook_router = webhook.router
+users_router = users.router
+products_router = products.router
+orders_router = orders.router
+analytics_router = analytics.router
+payments_router = payments.router
+admin_router = admin.router
+
 __all__ = [
     "api_router",
-    "health",
-    "webhook",
-    "users",
-    "products",
-    "orders",
-    "analytics",
-    "payments",
-    "admin",
+    "health_router",
+    "webhook_router",
+    "users_router",
+    "products_router",
+    "orders_router",
+    "analytics_router",
+    "payments_router",
+    "admin_router",
 ]

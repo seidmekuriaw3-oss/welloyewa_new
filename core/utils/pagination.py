@@ -348,10 +348,14 @@ class CursorPaginator:
         return result
 
 
+paginate = paginate_query
+
+
 __all__ = [
     "PageInfo",
     "PaginationResult",
     "Paginator",
+    "paginate",
     "paginate_query",
     "paginate_list",
     "generate_pagination_links",

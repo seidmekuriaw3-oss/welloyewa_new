@@ -62,7 +62,18 @@ from apps.marketing.campaigns import (
     track_campaign_metrics,
 )
 
+class MarketingService:
+    """Composite marketing service exposing all marketing sub-services."""
+
+    def __init__(self, db):
+        self.coupons = CouponService(db)
+        self.loyalty = LoyaltyService(db)
+        self.campaigns = CampaignService(db)
+        self.promotions = PromotionService(db)
+
+
 __all__ = [
+    "MarketingService",
     # Models
     "Coupon",
     "CouponUsage",

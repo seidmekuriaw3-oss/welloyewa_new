@@ -434,6 +434,11 @@ def get_image_dimensions(image_data: bytes) -> Tuple[int, int]:
     return MediaOptimizer.get_image_dimensions(image_data)
 
 
+def compress_image(image_data: bytes, quality: int = 85) -> bytes:
+    """Compress image to reduce file size."""
+    return media_optimizer.compress_image(image_data, quality=quality)
+
+
 __all__ = [
     "MediaOptimizer",
     "OptimizedImage",
@@ -441,4 +446,5 @@ __all__ = [
     "optimize_image",
     "generate_thumbnail",
     "get_image_dimensions",
+    "compress_image",
 ]

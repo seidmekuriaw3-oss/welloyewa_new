@@ -65,7 +65,7 @@ class Ticket(BaseModel, TimestampMixin):
     
     # Metadata
     attachments: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
-    metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    extra_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     
     # Resolution
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

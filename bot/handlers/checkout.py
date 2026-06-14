@@ -11,7 +11,8 @@ from core.logger import logger
 from core.utils.currency import format_etb
 from apps.orders.services import OrderService
 from apps.orders.schemas import OrderCreate, OrderItemCreate
-from apps.users.services import UserService, UserAddress
+from apps.users.services import UserService
+from apps.users.models import UserAddress
 from apps.products.services import ProductService
 from infrastructure.database.session import get_db_session
 from infrastructure.payments.factory import process_payment
