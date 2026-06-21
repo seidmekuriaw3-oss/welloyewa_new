@@ -28,6 +28,12 @@ async def start_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     Shows address selection or address entry form.
     """
     user_id = update.effective_user.id
+
+    if update.callback_query:
+        await update.callback_query.answer()
+        target_message = update.callback_query.message
+    else:
+        target_message = update.message
     
     # Get user's saved addresses
     async for db in get_db_session():
@@ -59,23 +65,44 @@ async def start_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.callback_query.message.edit_text(
-            "📍 *የማድረሻ አድራሻ ምረጡ*\n\n"
-            "እባክዎ የሚፈልጉትን አድራሻ ይምረጡ ወይም አዲስ ይጨምሩ።",
-            parse_mode="Markdown",
-            reply_markup=reply_markup
-        )
+        if update.callback_query:
+            await target_message.edit_text(
+                "📍 *የማድረሻ አድራሻ ምረጡ*\n\n"
+                "እባክዎ የሚፈልጉትን አድራሻ ይምረጡ ወይም አዲስ ይጨምሩ።",
+                parse_mode="Markdown",
+                reply_markup=reply_markup
+            )
+        else:
+            await target_message.reply_text(
+                "📍 *የማድረሻ አድራሻ ምረጡ*\n\n"
+                "እባክዎ የሚፈልጉትን አድራሻ ይምረጡ ወይም አዲስ ይጨምሩ።",
+                parse_mode="Markdown",
+                reply_markup=reply_markup
+            )
     else:
         # Ask for new address
-        await update.callback_query.message.edit_text(
-            "📍 *አዲስ አድራሻ ያስገቡ*\n\n"
-            "እባክዎ ሙሉ አድራሻዎን ይላኩ።\n\n"
-            "ለምሳሌ: ቢትዉድ አካባቢ፣ ቤት ቁጥር 123፣ አዲስ አበባ",
-            parse_mode="Markdown"
-        )
+        if update.callback_query:
+            await target_message.edit_text(
+                "📍 *አዲስ አድራሻ ያስገቡ*\n\n"
+                "እባክዎ ሙሉ አድራሻዎን ይላኩ።\n\n"
+                "ለምሳሌ: ቢትዉድ አካባቢ፣ ቤት ቁጥር 123፣ አዲስ አበባ",
+                parse_mode="Markdown"
+            )
+        else:
+            await target_message.reply_text(
+                "📍 *አዲስ አድራሻ ያስገቡ*\n\n"
+                "እባክዎ ሙሉ አድራሻዎን ይላኩ።\n\n"
+                "ለምሳሌ: ቢትዉድ አካባቢ፣ ቤት ቁጥር 123፣ አዲስ አበባ",
+                parse_mode="Markdown"
+            )
         return SELECT_ADDRESS
     
     return SELECT_ADDRESS
+
+
+async def checkout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Command entrypoint for checkout."""
+    return await start_checkout(update, context)
 
 
 async def address_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -363,6 +390,7 @@ async def cancel_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     return ConversationHandler.END
 
 __all__ = [
+    "checkout_command",
     "start_checkout",
     "address_callback",
     "new_address_handler",

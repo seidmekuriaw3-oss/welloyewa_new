@@ -15,28 +15,6 @@ from telegram.ext import (
 from core.config import settings
 from core.logger import logger
 
-# Import all handlers
-from bot.handlers import (
-    start,
-    catalog,
-    cart,
-    checkout,
-    profile,
-    feedback,
-    search,
-    wishlist,
-    location,
-    deep_linking,
-    broadcaster,
-    errors,
-)
-from bot.handlers.admin import (
-    dashboard,
-    products_admin,
-    orders_admin,
-    users_admin,
-    reports,
-)
 from bot.middlewares import (
     auth_middleware,
     analytics_middleware,
@@ -59,14 +37,42 @@ def setup_dispatcher(application: Application) -> Application:
     """
     logger.info("Setting up bot dispatcher...")
     
+    # Import handlers lazily to avoid package import cycles
+    from bot.handlers import (
+        start,
+        catalog,
+        cart,
+        checkout,
+        profile,
+        feedback,
+        search,
+        wishlist,
+        location,
+        deep_linking,
+        broadcaster,
+        errors,
+    )
+
+    dashboard = products_admin = orders_admin = users_admin = reports = None
+    try:
+        from bot.handlers.admin import (
+            dashboard,
+            products_admin,
+            orders_admin,
+            users_admin,
+            reports,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to import admin handlers; admin commands disabled: {e}")
+
     # Register middlewares
     _register_middlewares(application)
     
     # Register command handlers
-    _register_command_handlers(application)
+    _register_command_handlers(application, start, catalog, cart, checkout, profile, feedback, search, wishlist, location, deep_linking, broadcaster, errors)
     
     # Register callback query handlers
-    _register_callback_handlers(application)
+    _register_callback_handlers(application, catalog, cart, checkout, profile, wishlist, search, dashboard, products_admin, orders_admin)
     
     # Register message handlers
     _register_message_handlers(application)
@@ -91,7 +97,7 @@ def _register_middlewares(application: Application) -> None:
     logger.info("Middlewares registered")
 
 
-def _register_command_handlers(application: Application) -> None:
+def _register_command_handlers(application: Application, start, catalog, cart, checkout, profile, feedback, search, wishlist, location, deep_linking, broadcaster, errors) -> None:
     """Register command handlers."""
     
     # Public commands
@@ -106,16 +112,18 @@ def _register_command_handlers(application: Application) -> None:
     application.add_handler(CommandHandler("wishlist", wishlist.wishlist_command))
     application.add_handler(CommandHandler("feedback", feedback.feedback_command))
     application.add_handler(CommandHandler("location", location.location_command))
+    application.add_handler(CommandHandler("deep_link", deep_linking.deep_link_command))
     
     # Admin commands
-    application.add_handler(CommandHandler("admin", dashboard.admin_command))
-    application.add_handler(CommandHandler("stats", dashboard.stats_command))
+    if dashboard is not None:
+        application.add_handler(CommandHandler("admin", dashboard.admin_command))
+        application.add_handler(CommandHandler("stats", dashboard.stats_command))
     application.add_handler(CommandHandler("broadcast", broadcaster.broadcast_command))
     
     logger.info("Command handlers registered")
 
 
-def _register_callback_handlers(application: Application) -> None:
+def _register_callback_handlers(application: Application, catalog, cart, checkout, profile, wishlist, search, dashboard, products_admin, orders_admin) -> None:
     """Register callback query handlers."""
     
     application.add_handler(CallbackQueryHandler(catalog.category_callback, pattern="^cat_"))
@@ -127,9 +135,12 @@ def _register_callback_handlers(application: Application) -> None:
     application.add_handler(CallbackQueryHandler(search.search_callback, pattern="^search_"))
     
     # Admin callbacks
-    application.add_handler(CallbackQueryHandler(dashboard.admin_callback, pattern="^admin_"))
-    application.add_handler(CallbackQueryHandler(products_admin.product_admin_callback, pattern="^prod_admin_"))
-    application.add_handler(CallbackQueryHandler(orders_admin.order_admin_callback, pattern="^order_admin_"))
+    if dashboard is not None:
+        application.add_handler(CallbackQueryHandler(dashboard.admin_callback, pattern="^admin_"))
+    if products_admin is not None:
+        application.add_handler(CallbackQueryHandler(products_admin.product_admin_callback, pattern="^prod_admin_"))
+    if orders_admin is not None:
+        application.add_handler(CallbackQueryHandler(orders_admin.order_admin_callback, pattern="^order_admin_"))
     
     logger.info("Callback handlers registered")
 
@@ -159,7 +170,7 @@ def _register_conversation_handlers(application: Application) -> None:
         states={
             checkout.SELECT_ADDRESS: [
                 CallbackQueryHandler(checkout.address_callback, pattern="^addr_"),
-                MessageHandler(filters.TEXT, checkout.new_address_handler),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, checkout.new_address_handler),
             ],
             checkout.SELECT_PAYMENT: [
                 CallbackQueryHandler(checkout.payment_callback, pattern="^pay_"),

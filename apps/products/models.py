@@ -10,7 +10,7 @@ from sqlalchemy import (
     Column, Integer, String, Boolean, DateTime, Float, 
     BigInteger, Text, JSON, ForeignKey, Numeric, Enum as SQLEnum
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, foreign
 from sqlalchemy.ext.hybrid import hybrid_property
 
 from apps.common.models import BaseModel, TimestampMixin, SoftDeleteMixin, MetadataMixin
@@ -54,10 +54,26 @@ class Category(BaseModel, TimestampMixin):
     
     # Counts
     product_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    
-    # Relationships
-    parent: Mapped[Optional["Category"]] = relationship("Category", remote_side=[id], backref="children")
-    products: Mapped[List["Product"]] = relationship("Product", back_populates="category")
+    # Hierarchy
+    parent: Mapped[Optional["Category"]] = relationship(
+        "Category",
+        remote_side=lambda: Category.id,
+        primaryjoin="Category.id == foreign(Category.parent_id)",
+        back_populates="children",
+        foreign_keys=[parent_id],
+    )
+    children: Mapped[List["Category"]] = relationship(
+        "Category",
+        primaryjoin="Category.parent_id == foreign(Category.id)",
+        back_populates="parent",
+        foreign_keys=[parent_id],
+        cascade="all, delete-orphan",
+    )
+    products: Mapped[List["Product"]] = relationship(
+        "Product",
+        back_populates="category_rel",
+        primaryjoin="Category.id == foreign(Product.category_id)",
+    )
     
     def __repr__(self) -> str:
         return f"<Category(id={self.id}, name={self.name}, slug={self.slug})>"
@@ -86,7 +102,9 @@ class Product(BaseModel, TimestampMixin, SoftDeleteMixin, MetadataMixin):
     
     # Categorization
     category_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("categories.id"), nullable=True, index=True)
-    category: Mapped[Optional[str]] = mapped_column(
+    
+    # ስሙን category ወደ category_type ቀይረው
+    category_type: Mapped[Optional[str]] = mapped_column(
         SQLEnum(ProductCategory, name="product_category"), 
         nullable=True, index=True
     )
@@ -137,8 +155,18 @@ class Product(BaseModel, TimestampMixin, SoftDeleteMixin, MetadataMixin):
     reviews_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     
     # Relationships
-    vendor: Mapped["Vendor"] = relationship("Vendor", back_populates="products")
-    category_rel: Mapped[Optional["Category"]] = relationship("Category", back_populates="products")
+    vendor: Mapped["Vendor"] = relationship(
+        "Vendor",
+        back_populates="products",
+        foreign_keys=[vendor_id],
+        primaryjoin="Vendor.id == foreign(Product.vendor_id)",
+    )
+    category_rel: Mapped[Optional["Category"]] = relationship(
+        "Category",
+        back_populates="products",
+        foreign_keys=[category_id],
+        primaryjoin="Category.id == foreign(Product.category_id)",
+    )
     reviews: Mapped[List["Review"]] = relationship("Review", back_populates="product", cascade="all, delete-orphan")
     order_items: Mapped[List["OrderItem"]] = relationship("OrderItem", back_populates="product")
     

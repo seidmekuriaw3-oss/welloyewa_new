@@ -115,7 +115,7 @@ welloyewa/
 │
 ├── core/                 # Core functionality
 │   ├── config.py        # Settings
-│   ├── security.py      # Auth, encryption
+│   ├── security/        # Auth, encryption, security utilities
 │   ├── exceptions.py    # Custom exceptions
 │   └── logger.py        # Logging setup
 │

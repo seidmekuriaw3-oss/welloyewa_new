@@ -146,6 +146,27 @@ def verify_csrf_token(token: str, expected: str) -> bool:
     return hmac.compare_digest(token, expected)
 
 
+def hash_telegram_id(telegram_id: int) -> str:
+    """Hash a Telegram ID for privacy."""
+    return hashlib.sha256(str(telegram_id).encode()).hexdigest()
+
+
+class SecurityHeaders:
+    """Programmatic security headers for HTTP responses."""
+
+    @staticmethod
+    def get_headers() -> Dict[str, str]:
+        return {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "Content-Security-Policy": "default-src 'self'",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        }
+
+
 __all__ = [
     "encrypt_data",
     "decrypt_data",
@@ -177,6 +198,7 @@ __all__ = [
     "ConsentManager",
     "handle_data_request",
     "SecurityHeadersMiddleware",
+    "SecurityHeaders",
     "hash_password",
     "verify_password",
     "create_access_token",
@@ -190,4 +212,5 @@ __all__ = [
     "mask_sensitive_data",
     "generate_csrf_token",
     "verify_csrf_token",
+    "hash_telegram_id",
 ]

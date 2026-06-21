@@ -65,7 +65,7 @@ class Ticket(BaseModel, TimestampMixin):
     
     # Metadata
     attachments: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
-    metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    ticket_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True) # Changed from metadata to ticket_metadata
     
     # Resolution
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -78,10 +78,28 @@ class Ticket(BaseModel, TimestampMixin):
     feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Relationships
-    user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
-    assignee: Mapped[Optional["User"]] = relationship("User", foreign_keys=[assigned_to])
-    category: Mapped[Optional["TicketCategory"]] = relationship("TicketCategory", back_populates="tickets")
-    messages: Mapped[List["TicketMessage"]] = relationship("TicketMessage", back_populates="ticket", cascade="all, delete-orphan")
+    user: Mapped["User"] = relationship(
+        "User",
+        foreign_keys=[user_id],
+        primaryjoin="User.id == foreign(Ticket.user_id)",
+    )
+    assignee: Mapped[Optional["User"]] = relationship(
+        "User",
+        foreign_keys=[assigned_to],
+        primaryjoin="Ticket.assigned_to == User.id",
+    )
+    category: Mapped[Optional["TicketCategory"]] = relationship(
+        "TicketCategory",
+        back_populates="tickets",
+        foreign_keys=[category_id],
+        primaryjoin="TicketCategory.id == foreign(Ticket.category_id)",
+    )
+    messages: Mapped[List["TicketMessage"]] = relationship(
+        "TicketMessage",
+        back_populates="ticket",
+        cascade="all, delete-orphan",
+        primaryjoin="Ticket.id == foreign(TicketMessage.ticket_id)",
+    )
     
     @hybrid_property
     def is_open(self) -> bool:

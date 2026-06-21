@@ -9,7 +9,7 @@ from collections import defaultdict, Counter
 from dataclasses import dataclass
 
 from core.logger import logger
-from core.redis.client import get_redis_client
+from infrastructure.redis.client import get_redis_client
 
 
 @dataclass

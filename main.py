@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Application lifespan context manager.
-    Handles startup and shutdown events.
+    Handles startup and shutdown events with Polling fallback for development.
     """
     logger.info(f"Starting {settings.PROJECT_NAME} v{get_version()}")
     logger.info(f"Environment: {settings.ENVIRONMENT}")
@@ -46,6 +46,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     close_redis = None
     shutdown_bot = None
     stop_scheduler = None
+    application_instance = None  # To keep track of the telegram application
 
     # Initialize database connection pool
     try:
@@ -66,8 +67,48 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Initialize Telegram bot
     try:
         from bot.bot_instance import init_bot, shutdown_bot
-        await init_bot()
-        logger.info("Telegram bot initialized")
+        
+        # የኢንተርኔት መቆራረጥ ካለ ቦቱ ወዲያው ተስፋ ቆርጦ ዋርኒንግ እንዳይጥል Retry Loop እንጨምራለን
+        retry_count = 3
+        for attempt in range(retry_count):
+            try:
+                application_instance = await init_bot()
+                logger.info("Telegram bot initialized")
+                break
+            except Exception as net_err:
+                if attempt < retry_count - 1:
+                    logger.warning(f"Bot init connection attempt {attempt + 1} failed. Retrying in 3 seconds... ({net_err})")
+                    await asyncio.sleep(3)
+                else:
+                    raise net_err
+        
+        # ሎካል ላይ (development) ሲሰሩ መልእክቶችን ቀጥታ እንዲስብ Polling እዚህ እንጀምራለን
+        if settings.ENVIRONMENT == "development" and application_instance:
+            logger.info("Starting Telegram bot in POLLING mode for local development...")
+            
+            # ========================================================
+            # 🔍 የሙከራ ሃንድለር (HANDLER DIAGNOSTIC) - እዚህ ጋር ተጨምሯል
+            # ========================================================
+            try:
+                from telegram import Update
+                from telegram.ext import CommandHandler
+                
+                async def test_start_response(update: Update, context):
+                    logger.info(f"🎯 ቴሌግራም ላይ የ /start ሙከራ መጥቷል! User ID: {update.effective_user.id}")
+                    await update.message.reply_text("አለሁልህ! አሁን በትክክል ተገናኝተናል! 🚀 (ይህ ቀጥታ ምላሽ ነው)")
+                
+                # በቅድሚያ እንዲይዘው group=-1 ላይ እንጨምረዋለን
+                application_instance.add_handler(CommandHandler("start", test_start_response), group=-1)
+                logger.info("Temporary diagnostic /start handler injected successfully")
+            except Exception as test_err:
+                logger.warning(f"Failed to inject diagnostic handler: {test_err}")
+            # ========================================================
+
+            await application_instance.initialize()
+            await application_instance.start()
+            await application_instance.updater.start_polling(drop_pending_updates=True)
+            logger.info("Telegram bot polling started successfully!")
+            
     except Exception as e:
         logger.warning(f"Telegram bot initialization failed (continuing): {e}")
 
@@ -92,6 +133,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown
     logger.info("Shutting down application...")
 
+    # Polling ን በንጽህና ማቆም
+    if application_instance and settings.ENVIRONMENT == "development":
+        try:
+            logger.info("Stopping Telegram bot polling...")
+            if application_instance.updater and application_instance.updater.running:
+                await application_instance.updater.stop()
+            await application_instance.stop()
+        except Exception as e:
+            logger.error(f"Error stopping bot polling: {e}")
+
     if stop_scheduler:
         try:
             await stop_scheduler()
@@ -106,9 +157,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     if close_redis:
         try:
-            await close_redis()
-        except Exception as e:
-            logger.error(f"Error closing Redis: {e}")
+            try:
+                await close_redis()
+            except Exception as e:
+                logger.error(f"Error closing Redis: {e}")
+        except Exception:
+            pass
 
     if shutdown_bot:
         try:
@@ -150,18 +204,18 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"],
     expose_headers=["*"],
     max_age=600,
 )
 
-# Add trusted host middleware - allow all hosts for Replit proxy
+# Add trusted host middleware
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["*"],
+    allowed_hosts=settings.ALLOWED_HOSTS,
 )
 
 # Add security headers middleware
@@ -249,6 +303,9 @@ def main() -> None:
     try:
         import uvicorn
 
+        # ዊንዶውስ ላይ ከሆነ ሉፑን "asyncio" ማድረግ፣ ካልሆነ "uvloop"
+        loop_policy = "asyncio" if sys.platform == "win32" else "uvloop"
+
         uvicorn.run(
             "main:app",
             host=settings.HOST if hasattr(settings, 'HOST') else "0.0.0.0",
@@ -257,7 +314,7 @@ def main() -> None:
             log_level=settings.LOG_LEVEL.lower(),
             access_log=settings.DEBUG,
             workers=1,
-            loop="uvloop",
+            loop=loop_policy,
             http="httptools",
         )
     except KeyboardInterrupt:

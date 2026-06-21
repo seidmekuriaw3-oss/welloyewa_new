@@ -179,7 +179,8 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
     JWT_ALGORITHM: str = Field(default="HS256")
     JWT_EXPIRY_MINUTES: int = Field(default=1440)
-    CORS_ALLOWED_ORIGINS: List[str] = Field(default=["http://localhost:3000", "http://localhost:8000"])
+    CORS_ALLOWED_ORIGINS: List[str] = Field(default_factory=lambda: ["http://localhost:3000", "http://localhost:8000"])
+    ALLOWED_HOSTS: List[str] = Field(default_factory=lambda: ["localhost", "127.0.0.1"])
     ENCRYPTION_KEY: Optional[str] = Field(default=None)
     GDPR_COMPLIANT: bool = Field(default=True)
     DATA_RETENTION_DAYS: int = Field(default=365)
@@ -190,9 +191,25 @@ class Settings(BaseSettings):
     def parse_cors_origins(cls, v):
         """Parse CORS origins from string or list."""
         if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",")]
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
-    
+
+    @field_validator("ALLOWED_HOSTS", mode="before")
+    @classmethod
+    def parse_allowed_hosts(cls, v):
+        """Parse allowed hosts from string or list."""
+        if isinstance(v, str):
+            return [host.strip() for host in v.split(",") if host.strip()]
+        return v
+
+    @field_validator("SECRET_KEY", "JWT_SECRET_KEY", mode="before")
+    @classmethod
+    def validate_secret_keys(cls, v, info):
+        """Ensure critical secrets are set in production."""
+        if info.data.get("ENVIRONMENT") == "production" and not v:
+            raise ValueError("SECRET_KEY and JWT_SECRET_KEY must be set in production.")
+        return v or secrets.token_urlsafe(32)
+
     # ============================
     # Feature Flags
     # ============================

@@ -10,6 +10,7 @@ from telegram import Update
 
 from core.config import settings
 from core.logger import logger
+from core.security import verify_telegram_webhook
 from bot.bot_instance import get_dispatcher
 
 router = APIRouter()
@@ -32,7 +33,9 @@ async def telegram_webhook(
         # Verify secret token if configured
         if settings.TELEGRAM_WEBHOOK_SECRET:
             token = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
-            if token != settings.TELEGRAM_WEBHOOK_SECRET:
+            if not verify_telegram_webhook(
+                {"secret_token": token}, settings.TELEGRAM_WEBHOOK_SECRET
+            ):
                 logger.warning("Invalid webhook secret token")
                 raise HTTPException(status_code=403, detail="Invalid token")
         

@@ -9,7 +9,7 @@ from sqlalchemy import (
     Column, Integer, String, Boolean, DateTime, Date, Float, 
     BigInteger, Text, JSON, ForeignKey, Enum as SQLEnum
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, foreign
 from sqlalchemy.ext.hybrid import hybrid_property
 
 from apps.common.models import BaseModel, TimestampMixin, SoftDeleteMixin, MetadataMixin
@@ -82,24 +82,69 @@ class User(BaseModel, TimestampMixin, SoftDeleteMixin, MetadataMixin):
     reset_token: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     reset_token_expires: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
-    # Relationships
+    # ====================
+    # RELATIONSHIPS - ትክክለኛ አገባብ
+    # ====================
+    
+    # UserAddress (one-to-many)
     addresses: Mapped[List["UserAddress"]] = relationship(
-        "UserAddress", back_populates="user", cascade="all, delete-orphan"
+        "UserAddress",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        primaryjoin="User.id == foreign(UserAddress.user_id)",
     )
+    
+    # UserPreferences (one-to-one)
     preferences: Mapped[Optional["UserPreferences"]] = relationship(
-        "UserPreferences", back_populates="user", uselist=False, cascade="all, delete-orphan"
+        "UserPreferences",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+        primaryjoin="User.id == foreign(UserPreferences.user_id)",
     )
+    
+    # Vendor (one-to-one)
     vendor_profile: Mapped[Optional["Vendor"]] = relationship(
-        "Vendor", back_populates="user", uselist=False, cascade="all, delete-orphan"
+        "Vendor",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+        primaryjoin="User.id == foreign(Vendor.user_id)",
     )
+    
+    # Orders where this user is the buyer
     orders: Mapped[List["Order"]] = relationship(
-        "Order", back_populates="user", foreign_keys="Order.user_id"
+        "Order",
+        foreign_keys="Order.user_id",
+        back_populates="user",
+        primaryjoin="User.id == foreign(Order.user_id)",
     )
+    
+    # Orders where this user is a vendor
+    # በVendor በኩል ያለውን ግንኙነት ለማሳየት
     vendor_orders: Mapped[List["Order"]] = relationship(
-        "Order", back_populates="vendor", foreign_keys="Order.vendor_id"
+        "Order",
+        secondary="vendors",
+        primaryjoin="User.id == foreign(Vendor.user_id)",
+        secondaryjoin="Vendor.id == foreign(Order.vendor_id)",
+        viewonly=True,
     )
-    products: Mapped[List["Product"]] = relationship("Product", back_populates="vendor")
-    reviews: Mapped[List["Review"]] = relationship("Review", back_populates="user")
+    
+    # Products sold by this user (via their vendor profile).
+    products: Mapped[List["Product"]] = relationship(
+        "Product",
+        secondary="vendors",
+        primaryjoin="User.id == foreign(Vendor.user_id)",
+        secondaryjoin="Vendor.id == foreign(Product.vendor_id)",
+        viewonly=True,
+    )
+    
+    # Reviews (one-to-many)
+    reviews: Mapped[List["Review"]] = relationship(
+        "Review",
+        back_populates="user",
+        primaryjoin="User.id == foreign(Review.user_id)",
+    )
     
     @hybrid_property
     def full_name(self) -> str:
@@ -172,7 +217,23 @@ class Vendor(BaseModel, TimestampMixin):
     
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="vendor_profile")
-    products: Mapped[List["Product"]] = relationship("Product", back_populates="vendor")
+    # Products sold by this user (when user has a vendor profile).
+    # This is a view-only relationship that joins through the vendors table:
+    # User.id -> Vendor.user_id  AND  Vendor.id -> Product.vendor_id
+    products: Mapped[List["Product"]] = relationship(
+        "Product",
+        back_populates="vendor",
+        foreign_keys="Product.vendor_id",
+        primaryjoin="Vendor.id == foreign(Product.vendor_id)",
+    )
+    
+    # Vendor orders - ትክክለኛ አገባብ
+    orders: Mapped[List["Order"]] = relationship(
+        "Order",
+        back_populates="vendor",
+        foreign_keys="Order.vendor_id",
+        primaryjoin="Vendor.id == foreign(Order.vendor_id)",
+    )
     
     def __repr__(self) -> str:
         return f"<Vendor(id={self.id}, business_name={self.business_name})>"

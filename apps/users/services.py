@@ -394,4 +394,12 @@ class VendorService:
         }
 
 
-__all__ = ["AuthService", "UserService", "VendorService"]
+class UserAddress:
+    """Placeholder or service class for managing user delivery addresses.
+    Added to prevent ImportError during Telegram bot handler registration.
+    """
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+
+__all__ = ["AuthService", "UserService", "VendorService", "UserAddress"]

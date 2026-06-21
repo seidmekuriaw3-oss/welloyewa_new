@@ -313,33 +313,34 @@ async def get_pagination_params(
 
 async def verify_webhook_signature(
     request: Request,
-    x_webhook_signature: Optional[str] = Header(None),
+    x_telegram_secret_token: Optional[str] = Header(
+        None, alias="X-Telegram-Bot-Api-Secret-Token"
+    ),
 ) -> None:
     """
-    Verify webhook signature for payment callbacks.
+    Verify Telegram webhook secret token header.
     
     Args:
         request: FastAPI request object
-        x_webhook_signature: Webhook signature from header
+        x_telegram_secret_token: Telegram webhook secret token header value
         
     Raises:
         AuthenticationError: If signature verification fails
     """
     if settings.ENVIRONMENT == "development" and settings.DEV_SKIP_MIDDLEWARES:
         return
-    
-    if not x_webhook_signature:
-        raise AuthenticationError("Webhook signature missing")
-    
-    # Get request body
-    body = await request.body()
-    
-    # Verify signature (implementation depends on payment provider)
-    # This is a placeholder - actual verification depends on the provider
-    expected_signature = "expected_signature"
-    
-    if not verify_telegram_webhook({"secret_token": x_webhook_signature}, expected_signature):
-        raise AuthenticationError("Invalid webhook signature")
+
+    if not settings.TELEGRAM_WEBHOOK_SECRET:
+        return
+
+    if not x_telegram_secret_token:
+        raise AuthenticationError("Missing Telegram webhook secret token")
+
+    if not verify_telegram_webhook(
+        {"secret_token": x_telegram_secret_token},
+        settings.TELEGRAM_WEBHOOK_SECRET,
+    ):
+        raise AuthenticationError("Invalid Telegram webhook secret token")
 
 
 # ============================

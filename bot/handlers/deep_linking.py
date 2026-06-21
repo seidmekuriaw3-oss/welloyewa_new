@@ -13,6 +13,11 @@ from apps.marketing.services import CouponService
 from infrastructure.database.session import get_db_session
 
 
+async def deep_link_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Entry point for the /deep_link command."""
+    await deep_link_handler(update, context)
+
+
 async def deep_link_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Handle deep linking URLs (start parameter).

@@ -114,7 +114,16 @@ apps/
 ```
 core/
 ├── config.py        # Settings management
-├── security.py      # Auth, encryption
+├── security/        # Auth, encryption, security utilities
+│   ├── __init__.py
+│   ├── audit_trail.py
+│   ├── encryption.py
+│   ├── fraud_detection.py
+│   ├── gdpr_compliance.py
+│   ├── middleware.py
+│   ├── pii_masker.py
+│   ├── rate_limiter_advanced.py
+│   ├── sql_injection_detector.py
 ├── events.py        # Event bus
 ├── exceptions.py    # Custom exceptions
 ├── logger.py        # Structured logging

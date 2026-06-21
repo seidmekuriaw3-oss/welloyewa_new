@@ -94,6 +94,11 @@ def setup_logging() -> None:
     
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
+    if hasattr(console_handler.stream, "reconfigure"):
+        try:
+            console_handler.stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
     console_handler.setLevel(getattr(logging, settings.LOG_LEVEL.upper()))
     
     # Choose formatter based on environment
@@ -115,7 +120,7 @@ def setup_logging() -> None:
     # File handler for errors (always enabled)
     if settings.LOG_FILE_PATH:
         try:
-            file_handler = logging.FileHandler(settings.LOG_FILE_PATH)
+            file_handler = logging.FileHandler(settings.LOG_FILE_PATH, encoding="utf-8")
             file_handler.setLevel(logging.ERROR)
             file_formatter = CustomJsonFormatter(
                 fmt="%(timestamp)s %(level)s %(name)s %(message)s",

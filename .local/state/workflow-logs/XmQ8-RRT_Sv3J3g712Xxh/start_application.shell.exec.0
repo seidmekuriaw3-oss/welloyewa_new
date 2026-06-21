@@ -1,0 +1,336 @@
+Using temporary encryption key. Set ENCRYPTION_KEY in production!
+[32m2026-05-25 03:00:39 | INFO     | root | Logging initialized | Level: INFO | Format: json[0m
+/home/runner/workspace/infrastructure/api/v1/endpoints/analytics.py:279: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+  format: str = Query("json", regex="^(json|csv|excel)$"),
+/home/runner/workspace/infrastructure/api/v1/endpoints/admin.py:219: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+  status: str = Query(..., regex="^(active|inactive|suspended|banned)$"),
+/home/runner/workspace/infrastructure/api/v1/endpoints/dashboards.py:46: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+  period: str = Query("today", regex="^(today|week|month|year)$"),
+[32m2026-05-25 03:00:40 | INFO     | __main__ | API v1 router registered[0m
+[32m2026-05-25 03:00:40 | INFO     | __main__ | Webhook router registered[0m
+[32m2026-05-25 03:00:40 | INFO     | __main__ | Web app router registered[0m
+[32mINFO[0m:     Will watch for changes in these directories: ['/home/runner/workspace']
+[32m2026-05-25 03:00:40 | INFO     | root | Logging initialized | Level: INFO | Format: json[0m
+[32m2026-05-25 03:00:40 | INFO     | main | API v1 router registered[0m
+[32m2026-05-25 03:00:40 | INFO     | main | Webhook router registered[0m
+[32m2026-05-25 03:00:40 | INFO     | main | Web app router registered[0m
+[32mINFO[0m:     Uvicorn running on [1mhttp://0.0.0.0:5000[0m (Press CTRL+C to quit)
+[32mINFO[0m:     Started reloader process [[36m[1m2410[0m] using [36m[1mWatchFiles[0m
+Using temporary encryption key. Set ENCRYPTION_KEY in production!
+[32m2026-05-25 03:00:41 | INFO     | root | Logging initialized | Level: INFO | Format: json[0m
+[32m2026-05-25 03:00:41 | INFO     | watchfiles.main | 1 change detected[0m
+/home/runner/workspace/infrastructure/api/v1/endpoints/analytics.py:279: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+  format: str = Query("json", regex="^(json|csv|excel)$"),
+[32m2026-05-25 03:00:41 | INFO     | watchfiles.main | 1 change detected[0m
+/home/runner/workspace/infrastructure/api/v1/endpoints/admin.py:219: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+  status: str = Query(..., regex="^(active|inactive|suspended|banned)$"),
+/home/runner/workspace/infrastructure/api/v1/endpoints/dashboards.py:46: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+  period: str = Query("today", regex="^(today|week|month|year)$"),
+[32m2026-05-25 03:00:41 | INFO     | __mp_main__ | API v1 router registered[0m
+[32m2026-05-25 03:00:41 | INFO     | __mp_main__ | Webhook router registered[0m
+[32m2026-05-25 03:00:41 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:41 | INFO     | __mp_main__ | Web app router registered[0m
+[32m2026-05-25 03:00:41 | INFO     | root | Logging initialized | Level: INFO | Format: json[0m
+[32m2026-05-25 03:00:41 | INFO     | main | API v1 router registered[0m
+[32m2026-05-25 03:00:41 | INFO     | main | Webhook router registered[0m
+[32m2026-05-25 03:00:42 | INFO     | main | Web app router registered[0m
+[32mINFO[0m:     Started server process [[36m2424[0m]
+[32mINFO[0m:     Waiting for application startup.
+[32m2026-05-25 03:00:42 | INFO     | main | Starting Wolloyewa_Store_Bot v1.0.0[0m
+[32m2026-05-25 03:00:42 | INFO     | main | Environment: development[0m
+[33m2026-05-25 03:00:42 | WARNING  | main | Database initialization failed (continuing): Expected string or URL object, got PostgresDsn('postgresql://postgres:password@helium/heliumdb?sslmode=disable')[0m
+[31m2026-05-25 03:00:42 | ERROR    | core.logger | Failed to connect to Redis: 'RedisDsn' object has no attribute 'decode'[0m
+[33m2026-05-25 03:00:42 | WARNING  | main | Redis initialization failed (continuing): 'RedisDsn' object has no attribute 'decode'[0m
+[32m2026-05-25 03:00:42 | INFO     | core.logger | Initializing Telegram bot...[0m
+[33m2026-05-25 03:00:42 | WARNING  | main | Telegram bot initialization failed (continuing): PicklePersistence.__init__() got an unexpected keyword argument 'store_bot_data'[0m
+[33m2026-05-25 03:00:42 | WARNING  | main | Scheduler initialization failed (continuing): cannot import name 'start_scheduler' from 'infrastructure.queues.scheduled_tasks' (/home/runner/workspace/infrastructure/queues/scheduled_tasks.py)[0m
+[32m2026-05-25 03:00:42 | INFO     | core.logger | Running startup hooks...[0m
+[32m2026-05-25 03:00:42 | INFO     | core.logger | Starting Wolloyewa_Store_Bot v1.0.0[0m
+[32m2026-05-25 03:00:42 | INFO     | core.logger | Environment: development[0m
+[32m2026-05-25 03:00:42 | INFO     | core.logger | Debug mode: True[0m
+[32m2026-05-25 03:00:42 | INFO     | core.logger | All startup hooks completed successfully[0m
+[32m2026-05-25 03:00:42 | INFO     | main | Application startup completed[0m
+[32mINFO[0m:     Application startup complete.
+[32m2026-05-25 03:00:42 | INFO     | watchfiles.main | 11 changes detected[0m
+[32m2026-05-25 03:00:42 | INFO     | watchfiles.main | 2 changes detected[0m
+[32m2026-05-25 03:00:43 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:43 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:43 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:44 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:44 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:44 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:45 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:45 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:45 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:46 | INFO     | watchfiles.main | 10 changes detected[0m
+[32m2026-05-25 03:00:46 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:47 | INFO     | watchfiles.main | 3 changes detected[0m
+[32m2026-05-25 03:00:47 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:47 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:48 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:48 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:48 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:49 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:49 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:49 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:50 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:50 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:50 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:51 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:51 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:51 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:52 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:52 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:53 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:53 | INFO     | watchfiles.main | 10 changes detected[0m
+[32m2026-05-25 03:00:53 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:54 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:54 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:54 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:55 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:55 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:55 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:56 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:56 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:57 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:57 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:57 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:58 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:58 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:58 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:59 | INFO     | watchfiles.main | 10 changes detected[0m
+[32m2026-05-25 03:00:59 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:00:59 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:00 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:00 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:00 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:01 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:01 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:01 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:02 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:02 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:02 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:03 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:03 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:04 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:04 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:04 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:05 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:05 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:05 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:06 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:06 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:06 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:07 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:07 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:07 | INFO     | watchfiles.main | 10 changes detected[0m
+[32m2026-05-25 03:01:08 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:08 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:08 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:09 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:09 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:10 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:10 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:10 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:11 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:11 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:11 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:12 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:12 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:12 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:13 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:13 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:13 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:14 | INFO     | watchfiles.main | 10 changes detected[0m
+[32m2026-05-25 03:01:14 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:14 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:15 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:15 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:15 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:16 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:16 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:17 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:17 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:17 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:18 | INFO     | watchfiles.main | 12 changes detected[0m
+[32m2026-05-25 03:01:18 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:18 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:19 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:19 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:19 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:20 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:20 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:20 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:21 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:21 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:21 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:22 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:22 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:22 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:23 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:23 | INFO     | watchfiles.main | 10 changes detected[0m
+[32m2026-05-25 03:01:24 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:24 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:24 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:25 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:25 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:25 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:26 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:26 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:26 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:27 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:27 | INFO     | watchfiles.main | 10 changes detected[0m
+[32m2026-05-25 03:01:27 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:28 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:28 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:28 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:29 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:29 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:29 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:30 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:30 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:31 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:31 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:31 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:32 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:32 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:32 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:33 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:33 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:33 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:34 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:34 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:34 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:35 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:35 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:35 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:36 | INFO     | watchfiles.main | 4 changes detected[0m
+[33mWARNING[0m:  WatchFiles detected changes in 'core/config.py'. Reloading...
+[32mINFO[0m:     Shutting down
+[32mINFO[0m:     Waiting for application shutdown.
+[32m2026-05-25 03:01:36 | INFO     | main | Shutting down application...[0m
+[32m2026-05-25 03:01:36 | INFO     | core.logger | Running shutdown hooks...[0m
+[32m2026-05-25 03:01:36 | INFO     | core.logger | Performing cleanup tasks...[0m
+[32m2026-05-25 03:01:36 | INFO     | core.logger | All shutdown hooks completed[0m
+[32m2026-05-25 03:01:36 | INFO     | main | Application shutdown completed[0m
+[32mINFO[0m:     Application shutdown complete.
+[32mINFO[0m:     Finished server process [[36m2424[0m]
+Using temporary encryption key. Set ENCRYPTION_KEY in production!
+[32m2026-05-25 03:01:36 | INFO     | root | Logging initialized | Level: INFO | Format: json[0m
+[32m2026-05-25 03:01:36 | INFO     | watchfiles.main | 4 changes detected[0m
+[32m2026-05-25 03:01:37 | INFO     | watchfiles.main | 4 changes detected[0m
+[33mWARNING[0m:  WatchFiles detected changes in 'core/config.py'. Reloading...
+Using temporary encryption key. Set ENCRYPTION_KEY in production!
+[32m2026-05-25 03:01:37 | INFO     | root | Logging initialized | Level: INFO | Format: json[0m
+[32m2026-05-25 03:01:37 | INFO     | watchfiles.main | 4 changes detected[0m
+[32m2026-05-25 03:01:37 | INFO     | watchfiles.main | 1 change detected[0m
+/home/runner/workspace/infrastructure/api/v1/endpoints/analytics.py:279: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+  format: str = Query("json", regex="^(json|csv|excel)$"),
+/home/runner/workspace/infrastructure/api/v1/endpoints/admin.py:219: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+  status: str = Query(..., regex="^(active|inactive|suspended|banned)$"),
+/home/runner/workspace/infrastructure/api/v1/endpoints/dashboards.py:46: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+  period: str = Query("today", regex="^(today|week|month|year)$"),
+[32m2026-05-25 03:01:38 | INFO     | __mp_main__ | API v1 router registered[0m
+[32m2026-05-25 03:01:38 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:38 | INFO     | __mp_main__ | Webhook router registered[0m
+[32m2026-05-25 03:01:38 | INFO     | __mp_main__ | Web app router registered[0m
+[32m2026-05-25 03:01:38 | INFO     | root | Logging initialized | Level: INFO | Format: json[0m
+[32m2026-05-25 03:01:38 | INFO     | main | API v1 router registered[0m
+[32m2026-05-25 03:01:38 | INFO     | main | Webhook router registered[0m
+[32m2026-05-25 03:01:38 | INFO     | main | Web app router registered[0m
+[32mINFO[0m:     Started server process [[36m2558[0m]
+[32mINFO[0m:     Waiting for application startup.
+[32m2026-05-25 03:01:38 | INFO     | main | Starting Wolloyewa_Store_Bot v1.0.0[0m
+[32m2026-05-25 03:01:38 | INFO     | main | Environment: development[0m
+[32m2026-05-25 03:01:38 | INFO     | core.logger | Database connection pool initialized (pool_size=20)[0m
+[32m2026-05-25 03:01:38 | INFO     | main | Database connection pool initialized[0m
+[31m2026-05-25 03:01:38 | ERROR    | core.logger | Failed to connect to Redis: Error 111 connecting to localhost:6379. Connection refused.[0m
+[33m2026-05-25 03:01:38 | WARNING  | main | Redis initialization failed (continuing): Error 111 connecting to localhost:6379. Connection refused.[0m
+[32m2026-05-25 03:01:38 | INFO     | core.logger | Initializing Telegram bot...[0m
+[33m2026-05-25 03:01:38 | WARNING  | main | Telegram bot initialization failed (continuing): PicklePersistence.__init__() got an unexpected keyword argument 'store_bot_data'[0m
+[33m2026-05-25 03:01:38 | WARNING  | main | Scheduler initialization failed (continuing): cannot import name 'start_scheduler' from 'infrastructure.queues.scheduled_tasks' (/home/runner/workspace/infrastructure/queues/scheduled_tasks.py)[0m
+[32m2026-05-25 03:01:38 | INFO     | core.logger | Running startup hooks...[0m
+[32m2026-05-25 03:01:38 | INFO     | core.logger | Starting Wolloyewa_Store_Bot v1.0.0[0m
+[32m2026-05-25 03:01:38 | INFO     | core.logger | Environment: development[0m
+[32m2026-05-25 03:01:38 | INFO     | core.logger | Debug mode: True[0m
+[32m2026-05-25 03:01:38 | INFO     | core.logger | All startup hooks completed successfully[0m
+[32m2026-05-25 03:01:38 | INFO     | main | Application startup completed[0m
+[32mINFO[0m:     Application startup complete.
+[32m2026-05-25 03:01:38 | INFO     | watchfiles.main | 2 changes detected[0m
+[32m2026-05-25 03:01:38 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:39 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:39 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:39 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:40 | INFO     | watchfiles.main | 4 changes detected[0m
+[33mWARNING[0m:  WatchFiles detected changes in 'bot/bot_instance.py'. Reloading...
+[32mINFO[0m:     Shutting down
+[32mINFO[0m:     Waiting for application shutdown.
+[32m2026-05-25 03:01:40 | INFO     | main | Shutting down application...[0m
+[32m2026-05-25 03:01:40 | INFO     | core.logger | Database connection pool closed[0m
+[32m2026-05-25 03:01:40 | INFO     | core.logger | Redis connection closed[0m
+[32m2026-05-25 03:01:40 | INFO     | core.logger | Running shutdown hooks...[0m
+[32m2026-05-25 03:01:40 | INFO     | core.logger | Performing cleanup tasks...[0m
+[32m2026-05-25 03:01:40 | INFO     | core.logger | All shutdown hooks completed[0m
+[32m2026-05-25 03:01:40 | INFO     | main | Application shutdown completed[0m
+[32mINFO[0m:     Application shutdown complete.
+[32mINFO[0m:     Finished server process [[36m2558[0m]
+Using temporary encryption key. Set ENCRYPTION_KEY in production!
+[32m2026-05-25 03:01:40 | INFO     | root | Logging initialized | Level: INFO | Format: json[0m
+[32m2026-05-25 03:01:40 | INFO     | watchfiles.main | 10 changes detected[0m
+[32m2026-05-25 03:01:41 | INFO     | watchfiles.main | 1 change detected[0m
+/home/runner/workspace/infrastructure/api/v1/endpoints/analytics.py:279: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+  format: str = Query("json", regex="^(json|csv|excel)$"),
+/home/runner/workspace/infrastructure/api/v1/endpoints/admin.py:219: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+  status: str = Query(..., regex="^(active|inactive|suspended|banned)$"),
+/home/runner/workspace/infrastructure/api/v1/endpoints/dashboards.py:46: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+  period: str = Query("today", regex="^(today|week|month|year)$"),
+[32m2026-05-25 03:01:41 | INFO     | __mp_main__ | API v1 router registered[0m
+[32m2026-05-25 03:01:41 | INFO     | watchfiles.main | 4 changes detected[0m
+[32m2026-05-25 03:01:41 | INFO     | __mp_main__ | Webhook router registered[0m
+[32m2026-05-25 03:01:41 | INFO     | __mp_main__ | Web app router registered[0m
+[32m2026-05-25 03:01:41 | INFO     | root | Logging initialized | Level: INFO | Format: json[0m
+[32m2026-05-25 03:01:41 | INFO     | main | API v1 router registered[0m
+[32m2026-05-25 03:01:41 | INFO     | main | Webhook router registered[0m
+[32m2026-05-25 03:01:41 | INFO     | main | Web app router registered[0m
+[32mINFO[0m:     Started server process [[36m2567[0m]
+[32mINFO[0m:     Waiting for application startup.
+[32m2026-05-25 03:01:41 | INFO     | main | Starting Wolloyewa_Store_Bot v1.0.0[0m
+[32m2026-05-25 03:01:41 | INFO     | main | Environment: development[0m
+[32m2026-05-25 03:01:41 | INFO     | core.logger | Database connection pool initialized (pool_size=20)[0m
+[32m2026-05-25 03:01:41 | INFO     | main | Database connection pool initialized[0m
+[31m2026-05-25 03:01:41 | ERROR    | core.logger | Failed to connect to Redis: Error 111 connecting to localhost:6379. Connection refused.[0m
+[33m2026-05-25 03:01:41 | WARNING  | main | Redis initialization failed (continuing): Error 111 connecting to localhost:6379. Connection refused.[0m
+[32m2026-05-25 03:01:41 | INFO     | core.logger | Initializing Telegram bot...[0m
+[32m2026-05-25 03:01:41 | INFO     | watchfiles.main | 2 changes detected[0m
+[32m2026-05-25 03:01:42 | INFO     | core.logger | Bot initialized: User(allows_users_to_create_topics=False, api_kwargs={'supports_guest_queries': False, 'can_manage_bots': False}, can_connect_to_business=False, can_join_groups=True, can_read_all_group_messages=False, first_name='ሰሚራ የልጆች እና የእሴቶች ልብስ መሸጫ', has_main_web_app=False, has_topics_enabled=False, id=8927914359, is_bot=True, supports_inline_queries=False, username='Wolloyewa_Store_Bot')[0m
+[32m2026-05-25 03:01:42 | INFO     | main | Telegram bot initialized[0m
+[33m2026-05-25 03:01:42 | WARNING  | main | Scheduler initialization failed (continuing): cannot import name 'start_scheduler' from 'infrastructure.queues.scheduled_tasks' (/home/runner/workspace/infrastructure/queues/scheduled_tasks.py)[0m
+[32m2026-05-25 03:01:42 | INFO     | core.logger | Running startup hooks...[0m
+[32m2026-05-25 03:01:42 | INFO     | core.logger | Starting Wolloyewa_Store_Bot v1.0.0[0m
+[32m2026-05-25 03:01:42 | INFO     | core.logger | Environment: development[0m
+[32m2026-05-25 03:01:42 | INFO     | core.logger | Debug mode: True[0m
+[32m2026-05-25 03:01:42 | INFO     | core.logger | All startup hooks completed successfully[0m
+[32m2026-05-25 03:01:42 | INFO     | main | Application startup completed[0m
+[32mINFO[0m:     Application startup complete.
+[32m2026-05-25 03:01:42 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:42 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:43 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:43 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:43 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:44 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:44 | INFO     | watchfiles.main | 1 change detected[0m
+[32m2026-05-25 03:01:44 | INFO     | watchfiles.main | 1 change detected[0m
+[32mINFO[0m:     Shutting down
+[32mINFO[0m:     Waiting for application shutdown.
+[32m2026-05-25 03:01:44 | INFO     | main | Shutting down application...[0m
+[32m2026-05-25 03:01:44 | INFO     | core.logger | Database connection pool closed[0m
+[32m2026-05-25 03:01:44 | INFO     | core.logger | Redis connection closed[0m
+[32m2026-05-25 03:01:44 | INFO     | core.logger | Shutting down bot...[0m
+[32m2026-05-25 03:01:44 | INFO     | core.logger | Bot shutdown complete[0m
+[32m2026-05-25 03:01:44 | INFO     | core.logger | Running shutdown hooks...[0m
+[32m2026-05-25 03:01:44 | INFO     | core.logger | Performing cleanup tasks...[0m
+[32m2026-05-25 03:01:44 | INFO     | core.logger | All shutdown hooks completed[0m
+[32m2026-05-25 03:01:44 | INFO     | main | Application shutdown completed[0m
+[32mINFO[0m:     Application shutdown complete.
+[32mINFO[0m:     Finished server process [[36m2567[0m]
+[32mINFO[0m:     Stopping reloader process [[36m[1m2410[0m]
