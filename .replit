@@ -5,18 +5,13 @@ stack = "BEST_EFFORT_FALLBACK"
 
 [nix]
 channel = "stable-25_05"
-<<<<<<< HEAD
 packages = ["cargo", "file", "fontconfig", "ghostscript", "glib", "glibcLocales", "gmp", "harfbuzz", "libGL", "libGLU", "libiconv", "libxcrypt", "libyaml", "openssl", "pango", "pkg-config", "postgresql", "rustc", "xsimd"]
-=======
-packages = ["cargo", "file", "fontconfig", "freetype", "ghostscript", "glib", "glibcLocales", "gmp", "harfbuzz", "lcms2", "libGL", "libGLU", "libiconv", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "libyaml", "openjpeg", "openssl", "pango", "pkg-config", "postgresql", "rustc", "tcl", "tk", "xsimd", "zlib"]
->>>>>>> 58a16d4ee3078d96a16a22860de294107e7c3aef
 
 [userenv]
 
 [userenv.shared]
 ENVIRONMENT = "development"
 DEBUG = "True"
-<<<<<<< HEAD
 PORT = "5000"
 HOST = "0.0.0.0"
 LOG_LEVEL = "INFO"
@@ -27,59 +22,6 @@ REDIS_DB = "0"
 ENABLE_WEB_APP = "True"
 CORS_ALLOWED_ORIGINS = "[\"*\"]"
 STORAGE_PROVIDER = "local"
-=======
-PROJECT_NAME = "Wolloyewa_Store_Bot"
-TIMEZONE = "Africa/Addis_Ababa"
-HOST = "0.0.0.0"
-PORT = "8000"
-POSTGRES_USER = "postgres"
-POSTGRES_DB = "heliumdb"
-POSTGRES_HOST = "helium"
-POSTGRES_PORT = "5432"
-DATABASE_POOL_SIZE = "5"
-DATABASE_MAX_OVERFLOW = "10"
-REDIS_HOST = "localhost"
-REDIS_PORT = "6379"
-REDIS_DB = "0"
-REDIS_CACHE_TTL = "3600"
-REDIS_SESSION_TTL = "86400"
-STORAGE_PROVIDER = "local"
-PROMETHEUS_ENABLED = "False"
-GRAFANA_ENABLED = "False"
-OTEL_TRACING_ENABLED = "False"
-RATE_LIMIT_ENABLED = "True"
-RATE_LIMIT_PER_MINUTE = "60"
-RATE_LIMIT_PER_HOUR = "1000"
-RATE_LIMIT_STRATEGY = "sliding_window"
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRY_MINUTES = "1440"
-GDPR_COMPLIANT = "True"
-DATA_RETENTION_DAYS = "365"
-AUDIT_LOG_ENABLED = "True"
-ENABLE_PUSH_NOTIFICATIONS = "False"
-ENABLE_WEB_APP = "False"
-ENABLE_AI_SUPPORT_BOT = "False"
-ENABLE_LOYALTY_PROGRAM = "True"
-ENABLE_ESCROW_SERVICE = "False"
-ENABLE_AB_TESTING = "False"
-CELERY_TASK_ALWAYS_EAGER = "True"
-CELERY_WORKER_CONCURRENCY = "1"
-LOG_LEVEL = "INFO"
-LOG_FORMAT = "text"
-LOG_FILE_PATH = "./logs/bot_errors.log"
-BACKUP_ENABLED = "False"
-DEV_FAKE_PAYMENT = "True"
-DEV_POPULATE_DUMMY_DATA = "False"
-DEV_SKIP_MIDDLEWARES = "False"
-SMS_PROVIDER = "ethio_telecom"
-SMS_SENDER_ID = "WOLLOYEWA"
-EMAIL_FROM = "noreply@wolloyewa.com"
-SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = "587"
-AWS_REGION = "eu-north-1"
-ADMIN_IDS = "5848843259"
-ENCRYPTION_KEY = "weR6eFMwACC1GOGQanqMxqCkaE5WkhJ_SjyjmVTk3pQ="
->>>>>>> 58a16d4ee3078d96a16a22860de294107e7c3aef
 
 [workflows]
 runButton = "Project"
@@ -97,7 +39,6 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
-<<<<<<< HEAD
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python3 main.py"
@@ -109,16 +50,3 @@ outputType = "webview"
 [[ports]]
 localPort = 5000
 externalPort = 80
-=======
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "DATABASE_URL='postgresql://postgres:password@helium/heliumdb?sslmode=disable' ENVIRONMENT=development DEBUG=True ENABLE_WEB_APP=False PROMETHEUS_ENABLED=False LOG_FORMAT=text LOG_FILE_PATH=./logs/bot_errors.log REDIS_URL=redis://localhost:6379/0 CELERY_BROKER_URL=redis://localhost:6379/0 CELERY_RESULT_BACKEND=redis://localhost:6379/0 CELERY_TASK_ALWAYS_EAGER=True ADMIN_IDS=5848843259 uvicorn main:app --host 0.0.0.0 --port 8000"
-waitForPort = 8000
-
-[[ports]]
-localPort = 8000
-externalPort = 8000
->>>>>>> 58a16d4ee3078d96a16a22860de294107e7c3aef
