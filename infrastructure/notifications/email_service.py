@@ -167,6 +167,10 @@ class EmailService(NotificationProvider):
                 status="failed",
             )
 
+    async def get_status(self, message_id: str) -> dict:
+        """Get status of a sent email (not trackable via SMTP, return unknown)."""
+        return {"message_id": message_id, "status": "unknown"}
+
 
 # Global email service instance
 _email_service = EmailService()

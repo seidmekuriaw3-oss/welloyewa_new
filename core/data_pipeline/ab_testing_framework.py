@@ -6,7 +6,7 @@
 import hashlib
 import math
 from enum import Enum
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional, Union, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from collections import defaultdict

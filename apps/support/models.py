@@ -65,7 +65,11 @@ class Ticket(BaseModel, TimestampMixin):
     
     # Metadata
     attachments: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+<<<<<<< HEAD
     ticket_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True) # Changed from metadata to ticket_metadata
+=======
+    extra_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+>>>>>>> 58a16d4ee3078d96a16a22860de294107e7c3aef
     
     # Resolution
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

@@ -3,6 +3,7 @@
 # ============================
 """Factory pattern for creating payment providers."""
 
+from decimal import Decimal
 from typing import Optional
 from decimal import Decimal
 

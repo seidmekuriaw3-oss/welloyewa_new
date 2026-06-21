@@ -392,6 +392,7 @@ __all__ = [
     "track_order_created",
     "track_payment_success",
     "get_metrics",
+    "setup_metrics",
     # Individual metrics for direct access
     "http_requests_total",
     "http_request_duration_seconds",
@@ -401,3 +402,8 @@ __all__ = [
     "cache_hits_total",
     "bot_messages_total",
 ]
+
+
+async def setup_metrics() -> None:
+    """Initialize metrics collection. Called during application startup."""
+    logger.info("Metrics collection initialized")

@@ -133,4 +133,6 @@ async def handle_telegram_update(update_data: Dict[str, Any]) -> None:
     await process_update(update_data)
 
 
-__all__ = ["router", "set_webhook", "remove_webhook", "handle_telegram_update"]
+webhook_router = router
+
+__all__ = ["router", "webhook_router", "set_webhook", "remove_webhook", "handle_telegram_update", "process_update"]

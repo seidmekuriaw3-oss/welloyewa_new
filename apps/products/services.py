@@ -430,4 +430,15 @@ class ReviewService:
 
 from datetime import datetime
 
-__all__ = ["ProductService", "CategoryService", "ReviewService"]
+
+class SearchService:
+    """Wrapper around ProductService for search operations."""
+
+    def __init__(self, db):
+        self._product_service = ProductService(db)
+
+    async def search(self, query: str, **kwargs):
+        return await self._product_service.search_products(query, **kwargs)
+
+
+__all__ = ["ProductService", "CategoryService", "ReviewService", "SearchService"]

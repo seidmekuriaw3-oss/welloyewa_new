@@ -368,6 +368,11 @@ def parse_from_payment(amount: int) -> Decimal:
     return Decimal(amount) / 100
 
 
+def convert_currency(amount, from_currency: str, to_currency: str) -> Decimal:
+    """Convert amount from one currency to another using the default converter."""
+    return currency_converter.convert(amount, from_currency, to_currency)
+
+
 __all__ = [
     "to_decimal",
     "format_currency",
@@ -379,6 +384,7 @@ __all__ = [
     "calculate_subtotal",
     "CurrencyConverter",
     "currency_converter",
+    "convert_currency",
     "round_amount",
     "split_amount",
     "format_for_payment",

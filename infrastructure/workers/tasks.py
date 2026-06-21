@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 
 from infrastructure.workers.celery_app import celery_app
 from core.logger import logger
-from core.database import get_db_session
+from infrastructure.database.session import get_db_session
 
 
 # ============================

@@ -351,6 +351,7 @@ async def init_bot() -> Application:
     
     logger.info("Initializing Telegram bot...")
     
+<<<<<<< HEAD
     # Configure persistence for conversation states using Redis when available.
     try:
         persistence = RedisPersistence(
@@ -364,6 +365,14 @@ async def init_bot() -> Application:
         persistence = JSONFilePersistence(filepath="bot_data.json")
 
     # Build application with added network timeouts to handle slower connection handshakes gracefully
+=======
+    # Configure persistence for conversation states
+    persistence = PicklePersistence(
+        filepath="bot_data.pickle",
+    )
+    
+    # Build application
+>>>>>>> 58a16d4ee3078d96a16a22860de294107e7c3aef
     _application = (
         ApplicationBuilder()
         .token(settings.TELEGRAM_BOT_TOKEN)
@@ -416,4 +425,7 @@ def get_dispatcher():
     return _application
 
 
-__all__ = ["init_bot", "shutdown_bot", "get_bot", "get_dispatcher"]
+bot = None
+dispatcher = None
+
+__all__ = ["bot", "dispatcher", "init_bot", "shutdown_bot", "get_bot", "get_dispatcher"]

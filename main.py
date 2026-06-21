@@ -53,6 +53,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from infrastructure.database.session import init_db, close_db
         await init_db()
         logger.info("Database connection pool initialized")
+<<<<<<< HEAD
     except Exception as e:
         logger.warning(f"Database initialization failed (continuing): {e}")
 
@@ -66,8 +67,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Initialize Telegram bot
     try:
+=======
+        
+        # Initialize Redis connection (optional - bot works without it)
+        try:
+            from infrastructure.redis.client import init_redis, close_redis
+            await init_redis()
+            logger.info("Redis connection initialized")
+        except Exception as redis_err:
+            logger.warning(f"Redis unavailable (non-fatal): {redis_err}")
+        
+        # Setup monitoring metrics
+        await setup_metrics()
+        logger.info("Monitoring metrics initialized")
+        
+        # Initialize Telegram bot
+>>>>>>> 58a16d4ee3078d96a16a22860de294107e7c3aef
         from bot.bot_instance import init_bot, shutdown_bot
         
+<<<<<<< HEAD
         # የኢንተርኔት መቆራረጥ ካለ ቦቱ ወዲያው ተስፋ ቆርጦ ዋርኒንግ እንዳይጥል Retry Loop እንጨምራለን
         retry_count = 3
         for attempt in range(retry_count):
@@ -117,6 +135,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from infrastructure.queues.scheduled_tasks import start_scheduler, stop_scheduler
         await start_scheduler()
         logger.info("Background task scheduler started")
+=======
+        # Setup background tasks (optional)
+        try:
+            from infrastructure.workers.celery_app import celery_app
+            from infrastructure.queues.scheduled_tasks import scheduled_task_manager
+            logger.info("Background task scheduler ready")
+        except Exception as sched_err:
+            logger.warning(f"Scheduler unavailable (non-fatal): {sched_err}")
+        
+        # Run lifespan manager
+        await lifespan_manager.on_startup()
+        
+        logger.info("Application startup completed successfully")
+        
+>>>>>>> 58a16d4ee3078d96a16a22860de294107e7c3aef
     except Exception as e:
         logger.warning(f"Scheduler initialization failed (continuing): {e}")
 
@@ -171,6 +204,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.error(f"Error shutting down bot: {e}")
 
     try:
+<<<<<<< HEAD
+=======
+        # Stop background tasks
+        try:
+            from infrastructure.queues.scheduled_tasks import scheduled_task_manager
+            await scheduled_task_manager.stop_processor()
+        except Exception:
+            pass
+        
+        # Close database connections
+        await close_db()
+        
+        # Close Redis connections
+        await close_redis()
+        
+        # Shutdown bot
+        await shutdown_bot()
+        
+        # Run lifespan manager shutdown
+>>>>>>> 58a16d4ee3078d96a16a22860de294107e7c3aef
         await lifespan_manager.on_shutdown()
     except Exception as e:
         logger.error(f"Error in lifespan shutdown: {e}")

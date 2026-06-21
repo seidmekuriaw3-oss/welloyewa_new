@@ -3,7 +3,11 @@
 # ============================
 """REST API endpoints for user management."""
 
+<<<<<<< HEAD
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
+=======
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+>>>>>>> 58a16d4ee3078d96a16a22860de294107e7c3aef
 from typing import List, Optional
 
 from core.dependencies import get_current_user, get_current_admin, get_db_session, get_pagination_params
