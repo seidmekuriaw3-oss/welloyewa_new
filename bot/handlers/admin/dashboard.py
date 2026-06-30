@@ -1,7 +1,24 @@
 # ============================
 # WOLLOYEWA STORE BOT - ADMIN DASHBOARD HANDLER
 # ============================
-"""Admin dashboard handlers for bot administration."""
+"""
+Admin dashboard — central router for ALL admin_* callbacks.
+
+New callback patterns handled here (in addition to the originals):
+  admin_cat_edit_<id>          → start edit-category text flow
+  admin_cat_del_<id>           → confirm-delete panel
+  admin_cat_del_confirm_<id>   → actually delete category
+  admin_cat_pick_<id>          → finish add-product flow (category chosen)
+  admin_approve_product_<id>   → approve a specific product
+  admin_reject_product_<id>    → reject a specific product
+  admin_suspend_user_<id>      → confirm-suspend panel
+  admin_unsuspend_user_<id>    → lift suspension immediately
+  admin_confirm_suspend_<id>   → actually suspend user
+  admin_approve_vendor_<id>    → approve specific vendor
+  admin_reject_vendor_<id>     → reject specific vendor
+  admin_view_order_<id>        → show full order detail
+  admin_set_status_<oid>_<st>  → change order status
+"""
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
@@ -19,15 +36,14 @@ from infrastructure.database.session import get_db_session
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _admin_main_keyboard() -> InlineKeyboardMarkup:
-    """Build the main admin menu keyboard."""
     keyboard = [
-        [InlineKeyboardButton("📊 ዳሽቦርድ", callback_data="admin_dashboard")],
-        [InlineKeyboardButton("📦 ምርቶች", callback_data="admin_products")],
-        [InlineKeyboardButton("📋 ትዕዛዞች", callback_data="admin_orders")],
+        [InlineKeyboardButton("📊 ዳሽቦርድ",   callback_data="admin_dashboard")],
+        [InlineKeyboardButton("📦 ምርቶች",    callback_data="admin_products")],
+        [InlineKeyboardButton("📋 ትዕዛዞች",   callback_data="admin_orders")],
         [InlineKeyboardButton("👥 ተጠቃሚዎች", callback_data="admin_users")],
-        [InlineKeyboardButton("🏪 ሻጮች", callback_data="admin_vendors")],
-        [InlineKeyboardButton("📊 ሪፖርቶች", callback_data="admin_reports")],
-        [InlineKeyboardButton("⚙️ ቅንብሮች", callback_data="admin_settings")],
+        [InlineKeyboardButton("🏪 ሻጮች",     callback_data="admin_vendors")],
+        [InlineKeyboardButton("📊 ሪፖርቶች",  callback_data="admin_reports")],
+        [InlineKeyboardButton("⚙️ ቅንብሮች",  callback_data="admin_settings")],
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -38,33 +54,21 @@ ADMIN_MENU_TEXT = (
 )
 
 
-async def _not_implemented(update: Update, action: str) -> None:
-    """Reply with a 'not yet implemented' notice."""
-    query = update.callback_query
-    await query.message.reply_text(
-        f"⚠️ ይህ ባህሪ ({action}) በቅርብ ጊዜ ይጨምራል።"
-    )
-
-
-# ── Commands ──────────────────────────────────────────────────────────────────
+# ── Commands ─────────────────────────────────────────────────────────────────
 
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /admin — show the main admin menu."""
-    user_id = update.effective_user.id
-    if user_id not in settings.admin_ids_list:
+    """Handle /admin."""
+    if update.effective_user.id not in settings.admin_ids_list:
         await update.message.reply_text("❌ ይህን ትዕዛዝ ለመጠቀም ፈቃድ የለዎትም።")
         return
     await update.message.reply_text(
-        ADMIN_MENU_TEXT,
-        parse_mode="Markdown",
-        reply_markup=_admin_main_keyboard(),
+        ADMIN_MENU_TEXT, parse_mode="Markdown", reply_markup=_admin_main_keyboard()
     )
 
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /stats — show quick statistics (admin only)."""
-    user_id = update.effective_user.id
-    if user_id not in settings.admin_ids_list:
+    """Handle /stats."""
+    if update.effective_user.id not in settings.admin_ids_list:
         await update.message.reply_text("❌ ፈቃድ የለዎትም።")
         return
     await _send_dashboard_text(update, context, via_command=True)
@@ -77,27 +81,24 @@ async def _send_dashboard_text(
     context: ContextTypes.DEFAULT_TYPE,
     via_command: bool = False,
 ) -> None:
-    """Fetch stats and display the dashboard — works from both commands and callbacks."""
     now = datetime.utcnow()
     today_start = datetime(now.year, now.month, now.day)
-    week_start = now - timedelta(days=7)
+    week_start  = now - timedelta(days=7)
     month_start = now - timedelta(days=30)
 
     try:
         async for db in get_db_session():
             sales_service = SalesAnalyticsService(db)
-            user_service = UserService(db)
+            user_service  = UserService(db)
             order_service = OrderService(db)
 
-            today_sales = await sales_service.get_sales_summary(today_start, now)
-            week_sales = await sales_service.get_sales_summary(week_start, now)
-            month_sales = await sales_service.get_sales_summary(month_start, now)
-
-            total_users = await user_service.user_repo.count()
+            today_sales  = await sales_service.get_sales_summary(today_start, now)
+            week_sales   = await sales_service.get_sales_summary(week_start, now)
+            month_sales  = await sales_service.get_sales_summary(month_start, now)
+            total_users  = await user_service.user_repo.count()
             active_users = await user_service.user_repo.count({"last_active__gte": week_start})
-            vendors = await user_service.user_repo.count({"role": "vendor"})
-
-            pending_orders = await order_service.order_repo.count({"status": "pending"})
+            vendors      = await user_service.user_repo.count({"role": "vendor"})
+            pending_orders    = await order_service.order_repo.count({"status": "pending"})
             processing_orders = await order_service.order_repo.count({"status": "processing"})
             break
     except Exception as exc:
@@ -124,87 +125,45 @@ async def _send_dashboard_text(
     )
 
     keyboard = [
-        [InlineKeyboardButton("🔄 አድስ", callback_data="admin_dashboard")],
-        [InlineKeyboardButton("🔙 ወደ አስተዳደር", callback_data="admin_back")],
+        [InlineKeyboardButton("🔄 አድስ",           callback_data="admin_dashboard")],
+        [InlineKeyboardButton("🔙 ወደ አስተዳደር",    callback_data="admin_back")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if via_command:
-        await update.message.reply_text(
-            dashboard_text, parse_mode="Markdown", reply_markup=reply_markup
-        )
+        await update.message.reply_text(dashboard_text, parse_mode="Markdown", reply_markup=reply_markup)
     else:
-        await update.callback_query.message.edit_text(
-            dashboard_text, parse_mode="Markdown", reply_markup=reply_markup
-        )
+        await update.callback_query.message.edit_text(dashboard_text, parse_mode="Markdown", reply_markup=reply_markup)
 
 
 async def show_admin_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show dashboard (callback context)."""
     await _send_dashboard_text(update, context, via_command=False)
 
 
 # ── Sub-panels ────────────────────────────────────────────────────────────────
 
 async def show_admin_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Return to main admin menu from a callback."""
     query = update.callback_query
     await query.message.edit_text(
-        ADMIN_MENU_TEXT,
-        parse_mode="Markdown",
-        reply_markup=_admin_main_keyboard(),
+        ADMIN_MENU_TEXT, parse_mode="Markdown", reply_markup=_admin_main_keyboard()
     )
 
 
 async def show_vendors_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show list of vendors for admin (from main menu)."""
-    query = update.callback_query
-    try:
-        async for db in get_db_session():
-            user_service = UserService(db)
-            vendors = await user_service.user_repo.get_all(
-                filters={"role": "vendor"}, limit=50
-            )
-            break
-    except Exception as exc:
-        logger.error("Vendor list error: %s", exc)
-        vendors = []
-
-    if not vendors:
-        await query.message.edit_text(
-            "📋 ምንም ሻጮች አልተገኙም።",
-            reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("🔙 ወደ አስተዳደር", callback_data="admin_back")]]
-            ),
-        )
-        return
-
-    vendors_text = "🏪 *ሻጮች*\n\n"
-    for vendor in vendors:
-        vendors_text += f"• *{vendor.full_name}* (@{vendor.username or 'N/A'})\n"
-        vendors_text += f"  📞 {vendor.phone_number or 'N/A'}\n"
-        vendors_text += f"  📅 {vendor.created_at.strftime('%Y-%m-%d')}\n\n"
-
-    keyboard = [
-        [InlineKeyboardButton("✅ አጽድቅ", callback_data="admin_approve_vendor")],
-        [InlineKeyboardButton("🔙 ወደ አስተዳደር", callback_data="admin_back")],
-    ]
-    await query.message.edit_text(
-        vendors_text,
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
+    """Vendors entry from main menu — delegate to users_admin.list_vendors."""
+    from bot.handlers.admin.users_admin import list_vendors
+    context.user_data["admin_vendors_page"] = 1
+    await list_vendors(update, context)
 
 
 async def show_admin_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show admin settings panel."""
     query = update.callback_query
     keyboard = [
-        [InlineKeyboardButton("🔧 ስርዓት ቅንብሮች", callback_data="admin_system_settings")],
-        [InlineKeyboardButton("💰 የክፍያ ቅንብሮች", callback_data="admin_payment_settings")],
+        [InlineKeyboardButton("🔧 ስርዓት ቅንብሮች",  callback_data="admin_system_settings")],
+        [InlineKeyboardButton("💰 የክፍያ ቅንብሮች",  callback_data="admin_payment_settings")],
         [InlineKeyboardButton("📧 ማሳወቂያ ቅንብሮች", callback_data="admin_notification_settings")],
         [InlineKeyboardButton("🗄️ የውሂብ ጎታ ምትኬ", callback_data="admin_backup")],
-        [InlineKeyboardButton("🔙 ወደ አስተዳደር", callback_data="admin_back")],
+        [InlineKeyboardButton("🔙 ወደ አስተዳደር",    callback_data="admin_back")],
     ]
     await query.message.edit_text(
         "⚙️ *የስርዓት ቅንብሮች*\n\nከዚህ በታች ያሉትን ቅንብሮች ይቀይሩ።",
@@ -215,55 +174,59 @@ async def show_admin_settings(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def show_system_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    keyboard = [[InlineKeyboardButton("🔙 ወደ ቅንብሮች", callback_data="admin_settings")]]
     await query.message.edit_text(
         f"🔧 *ስርዓት ቅንብሮች*\n\n"
         f"• አካባቢ: `{settings.ENVIRONMENT}`\n"
         f"• ዲቡግ: `{settings.DEBUG}`\n"
         f"• ስሪት: `{settings.VERSION}`",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 ወደ ቅንብሮች", callback_data="admin_settings")]
+        ]),
     )
 
 
 async def show_payment_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    keyboard = [[InlineKeyboardButton("🔙 ወደ ቅንብሮች", callback_data="admin_settings")]]
     await query.message.edit_text(
         "💰 *የክፍያ ቅንብሮች*\n\n"
         "• Chapa: ✅ ንቁ\n"
         "• Telebirr: ✅ ንቁ\n"
         "• CBE Birr: ✅ ንቁ\n\n"
-        "⚠️ ቅንብሮችን ለመቀየር በ `.env` ፋይሉ ውስጥ ያስተካክሉ።",
+        "⚠️ ቅንብሮችን ለመቀየር `.env` ፋይሉ ያስተካክሉ።",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 ወደ ቅንብሮች", callback_data="admin_settings")]
+        ]),
     )
 
 
 async def show_notification_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    keyboard = [[InlineKeyboardButton("🔙 ወደ ቅንብሮች", callback_data="admin_settings")]]
     await query.message.edit_text(
         "📧 *ማሳወቂያ ቅንብሮች*\n\n"
         "• ትዕዛዝ ማሳወቂያ: ✅ ንቁ\n"
         "• ክምችት ማሳወቂያ: ✅ ንቁ\n"
         "• ሪፖርት ማሳወቂያ: ✅ ንቁ",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 ወደ ቅንብሮች", callback_data="admin_settings")]
+        ]),
     )
 
 
 async def show_backup_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     now = datetime.utcnow()
-    keyboard = [[InlineKeyboardButton("🔙 ወደ ቅንብሮች", callback_data="admin_settings")]]
     await query.message.edit_text(
         "🗄️ *የውሂብ ጎታ ምትኬ*\n\n"
         f"• ሰዓት: {now.strftime('%Y-%m-%d %H:%M UTC')}\n"
         "• ሁኔታ: ✅ ንቁ (በራስ-ሰር)\n\n"
-        "⚠️ ምትኬ ለማስጀመር የ DevOps ቡድን ያነጋግሩ።",
+        "⚠️ ምትኬ ለማስጀመር DevOps ቡድን ያነጋግሩ።",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 ወደ ቅንብሮች", callback_data="admin_settings")]
+        ]),
     )
 
 
@@ -272,30 +235,127 @@ async def show_backup_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Central router for ALL admin_* callbacks.
-
-    All admin buttons use the ``admin_*`` prefix and are captured by the
-    single ``^admin_`` pattern registered in dispatcher.py.  This function
-    answers the query once and dispatches to the correct sub-handler.
+    Registered once in dispatcher.py with pattern ^admin_.
     """
     query = update.callback_query
     await query.answer()
 
-    action = query.data
+    action  = query.data
     user_id = update.effective_user.id
 
-    # Permission guard
     if user_id not in settings.admin_ids_list:
         await query.message.reply_text("❌ ፈቃድ የለዎትም።")
         return
 
-    # ── Top-level navigation ─────────────────────────────────────────────────
+    # ════════════════════════════════════════════════════════════════
+    # Dynamic patterns  (check BEFORE the long elif chain)
+    # ════════════════════════════════════════════════════════════════
+
+    # admin_cat_edit_<id>
+    if action.startswith("admin_cat_edit_"):
+        cat_id = int(action.split("_")[-1])
+        from bot.handlers.admin.products_admin import start_edit_category
+        await start_edit_category(update, context, cat_id)
+        return
+
+    # admin_cat_del_<id>  (confirmation panel)
+    if action.startswith("admin_cat_del_confirm_"):
+        cat_id = int(action.split("_")[-1])
+        from bot.handlers.admin.products_admin import do_delete_category
+        await do_delete_category(update, context, cat_id)
+        return
+
+    if action.startswith("admin_cat_del_"):
+        cat_id = int(action.split("_")[-1])
+        from bot.handlers.admin.products_admin import confirm_delete_category
+        await confirm_delete_category(update, context, cat_id)
+        return
+
+    # admin_cat_pick_<id>  (finish add-product flow)
+    if action.startswith("admin_cat_pick_"):
+        cat_id = int(action.split("_")[-1])
+        from bot.handlers.admin.products_admin import do_create_product_with_category
+        await do_create_product_with_category(update, context, cat_id)
+        return
+
+    # admin_approve_product_<id>
+    if action.startswith("admin_approve_product_"):
+        product_id = int(action.split("_")[-1])
+        from bot.handlers.admin.products_admin import do_approve_product
+        await do_approve_product(update, context, product_id)
+        return
+
+    # admin_reject_product_<id>
+    if action.startswith("admin_reject_product_"):
+        product_id = int(action.split("_")[-1])
+        from bot.handlers.admin.products_admin import do_reject_product
+        await do_reject_product(update, context, product_id)
+        return
+
+    # admin_suspend_user_<id>  (confirmation panel)
+    if action.startswith("admin_suspend_user_"):
+        uid = int(action.split("_")[-1])
+        from bot.handlers.admin.users_admin import confirm_suspend_user
+        await confirm_suspend_user(update, context, uid)
+        return
+
+    # admin_confirm_suspend_<id>  (actually suspend)
+    if action.startswith("admin_confirm_suspend_"):
+        uid = int(action.split("_")[-1])
+        from bot.handlers.admin.users_admin import do_suspend_user
+        await do_suspend_user(update, context, uid)
+        return
+
+    # admin_unsuspend_user_<id>
+    if action.startswith("admin_unsuspend_user_"):
+        uid = int(action.split("_")[-1])
+        from bot.handlers.admin.users_admin import do_unsuspend_user
+        await do_unsuspend_user(update, context, uid)
+        return
+
+    # admin_approve_vendor_<id>
+    if action.startswith("admin_approve_vendor_"):
+        vid = int(action.split("_")[-1])
+        from bot.handlers.admin.users_admin import do_approve_vendor
+        await do_approve_vendor(update, context, vid)
+        return
+
+    # admin_reject_vendor_<id>
+    if action.startswith("admin_reject_vendor_"):
+        vid = int(action.split("_")[-1])
+        from bot.handlers.admin.users_admin import do_reject_vendor
+        await do_reject_vendor(update, context, vid)
+        return
+
+    # admin_view_order_<id>
+    if action.startswith("admin_view_order_"):
+        oid = int(action.split("_")[-1])
+        from bot.handlers.admin.orders_admin import show_order_detail
+        await show_order_detail(update, context, oid)
+        return
+
+    # admin_set_status_<order_id>_<new_status>
+    if action.startswith("admin_set_status_"):
+        # format: admin_set_status_<oid>_<status>
+        # status may contain underscores (none currently, but be safe)
+        parts = action[len("admin_set_status_"):].split("_", 1)
+        oid, new_status = int(parts[0]), parts[1]
+        from bot.handlers.admin.orders_admin import do_change_order_status
+        await do_change_order_status(update, context, oid, new_status)
+        return
+
+    # ════════════════════════════════════════════════════════════════
+    # Static routes
+    # ════════════════════════════════════════════════════════════════
+
+    # ── Top-level navigation ────────────────────────────────────────
     if action == "admin_dashboard":
         await show_admin_dashboard(update, context)
 
     elif action == "admin_back":
         await show_admin_menu_callback(update, context)
 
-    # ── Settings ─────────────────────────────────────────────────────────────
+    # ── Settings ────────────────────────────────────────────────────
     elif action == "admin_settings":
         await show_admin_settings(update, context)
 
@@ -311,7 +371,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif action == "admin_backup":
         await show_backup_info(update, context)
 
-    # ── Products ─────────────────────────────────────────────────────────────
+    # ── Products ────────────────────────────────────────────────────
     elif action == "admin_products":
         from bot.handlers.admin.products_admin import products_admin_panel
         await products_admin_panel(update, context)
@@ -348,24 +408,32 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await list_pending_products(update, context)
 
     elif action == "admin_add_product":
-        await _not_implemented(update, "አዲስ ምርት ማስገባት")
+        from bot.handlers.admin.products_admin import start_add_product
+        await start_add_product(update, context)
 
     elif action == "admin_add_category":
-        await _not_implemented(update, "አዲስ ምድብ ማስገባት")
+        from bot.handlers.admin.products_admin import start_add_category
+        await start_add_category(update, context)
 
+    # admin_edit_category / admin_delete_category with no id → show category list
     elif action == "admin_edit_category":
-        await _not_implemented(update, "ምድብ ማርትዕ")
+        from bot.handlers.admin.products_admin import manage_categories
+        await manage_categories(update, context)   # user picks from the list
 
     elif action == "admin_delete_category":
-        await _not_implemented(update, "ምድብ መሰርዝ")
+        from bot.handlers.admin.products_admin import manage_categories
+        await manage_categories(update, context)   # user picks from the list
 
     elif action == "admin_approve_product":
-        await _not_implemented(update, "ምርት ማጽደቅ")
+        # bare (no ID) → go to pending list so admin can pick
+        from bot.handlers.admin.products_admin import list_pending_products
+        await list_pending_products(update, context)
 
     elif action == "admin_reject_product":
-        await _not_implemented(update, "ምርት ውድቅ ማድረግ")
+        from bot.handlers.admin.products_admin import list_pending_products
+        await list_pending_products(update, context)
 
-    # ── Orders ───────────────────────────────────────────────────────────────
+    # ── Orders ──────────────────────────────────────────────────────
     elif action == "admin_orders":
         from bot.handlers.admin.orders_admin import orders_admin_panel
         await orders_admin_panel(update, context)
@@ -405,32 +473,33 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             1, context.user_data.get("admin_orders_page", 1) - 1
         )
         from bot.handlers.admin.orders_admin import list_orders
-        await list_orders(
-            update, context,
-            status=context.user_data.get("admin_orders_filter"),
-        )
+        await list_orders(update, context, status=context.user_data.get("admin_orders_filter"))
 
     elif action == "admin_orders_page_next":
         context.user_data["admin_orders_page"] = (
             context.user_data.get("admin_orders_page", 1) + 1
         )
         from bot.handlers.admin.orders_admin import list_orders
-        await list_orders(
-            update, context,
-            status=context.user_data.get("admin_orders_filter"),
-        )
+        await list_orders(update, context, status=context.user_data.get("admin_orders_filter"))
 
     elif action == "admin_orders_back":
         from bot.handlers.admin.orders_admin import orders_admin_panel
         await orders_admin_panel(update, context)
 
+    # bare change_status / view_order (no ID) → show order list to pick from
     elif action == "admin_change_status":
-        await _not_implemented(update, "ትዕዛዝ ሁኔታ መቀየር")
+        context.user_data["admin_orders_page"] = 1
+        context.user_data["admin_orders_filter"] = None
+        from bot.handlers.admin.orders_admin import list_orders
+        await list_orders(update, context)
 
     elif action == "admin_view_order":
-        await _not_implemented(update, "ትዕዛዝ ዝርዝር ማየት")
+        context.user_data["admin_orders_page"] = 1
+        context.user_data["admin_orders_filter"] = None
+        from bot.handlers.admin.orders_admin import list_orders
+        await list_orders(update, context)
 
-    # ── Users ─────────────────────────────────────────────────────────────────
+    # ── Users ───────────────────────────────────────────────────────
     elif action == "admin_users":
         from bot.handlers.admin.users_admin import users_admin_panel
         await users_admin_panel(update, context)
@@ -466,13 +535,18 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         from bot.handlers.admin.users_admin import prompt_search_users
         await prompt_search_users(update, context)
 
+    # bare edit_user / suspend_user (no ID) → show user list so admin can pick
     elif action == "admin_edit_user":
-        await _not_implemented(update, "ተጠቃሚ ማርትዕ")
+        context.user_data["admin_users_page"] = 1
+        from bot.handlers.admin.users_admin import list_users
+        await list_users(update, context)
 
     elif action == "admin_suspend_user":
-        await _not_implemented(update, "ተጠቃሚ ማገድ")
+        context.user_data["admin_users_page"] = 1
+        from bot.handlers.admin.users_admin import list_users
+        await list_users(update, context)
 
-    # ── Vendors ───────────────────────────────────────────────────────────────
+    # ── Vendors ─────────────────────────────────────────────────────
     elif action == "admin_vendors":
         await show_vendors_list(update, context)
 
@@ -500,19 +574,18 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         from bot.handlers.admin.users_admin import list_vendors
         await list_vendors(update, context)
 
+    # bare approve/reject vendor (no ID) → pending vendors list
     elif action == "admin_approve_vendor":
-        await query.message.reply_text(
-            "✅ ሻጩን ለማጽደቅ እባክዎ የሻጩን User ID ይላኩ።"
-        )
-        context.user_data["admin_awaiting_vendor_approve"] = True
+        context.user_data["admin_vendors_page"] = 1
+        from bot.handlers.admin.users_admin import list_vendors
+        await list_vendors(update, context, pending_only=True)
 
     elif action == "admin_reject_vendor":
-        await query.message.reply_text(
-            "❌ ሻጩን ውድቅ ለማድረግ እባክዎ የሻጩን User ID ይላኩ።"
-        )
-        context.user_data["admin_awaiting_vendor_reject"] = True
+        context.user_data["admin_vendors_page"] = 1
+        from bot.handlers.admin.users_admin import list_vendors
+        await list_vendors(update, context, pending_only=True)
 
-    # ── Reports ───────────────────────────────────────────────────────────────
+    # ── Reports ─────────────────────────────────────────────────────
     elif action == "admin_reports":
         from bot.handlers.admin.reports import reports_panel
         await reports_panel(update, context)
@@ -550,10 +623,12 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await reports_panel(update, context)
 
     elif action == "admin_export_sales":
-        await _not_implemented(update, "የሽያጭ ሪፖርት ማውረድ")
+        from bot.handlers.admin.reports import export_sales_csv
+        await export_sales_csv(update, context)
 
     elif action == "admin_export_users":
-        await _not_implemented(update, "የተጠቃሚ ሪፖርት ማውረድ")
+        from bot.handlers.admin.reports import export_users_csv
+        await export_users_csv(update, context)
 
     else:
         logger.warning("Unhandled admin callback: %s", action)

@@ -1,2 +1,3 @@
 - [Wolloyewa import fixes](wolloyewa-import-fixes.md) — cascading import errors fixed across 20+ files; key patterns documented
 - [Wolloyewa startup config](wolloyewa-startup-config.md) — env vars, DB URL, Pydantic DSN, and startup notes
+- [Wolloyewa admin routing](wolloyewa-admin-routing.md) — full admin_* callback routing, multi-step text state system, service signatures, per-entity buttons, CSV export

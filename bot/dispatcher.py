@@ -28,10 +28,12 @@ def setup_dispatcher(application: Application) -> Application:
 
     # Admin handlers (optional)
     dashboard = products_admin = orders_admin = users_admin = reports = None
+    admin_input = None
     try:
         from bot.handlers.admin import (
             dashboard, products_admin, orders_admin, users_admin, reports,
         )
+        from bot.handlers.admin import admin_input
     except Exception as e:
         logger.warning(f"Admin handlers disabled: {e}")
 
@@ -136,7 +138,21 @@ def setup_dispatcher(application: Application) -> Application:
     # ── Message handlers (catch-all, registered last) ─────────────────────────
     application.add_handler(MessageHandler(filters.LOCATION, location.location_message_handler))
     application.add_handler(MessageHandler(filters.CONTACT,  profile.contact_handler))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, catalog.text_message_handler))
+
+    # Admin text-input state handler — must run BEFORE the general text handler
+    if admin_input is not None:
+        application.add_handler(
+            MessageHandler(
+                filters.TEXT & ~filters.COMMAND,
+                admin_input.handle_admin_text_input,
+            ),
+            group=0,
+        )
+
+    application.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, catalog.text_message_handler),
+        group=1,
+    )
 
     logger.info("Message handlers registered")
 
