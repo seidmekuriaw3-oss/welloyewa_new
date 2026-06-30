@@ -298,9 +298,4 @@ async def export_sales_report(
         return {"message": "Excel export not implemented yet"}
 
 
-<<<<<<< HEAD
-=======
-from apps.analytics.services import AnalyticsService
-
->>>>>>> 58a16d4ee3078d96a16a22860de294107e7c3aef
 __all__ = ["router"]

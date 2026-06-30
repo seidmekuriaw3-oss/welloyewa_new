@@ -22,23 +22,18 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-# Load environment variables first
 from core.config import settings
 from core.logger import setup_logging
 from core.lifespan import lifespan_manager
 from core.security.middleware import SecurityHeadersMiddleware
 
-# Initialize logging
 setup_logging()
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """
-    Application lifespan context manager.
-    Handles startup and shutdown events with Polling fallback for development.
-    """
+    """Application lifespan - startup and shutdown."""
     logger.info(f"Starting {settings.PROJECT_NAME} v{get_version()}")
     logger.info(f"Environment: {settings.ENVIRONMENT}")
 
@@ -46,18 +41,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     close_redis = None
     shutdown_bot = None
     stop_scheduler = None
-    application_instance = None  # To keep track of the telegram application
+    application_instance = None
 
-    # Initialize database connection pool
+    # Database
     try:
         from infrastructure.database.session import init_db, close_db
         await init_db()
         logger.info("Database connection pool initialized")
-<<<<<<< HEAD
     except Exception as e:
         logger.warning(f"Database initialization failed (continuing): {e}")
 
-    # Initialize Redis connection
+    # Redis (optional)
     try:
         from infrastructure.redis.client import init_redis, close_redis
         await init_redis()
@@ -65,95 +59,42 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning(f"Redis initialization failed (continuing): {e}")
 
-    # Initialize Telegram bot
+    # Telegram Bot with retry
     try:
-=======
-        
-        # Initialize Redis connection (optional - bot works without it)
-        try:
-            from infrastructure.redis.client import init_redis, close_redis
-            await init_redis()
-            logger.info("Redis connection initialized")
-        except Exception as redis_err:
-            logger.warning(f"Redis unavailable (non-fatal): {redis_err}")
-        
-        # Setup monitoring metrics
-        await setup_metrics()
-        logger.info("Monitoring metrics initialized")
-        
-        # Initialize Telegram bot
->>>>>>> 58a16d4ee3078d96a16a22860de294107e7c3aef
         from bot.bot_instance import init_bot, shutdown_bot
-        
-<<<<<<< HEAD
-        # የኢንተርኔት መቆራረጥ ካለ ቦቱ ወዲያው ተስፋ ቆርጦ ዋርኒንግ እንዳይጥል Retry Loop እንጨምራለን
-        retry_count = 3
-        for attempt in range(retry_count):
+
+        for attempt in range(3):
             try:
                 application_instance = await init_bot()
                 logger.info("Telegram bot initialized")
                 break
             except Exception as net_err:
-                if attempt < retry_count - 1:
-                    logger.warning(f"Bot init connection attempt {attempt + 1} failed. Retrying in 3 seconds... ({net_err})")
+                if attempt < 2:
+                    logger.warning(f"Bot init attempt {attempt + 1} failed, retrying in 3s: {net_err}")
                     await asyncio.sleep(3)
                 else:
                     raise net_err
-        
-        # ሎካል ላይ (development) ሲሰሩ መልእክቶችን ቀጥታ እንዲስብ Polling እዚህ እንጀምራለን
-        if settings.ENVIRONMENT == "development" and application_instance:
-            logger.info("Starting Telegram bot in POLLING mode for local development...")
-            
-            # ========================================================
-            # 🔍 የሙከራ ሃንድለር (HANDLER DIAGNOSTIC) - እዚህ ጋር ተጨምሯል
-            # ========================================================
-            try:
-                from telegram import Update
-                from telegram.ext import CommandHandler
-                
-                async def test_start_response(update: Update, context):
-                    logger.info(f"🎯 ቴሌግራም ላይ የ /start ሙከራ መጥቷል! User ID: {update.effective_user.id}")
-                    await update.message.reply_text("አለሁልህ! አሁን በትክክል ተገናኝተናል! 🚀 (ይህ ቀጥታ ምላሽ ነው)")
-                
-                # በቅድሚያ እንዲይዘው group=-1 ላይ እንጨምረዋለን
-                application_instance.add_handler(CommandHandler("start", test_start_response), group=-1)
-                logger.info("Temporary diagnostic /start handler injected successfully")
-            except Exception as test_err:
-                logger.warning(f"Failed to inject diagnostic handler: {test_err}")
-            # ========================================================
 
+        # Start polling in development mode
+        if settings.ENVIRONMENT == "development" and application_instance:
+            logger.info("Starting Telegram bot in POLLING mode...")
             await application_instance.initialize()
             await application_instance.start()
             await application_instance.updater.start_polling(drop_pending_updates=True)
-            logger.info("Telegram bot polling started successfully!")
-            
+            logger.info("Telegram bot polling started!")
+
     except Exception as e:
         logger.warning(f"Telegram bot initialization failed (continuing): {e}")
 
-    # Setup background tasks
+    # Scheduler
     try:
         from infrastructure.queues.scheduled_tasks import start_scheduler, stop_scheduler
         await start_scheduler()
         logger.info("Background task scheduler started")
-=======
-        # Setup background tasks (optional)
-        try:
-            from infrastructure.workers.celery_app import celery_app
-            from infrastructure.queues.scheduled_tasks import scheduled_task_manager
-            logger.info("Background task scheduler ready")
-        except Exception as sched_err:
-            logger.warning(f"Scheduler unavailable (non-fatal): {sched_err}")
-        
-        # Run lifespan manager
-        await lifespan_manager.on_startup()
-        
-        logger.info("Application startup completed successfully")
-        
->>>>>>> 58a16d4ee3078d96a16a22860de294107e7c3aef
     except Exception as e:
         logger.warning(f"Scheduler initialization failed (continuing): {e}")
 
-    # Run lifespan manager
+    # Lifespan hooks
     try:
         await lifespan_manager.on_startup()
     except Exception as e:
@@ -166,7 +107,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown
     logger.info("Shutting down application...")
 
-    # Polling ን በንጽህና ማቆም
     if application_instance and settings.ENVIRONMENT == "development":
         try:
             logger.info("Stopping Telegram bot polling...")
@@ -190,12 +130,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     if close_redis:
         try:
-            try:
-                await close_redis()
-            except Exception as e:
-                logger.error(f"Error closing Redis: {e}")
-        except Exception:
-            pass
+            await close_redis()
+        except Exception as e:
+            logger.error(f"Error closing Redis: {e}")
 
     if shutdown_bot:
         try:
@@ -204,26 +141,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.error(f"Error shutting down bot: {e}")
 
     try:
-<<<<<<< HEAD
-=======
-        # Stop background tasks
-        try:
-            from infrastructure.queues.scheduled_tasks import scheduled_task_manager
-            await scheduled_task_manager.stop_processor()
-        except Exception:
-            pass
-        
-        # Close database connections
-        await close_db()
-        
-        # Close Redis connections
-        await close_redis()
-        
-        # Shutdown bot
-        await shutdown_bot()
-        
-        # Run lifespan manager shutdown
->>>>>>> 58a16d4ee3078d96a16a22860de294107e7c3aef
         await lifespan_manager.on_shutdown()
     except Exception as e:
         logger.error(f"Error in lifespan shutdown: {e}")
@@ -232,7 +149,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 def get_version() -> str:
-    """Return application version from pyproject.toml or default."""
+    """Return application version."""
     try:
         import tomllib
         with open("pyproject.toml", "rb") as f:
@@ -253,8 +170,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-
-# Add CORS middleware
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ALLOWED_ORIGINS,
@@ -265,35 +181,29 @@ app.add_middleware(
     max_age=600,
 )
 
-# Add trusted host middleware
+# Trusted host middleware
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=settings.ALLOWED_HOSTS,
 )
 
-# Add security headers middleware
+# Security headers middleware
 app.add_middleware(SecurityHeadersMiddleware)
 
 
-# Health check endpoint
 @app.get("/health")
 async def health_check():
-    """
-    Health check endpoint for load balancers and monitoring.
-    """
+    """Health check endpoint."""
     try:
         from core.monitoring.health_checks import health_checker
-        health_status = await health_checker.check_all()
-        return health_status
+        return await health_checker.check_all()
     except Exception as e:
         return {"status": "degraded", "error": str(e)}
 
 
 @app.get("/")
 async def root():
-    """
-    Root endpoint with basic information.
-    """
+    """Root endpoint."""
     return {
         "name": settings.PROJECT_NAME,
         "version": get_version(),
@@ -305,21 +215,14 @@ async def root():
 
 @app.get("/ready")
 async def readiness_probe():
-    """
-    Kubernetes readiness probe endpoint.
-    """
     return {"ready": True}
 
 
 @app.get("/live")
 async def liveness_probe():
-    """
-    Kubernetes liveness probe endpoint.
-    """
     return {"alive": True}
 
 
-# Include API routers
 def register_routers() -> None:
     """Register all API routers."""
     try:
@@ -345,24 +248,18 @@ def register_routers() -> None:
             logger.warning(f"Failed to register web app router: {e}")
 
 
-# Register routers on startup
 register_routers()
 
 
 def main() -> None:
-    """
-    Main entry point for the application.
-    """
+    """Main entry point."""
     try:
         import uvicorn
-
-        # ዊንዶውስ ላይ ከሆነ ሉፑን "asyncio" ማድረግ፣ ካልሆነ "uvloop"
         loop_policy = "asyncio" if sys.platform == "win32" else "uvloop"
-
         uvicorn.run(
             "main:app",
-            host=settings.HOST if hasattr(settings, 'HOST') else "0.0.0.0",
-            port=settings.PORT if hasattr(settings, 'PORT') else 5000,
+            host=settings.HOST if hasattr(settings, "HOST") else "0.0.0.0",
+            port=settings.PORT if hasattr(settings, "PORT") else 5000,
             reload=False,
             log_level=settings.LOG_LEVEL.lower(),
             access_log=settings.DEBUG,
@@ -382,15 +279,11 @@ if __name__ == "__main__":
     main()
 
 
-# ============================
-# Exception handlers
-# ============================
-
+# Global exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    """Global exception handler for unhandled exceptions."""
     logger.exception(f"Unhandled exception: {exc}")
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error", "error": str(exc) if settings.DEBUG else "Contact support"},
+        content={"detail": "Internal server error", "error": str(exc)},
     )
