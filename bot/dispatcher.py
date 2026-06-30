@@ -79,6 +79,8 @@ def setup_dispatcher(application: Application) -> Application:
     application.add_handler(CallbackQueryHandler(catalog.product_callback,   pattern="^prod_"))
     application.add_handler(CallbackQueryHandler(cart.cart_callback,         pattern="^cart_"))
     application.add_handler(CallbackQueryHandler(profile.profile_callback,   pattern="^profile_"))
+    # Language change from Profile screen (lang_am / lang_en / lang_om)
+    application.add_handler(CallbackQueryHandler(profile.language_callback,  pattern="^lang_"))
     application.add_handler(CallbackQueryHandler(wishlist.wishlist_callback, pattern="^wish_"))
 
     if dashboard is not None:
