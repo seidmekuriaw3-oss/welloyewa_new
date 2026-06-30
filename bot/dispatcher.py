@@ -67,6 +67,7 @@ def setup_dispatcher(application: Application) -> Application:
     application.add_handler(CommandHandler("location", location.location_command))
     application.add_handler(CommandHandler("deep_link", deep_linking.deep_link_command))
     application.add_handler(CommandHandler("broadcast", broadcaster.broadcast_command))
+    application.add_handler(CommandHandler("shop",      start.shop_command))
 
     if dashboard is not None:
         application.add_handler(CommandHandler("admin", dashboard.admin_command))

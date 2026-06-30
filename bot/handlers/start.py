@@ -6,6 +6,7 @@ from telegram import (
     InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
+    WebAppInfo,
 )
 from telegram.ext import ContextTypes
 
@@ -46,7 +47,16 @@ def _build_main_menu(is_admin: bool = False, lang: str = "am") -> InlineKeyboard
         },
     }
     L = labels.get(lang, labels["am"])
+    open_store_labels = {
+        "am": "🛍️ ሱቁን ክፈት",
+        "en": "🛍️ Open Store",
+        "om": "🛍️ Suuqa Bani",
+    }
     keyboard = [
+        [InlineKeyboardButton(
+            open_store_labels.get(lang, open_store_labels["en"]),
+            web_app=WebAppInfo(url=settings.web_app_url),
+        )],
         [InlineKeyboardButton(L["products"], callback_data="menu_products"),
          InlineKeyboardButton(L["search"],   callback_data="menu_search")],
         [InlineKeyboardButton(L["cart"],     callback_data="menu_cart"),
@@ -376,8 +386,34 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await update.message.reply_text(msgs.get(lang, msgs["am"]))
 
 
+async def shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/shop — send a standalone Mini App button that opens the web store."""
+    lang = context.user_data.get("user", {}).get("language", "am")
+    captions = {
+        "am": "👇 ከዚህ ቁልፍ ሱቁን ክፈቱ:",
+        "en": "👇 Tap below to open the store:",
+        "om": "👇 Suuqa banuuf armaan gadii tuqi:",
+    }
+    button_labels = {
+        "am": "🛍️ ወሎየዋ ሱቅ ክፈት",
+        "en": "🛍️ Open Wolloyewa Store",
+        "om": "🛍️ Suuqa Wolloyewa Bani",
+    }
+    markup = InlineKeyboardMarkup([[
+        InlineKeyboardButton(
+            button_labels.get(lang, button_labels["en"]),
+            web_app=WebAppInfo(url=settings.web_app_url),
+        )
+    ]])
+    await update.message.reply_text(
+        captions.get(lang, captions["en"]),
+        reply_markup=markup,
+    )
+
+
 __all__ = [
     "start_command",
+    "shop_command",
     "help_command",
     "unknown_command",
     "menu_callback",

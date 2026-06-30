@@ -130,6 +130,19 @@ class Settings(BaseSettings):
     # ============================
     STORAGE_PROVIDER: str = Field(default="local")
     STORAGE_BASE_URL: str = Field(default="http://localhost:8000")
+
+    # ============================
+    # Web App (Telegram Mini App)
+    # ============================
+    REPLIT_DOMAINS: Optional[str] = Field(default=None)
+
+    @property
+    def web_app_url(self) -> str:
+        """Public HTTPS URL for the Telegram Mini App store page."""
+        if self.REPLIT_DOMAINS:
+            domain = self.REPLIT_DOMAINS.split(",")[0].strip()
+            return f"https://{domain}/app/"
+        return f"http://localhost:{self.PORT}/app/"
     
     # Cloudinary
     CLOUDINARY_CLOUD_NAME: Optional[str] = Field(default=None)
