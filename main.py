@@ -334,7 +334,22 @@ if __name__ == "__main__":
     main()
 
 
-# Global exception handler
+# Global exception handler — WolloyewaException subclasses (AuthenticationError,
+# PermissionError, NotFoundError, RateLimitError, etc.) carry their own status_code.
+# This handler must be registered BEFORE the generic Exception handler so FastAPI
+# checks the more specific handler first.
+from core.exceptions import WolloyewaException
+
+@app.exception_handler(WolloyewaException)
+async def wolloyewa_exception_handler(request, exc: WolloyewaException):
+    status_code = getattr(exc, "status_code", 500)
+    logger.warning(f"Application error [{status_code}]: {exc.message}")
+    return JSONResponse(
+        status_code=status_code,
+        content={"detail": exc.message, "error": exc.code},
+    )
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     logger.exception(f"Unhandled exception: {exc}")
