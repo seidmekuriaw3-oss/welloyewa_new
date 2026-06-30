@@ -6,7 +6,7 @@
 import asyncio
 import time
 from enum import Enum
-from typing import Dict, Optional, Tuple, Any, List
+from typing import Dict, Optional, Tuple, Any, List, Callable
 from dataclasses import dataclass, field
 from collections import deque
 

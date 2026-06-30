@@ -268,10 +268,13 @@ def get_versioned_handler(path: str, method: str, version: str) -> Optional[Call
     return version_negotiator.get_handler(path, method, version)
 
 
+APIVersioning = VersionNegotiator
+
 __all__ = [
     "VersionNegotiator",
     "VersionedRouter",
     "VersioningStrategy",
+    "APIVersioning",
     "version_negotiator",
     "version_route",
     "get_versioned_handler",

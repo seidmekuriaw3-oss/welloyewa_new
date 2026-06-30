@@ -228,8 +228,11 @@ async def assign_best_agent(
     return None
 
 
+TicketRouter = AutoTicketRouter
+
 __all__ = [
     "AutoTicketRouter",
+    "TicketRouter",
     "RoutingRule",
     "RoutingStrategy",
     "Agent",

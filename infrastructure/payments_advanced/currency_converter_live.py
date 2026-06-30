@@ -228,8 +228,11 @@ async def get_exchange_rate(
     return await _currency_converter.get_exchange_rate(from_currency, to_currency)
 
 
+CurrencyConverter = LiveCurrencyConverter
+
 __all__ = [
     "LiveCurrencyConverter",
+    "CurrencyConverter",
     "convert_currency",
     "get_exchange_rate",
 ]

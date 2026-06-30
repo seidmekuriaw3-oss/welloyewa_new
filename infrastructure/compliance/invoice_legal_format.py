@@ -277,6 +277,9 @@ async def validate_invoice_for_tax(invoice: LegalInvoice) -> Dict[str, Any]:
     return await legal_invoice_generator.validate_invoice_for_tax(invoice)
 
 
+TaxInvoice = LegalInvoice
+ReceiptInvoice = LegalInvoice
+
 __all__ = [
     "LegalInvoiceGenerator",
     "LegalInvoice",
@@ -284,4 +287,6 @@ __all__ = [
     "legal_invoice_generator",
     "generate_legal_invoice",
     "validate_invoice_for_tax",
+    "TaxInvoice",
+    "ReceiptInvoice",
 ]
