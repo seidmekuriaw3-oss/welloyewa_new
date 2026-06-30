@@ -20,6 +20,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.config import settings
@@ -286,13 +287,23 @@ def register_routers() -> None:
     if settings.ENABLE_WEB_APP:
         try:
             from bot.web_app.router import web_app_router
-            app.include_router(web_app_router, prefix="/app")
+            app.include_router(web_app_router)
             logger.info("Web app router registered")
         except Exception as e:
             logger.warning(f"Failed to register web app router: {e}")
 
 
 register_routers()
+
+# Mount web app static files
+try:
+    import os as _os
+    _static_dir = _os.path.join(_os.path.dirname(__file__), "bot", "web_app", "static")
+    if _os.path.isdir(_static_dir):
+        app.mount("/app/static", StaticFiles(directory=_static_dir), name="web_app_static")
+        logger.info("Web app static files mounted at /app/static")
+except Exception as _e:
+    logger.warning(f"Could not mount static files: {_e}")
 
 
 def main() -> None:

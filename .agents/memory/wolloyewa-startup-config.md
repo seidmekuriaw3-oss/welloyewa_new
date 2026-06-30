@@ -68,4 +68,22 @@ sqlalchemy.url is a fallback only — alembic/env.py reads DATABASE_URL from env
 tests/test_ integration/ (with space) → tests/test_integration_flow/
 
 ## ENABLE_WEB_APP
-Keep False — the web_app router has unresolved import issues.
+Now True — web app router is fully fixed and live at `/app/`.
+
+## Starlette 1.3.1 TemplateResponse API change
+Old (broken): `templates.TemplateResponse("template.html", {"request": request, ...})`
+New (correct): `templates.TemplateResponse(request, "template.html", {"key": "val"})`
+**Why:** Starlette 1.3.1 moved `request` to be the first positional arg. Passing the context dict as `name` makes it unhashable in Jinja2's cache, causing `TypeError: unhashable type: 'dict'`.
+**Fixed in:** `bot/web_app/router.py`
+
+## Web app router double-prefix bug
+`main.py` must use `app.include_router(web_app_router)` with NO extra prefix arg.
+**Why:** `web_app_router` already declares `prefix="/app"` internally. Adding `prefix="/app"` in `include_router()` doubles it to `/app/app/`.
+
+## Seed script: Vendor FK requirement
+`products.vendor_id` is a FK to `vendors` table (NOT `users`). Must create a `Vendor` row (linking to the vendor User via `user_id`) before inserting Products or Orders.
+**Why:** The DB schema has a separate `vendors` table; inserting only a User with vendor role leaves no `vendors` row, causing FK violation on product insert.
+
+## Jinja2 version pinned to 3.1.4
+Jinja2 3.1.5+ introduced a regression in `_load_template` cache key construction.
+Pin with: `pip install "jinja2==3.1.4"`

@@ -33,7 +33,7 @@ Set in `.replit` / Replit env panel:
 |-----|-------|-------|
 | `ENVIRONMENT` | `development` | |
 | `DEBUG` | `True` | |
-| `ENABLE_WEB_APP` | `False` | web_app router has broken imports — keep False |
+| `ENABLE_WEB_APP` | `True` | Web app live at `/app/` — all import & routing issues resolved |
 | `PROMETHEUS_ENABLED` | `False` | |
 | `LOG_FORMAT` | `text` | `json` only used in production |
 | `LOG_FILE_PATH` | `./logs/bot_errors.log` | |
