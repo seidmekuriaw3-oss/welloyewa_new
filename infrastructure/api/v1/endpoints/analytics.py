@@ -276,7 +276,7 @@ async def get_inventory_analytics(
 async def export_sales_report(
     start_date: datetime = Query(...),
     end_date: datetime = Query(...),
-    format: str = Query("json", regex="^(json|csv|excel)$"),
+    format: str = Query("json", pattern="^(json|csv|excel)$"),
     current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db_session),
 ):

@@ -43,7 +43,7 @@ async def get_dashboard_summary(
 
 @router.get("/kpi", response_model=Dict[str, Any])
 async def get_kpi_metrics(
-    period: str = Query("today", regex="^(today|week|month|year)$"),
+    period: str = Query("today", pattern="^(today|week|month|year)$"),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> Dict[str, Any]:

@@ -27,6 +27,9 @@ from core.logger import setup_logging
 from core.lifespan import lifespan_manager
 from core.security.middleware import SecurityHeadersMiddleware
 
+import os
+os.makedirs("./logs", exist_ok=True)
+
 setup_logging()
 logger = logging.getLogger(__name__)
 
@@ -103,8 +106,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if settings.ENVIRONMENT == "development" and application_instance:
             logger.info("Starting Telegram bot in POLLING mode...")
             await application_instance.initialize()
+            # Delete any existing webhook before polling to avoid Conflict errors
+            try:
+                await application_instance.bot.delete_webhook(drop_pending_updates=True)
+                logger.info("Webhook cleared, starting polling...")
+            except Exception as wh_err:
+                logger.warning(f"Could not delete webhook (continuing): {wh_err}")
+            # Brief pause to let any previous polling instance fully close
+            await asyncio.sleep(2)
             await application_instance.start()
-            await application_instance.updater.start_polling(drop_pending_updates=True)
+            await application_instance.updater.start_polling(
+                drop_pending_updates=True,
+                allowed_updates=["message", "callback_query", "inline_query"],
+            )
             logger.info("Telegram bot polling started!")
 
     except Exception as e:
@@ -136,7 +150,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("Stopping Telegram bot polling...")
             if application_instance.updater and application_instance.updater.running:
                 await application_instance.updater.stop()
-            await application_instance.stop()
+            if application_instance.running:
+                await application_instance.stop()
+            await application_instance.shutdown()
         except Exception as e:
             logger.error(f"Error stopping bot polling: {e}")
 

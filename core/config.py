@@ -46,8 +46,8 @@ class Settings(BaseSettings):
     # Database
     # ============================
     POSTGRES_USER: str = Field(default="postgres")
-    POSTGRES_PASSWORD: str = Field(default="@99Nameallah")
-    POSTGRES_DB: str = Field(default="welloyewadb")
+    POSTGRES_PASSWORD: str = Field(default="")
+    POSTGRES_DB: str = Field(default="wolloyewa")
     POSTGRES_HOST: str = Field(default="localhost")
     POSTGRES_PORT: int = Field(default=5432)
     DATABASE_URL: Optional[str] = None
@@ -95,7 +95,7 @@ class Settings(BaseSettings):
     # ============================
     # Telegram Bot
     # ============================
-    TELEGRAM_BOT_TOKEN: str = Field(default="8927914359:AAE9RzlIWpwQx_avFJspKAd8SP0bjUpjsF8")
+    TELEGRAM_BOT_TOKEN: str = Field(default="")
     TELEGRAM_WEBHOOK_URL: Optional[str] = Field(default=None)
     TELEGRAM_WEBHOOK_SECRET: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
     ADMIN_IDS: str = Field(default="5848843259")
@@ -179,8 +179,8 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
     JWT_ALGORITHM: str = Field(default="HS256")
     JWT_EXPIRY_MINUTES: int = Field(default=1440)
-    CORS_ALLOWED_ORIGINS: List[str] = Field(default_factory=lambda: ["http://localhost:3000", "http://localhost:8000"])
-    ALLOWED_HOSTS: List[str] = Field(default_factory=lambda: ["localhost", "127.0.0.1"])
+    CORS_ALLOWED_ORIGINS: List[str] = Field(default_factory=lambda: ["*"])
+    ALLOWED_HOSTS: List[str] = Field(default_factory=lambda: ["*"])
     ENCRYPTION_KEY: Optional[str] = Field(default=None)
     GDPR_COMPLIANT: bool = Field(default=True)
     DATA_RETENTION_DAYS: int = Field(default=365)
