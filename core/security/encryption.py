@@ -35,12 +35,31 @@ class EncryptionManager:
         """Initialize Fernet encryption."""
         key = settings.ENCRYPTION_KEY
         if key:
-            self._fernet = Fernet(key.encode())
-        else:
-            # Generate temporary key (only for development)
-            temp_key = Fernet.generate_key()
-            self._fernet = Fernet(temp_key)
-            logger.warning("Using temporary encryption key. Set ENCRYPTION_KEY in production!")
+            try:
+                self._fernet = Fernet(key.encode())
+                return
+            except ValueError as exc:
+                msg = (
+                    "ENCRYPTION_KEY is set but invalid (wrong length/format). "
+                    "Generate a valid key with: "
+                    "python3 -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+                )
+                if settings.ENVIRONMENT == "production":
+                    raise RuntimeError(msg) from exc
+                logger.warning(msg + " — falling back to temporary key (development only).")
+
+        if settings.ENVIRONMENT == "production":
+            raise RuntimeError(
+                "ENCRYPTION_KEY must be set to a valid Fernet key in production. "
+                "Generate one with: python3 -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            )
+        # Development/testing only: use a per-session temporary key
+        temp_key = Fernet.generate_key()
+        self._fernet = Fernet(temp_key)
+        logger.warning(
+            "Using a temporary per-session encryption key. "
+            "Encrypted data will NOT survive restarts. Set ENCRYPTION_KEY for persistence."
+        )
     
     def encrypt(self, data: Union[str, bytes]) -> str:
         """
