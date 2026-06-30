@@ -9,8 +9,8 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 from contextvars import ContextVar
 
-import pythonjsonlogger.jsonlogger as jsonlogger
-from pythonjsonlogger.jsonlogger import JsonFormatter
+from pythonjsonlogger import json as jsonlogger
+from pythonjsonlogger.json import JsonFormatter
 
 from core.config import settings
 
