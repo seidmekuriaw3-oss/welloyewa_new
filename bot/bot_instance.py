@@ -318,6 +318,10 @@ async def init_bot() -> Application:
 
     # Use Redis persistence if available, else fall back to JSON file
     try:
+        import redis as _redis_sync
+        _test_client = _redis_sync.from_url(str(settings.REDIS_URL), socket_connect_timeout=2)
+        _test_client.ping()
+        _test_client.close()
         persistence = RedisPersistence(
             url=str(settings.REDIS_URL),
             key_prefix="telegram_persistence",
