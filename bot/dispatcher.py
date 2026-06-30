@@ -35,6 +35,9 @@ def setup_dispatcher(application: Application) -> Application:
     except Exception as e:
         logger.warning(f"Admin handlers disabled: {e}")
 
+    # ── Main menu callback (must be registered FIRST, highest priority) ──────
+    application.add_handler(CallbackQueryHandler(start.menu_callback, pattern="^menu_"))
+
     # ── Command handlers ─────────────────────────────────────────────────────
     application.add_handler(CommandHandler("start",    start.start_command))
     application.add_handler(CommandHandler("help",     start.help_command))

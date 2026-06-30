@@ -26,7 +26,7 @@ async def cart_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     cart = await get_user_cart(user_id)
     
     if not cart or len(cart) == 0:
-        await update.message.reply_text(
+        await update.effective_message.reply_text(
             "🛒 *የግዢ ቅርጫትዎ ባዶ ነው!*\n\n"
             "ምርቶችን ለመግዛት /menu ይጫኑ።",
             parse_mode="Markdown"
@@ -70,7 +70,7 @@ async def cart_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await update.message.reply_text(cart_text, parse_mode="Markdown", reply_markup=reply_markup)
+    await update.effective_message.reply_text(cart_text, parse_mode="Markdown", reply_markup=reply_markup)
 
 
 async def cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -25,7 +25,7 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     Starts the search conversation.
     """
-    await update.message.reply_text(
+    await update.effective_message.reply_text(
         "🔍 *ምርቶችን ይፈልጉ*\n\n"
         "እባክዎ ማግኘት የሚፈልጉትን ምርት ስም ወይም ቁልፍ ቃል ይጻፉ።\n\n"
         "ለምሳሌ: 'ስልክ', 'ልብስ', 'ኮምፒውተር'",
@@ -64,10 +64,10 @@ async def search_query_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     Returns:
         Next conversation state
     """
-    query_text = update.message.text.strip()
+    query_text = update.effective_message.text.strip()
     
     if len(query_text) < 2:
-        await update.message.reply_text("❌ እባክዎ ቢያንስ 2 ፊደላት ያስገቡ።")
+        await update.effective_message.reply_text("❌ እባክዎ ቢያንስ 2 ፊደላት ያስገቡ።")
         return WAITING_QUERY
     
     context.user_data["search_query"] = query_text
@@ -110,7 +110,7 @@ async def perform_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         break
     
     if not products:
-        await update.message.reply_text(
+        await update.effective_message.reply_text(
             f"🔍 *'{query}'* የሚል ምርት አልተገኘም።\n\n"
             f"እባክዎ ሌላ ቃል ይሞክሩ ወይም /menu በመጠቀም ምድቦችን ይመልከቱ።",
             parse_mode="Markdown"
@@ -176,7 +176,7 @@ async def perform_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         await update.callback_query.answer()
     else:
-        await update.message.reply_text(
+        await update.effective_message.reply_text(
             results_text,
             parse_mode="Markdown",
             reply_markup=reply_markup
@@ -261,7 +261,7 @@ async def cancel_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     Returns:
         Next conversation state (END)
     """
-    await update.message.reply_text("❌ ፍለጋ ተሰርዟል።")
+    await update.effective_message.reply_text("❌ ፍለጋ ተሰርዟል።")
     return ConversationHandler.END
 
 

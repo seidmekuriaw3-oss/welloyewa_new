@@ -20,7 +20,7 @@ async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     
     Starts the feedback conversation.
     """
-    await update.message.reply_text(
+    await update.effective_message.reply_text(
         "💬 *ግብረ መልስ ለመስጠት እንመሰግናለን!*\n\n"
         "እባክዎ አገልግሎታችንን ይገምግሙ።",
         parse_mode="Markdown"
@@ -40,7 +40,7 @@ async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await update.message.reply_text(
+    await update.effective_message.reply_text(
         "📊 *ደረጃ ይስጡ:*\n(1 = በጣም መጥፎ, 5 = በጣም ጥሩ)",
         parse_mode="Markdown",
         reply_markup=reply_markup
@@ -131,7 +131,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     Returns:
         Next conversation state (END)
     """
-    message_text = update.message.text
+    message_text = update.effective_message.text
     rating = context.user_data.get("feedback_rating", 0)
     user_id = update.effective_user.id
     
@@ -152,7 +152,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     logger.info(f"Feedback received from user {user_id}: rating {rating}/5")
     
     # Send confirmation
-    await update.message.reply_text(
+    await update.effective_message.reply_text(
         "✅ *ግብረ መልስዎ ተልኳል!*\n\n"
         "አመሰግናለሁ ጊዜዎን ስለሰጡን። አስተያየትዎ አገልግሎታችንን ለማሻሻል ይረዳናል።\n\n"
         "ተጨማሪ እገዛ ከፈለጉ እባክዎ ድጋፍን ያግኙ።",
@@ -176,7 +176,7 @@ async def cancel_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     Returns:
         Next conversation state (END)
     """
-    await update.message.reply_text("❌ ግብረ መልስ ተሰርዟል።")
+    await update.effective_message.reply_text("❌ ግብረ መልስ ተሰርዟል።")
     return ConversationHandler.END
 
 
