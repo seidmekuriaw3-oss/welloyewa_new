@@ -48,6 +48,30 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from infrastructure.database.session import init_db, close_db
         await init_db()
         logger.info("Database connection pool initialized")
+        # Ensure all tables exist (idempotent – skips existing tables/types)
+        try:
+            import re
+            from sqlalchemy.ext.asyncio import create_async_engine
+            from sqlalchemy.pool import NullPool
+            from infrastructure.database.base import Base
+            # Import all models so metadata is fully populated
+            import apps.common.models  # noqa: F401
+            import apps.users.models  # noqa: F401
+            import apps.products.models  # noqa: F401
+            import apps.orders.models  # noqa: F401
+            import apps.inventory.models  # noqa: F401
+            import apps.marketing.models  # noqa: F401
+            import apps.support.models  # noqa: F401
+            raw_url = str(settings.DATABASE_URL)
+            raw_url = re.sub(r'[?&]sslmode=[^&]*', '', raw_url).rstrip('?')
+            db_url = raw_url.replace("postgresql://", "postgresql+asyncpg://")
+            _schema_engine = create_async_engine(db_url, poolclass=NullPool)
+            async with _schema_engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all, checkfirst=True)
+            await _schema_engine.dispose()
+            logger.info("Database schema verified/created")
+        except Exception as schema_err:
+            logger.warning(f"Schema auto-create skipped: {schema_err}")
     except Exception as e:
         logger.warning(f"Database initialization failed (continuing): {e}")
 

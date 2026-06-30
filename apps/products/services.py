@@ -332,7 +332,8 @@ class CategoryService:
     
     async def get_all_categories(self, active_only: bool = True) -> List[Category]:
         """Get all categories."""
-        return await self.category_repo.get_all(active_only=active_only)
+        filters = {"is_active": True} if active_only else None
+        return await self.category_repo.get_all(filters=filters)
 
 
 class ReviewService:

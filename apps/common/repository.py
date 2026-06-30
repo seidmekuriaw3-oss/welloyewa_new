@@ -6,7 +6,7 @@
 from typing import Dict, Any, List, Optional, Type, TypeVar, Generic, Union
 from datetime import datetime
 
-from sqlalchemy import select, update, delete, func
+from sqlalchemy import select, update, delete, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
@@ -84,6 +84,53 @@ class BaseRepository(Generic[ModelType]):
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
     
+    def _build_filter_clause(self, key: str, value: Any):
+        """
+        Build a SQLAlchemy filter clause from a key that may carry an operator suffix.
+
+        Supported suffixes:
+          __gte  → >=
+          __lte  → <=
+          __gt   → >
+          __lt   → <
+          __in   → IN (value must be a list/tuple)
+          __ne   → !=
+          __like → LIKE
+          (no suffix) → ==
+        
+        Keys that reference non-existent model columns are silently ignored
+        (returns None).
+        """
+        operators = ("__gte", "__lte", "__gt", "__lt", "__in", "__ne", "__like")
+        field_name = key
+        operator = None
+        for op in operators:
+            if key.endswith(op):
+                field_name = key[: -len(op)]
+                operator = op
+                break
+
+        if not hasattr(self.model, field_name):
+            return None
+
+        column = getattr(self.model, field_name)
+        if operator == "__gte":
+            return column >= value
+        elif operator == "__lte":
+            return column <= value
+        elif operator == "__gt":
+            return column > value
+        elif operator == "__lt":
+            return column < value
+        elif operator == "__in":
+            return column.in_(value)
+        elif operator == "__ne":
+            return column != value
+        elif operator == "__like":
+            return column.like(value)
+        else:
+            return column == value
+
     async def get_all(
         self,
         filters: Optional[Dict[str, Any]] = None,
@@ -96,7 +143,7 @@ class BaseRepository(Generic[ModelType]):
         Get all records with optional filters.
         
         Args:
-            filters: Dictionary of field-value pairs
+            filters: Dictionary of field-value pairs (supports __gte/__lte/__gt/__lt/__in/__ne/__like suffixes)
             order_by: Field name to order by
             order_desc: Whether to order descending
             limit: Maximum number of records
@@ -109,9 +156,10 @@ class BaseRepository(Generic[ModelType]):
         
         # Apply filters
         if filters:
-            for key, value in filters.items():
-                if hasattr(self.model, key):
-                    query = query.where(getattr(self.model, key) == value)
+            clauses = [self._build_filter_clause(k, v) for k, v in filters.items()]
+            clauses = [c for c in clauses if c is not None]
+            if clauses:
+                query = query.where(and_(*clauses))
         
         # Apply ordering
         if order_by and hasattr(self.model, order_by):
@@ -219,15 +267,16 @@ class BaseRepository(Generic[ModelType]):
         Check if a record exists matching filters.
         
         Args:
-            filters: Dictionary of field-value pairs
+            filters: Dictionary of field-value pairs (supports __gte/__lte etc. suffixes)
             
         Returns:
             True if exists, False otherwise
         """
         query = select(func.count()).select_from(self.model)
-        for key, value in filters.items():
-            if hasattr(self.model, key):
-                query = query.where(getattr(self.model, key) == value)
+        clauses = [self._build_filter_clause(k, v) for k, v in filters.items()]
+        clauses = [c for c in clauses if c is not None]
+        if clauses:
+            query = query.where(and_(*clauses))
         
         result = await self.db.execute(query)
         count = result.scalar()
@@ -238,7 +287,7 @@ class BaseRepository(Generic[ModelType]):
         Count records matching filters.
         
         Args:
-            filters: Dictionary of field-value pairs
+            filters: Dictionary of field-value pairs (supports __gte/__lte etc. suffixes)
             
         Returns:
             Number of records
@@ -246,9 +295,10 @@ class BaseRepository(Generic[ModelType]):
         query = select(func.count()).select_from(self.model)
         
         if filters:
-            for key, value in filters.items():
-                if hasattr(self.model, key):
-                    query = query.where(getattr(self.model, key) == value)
+            clauses = [self._build_filter_clause(k, v) for k, v in filters.items()]
+            clauses = [c for c in clauses if c is not None]
+            if clauses:
+                query = query.where(and_(*clauses))
         
         result = await self.db.execute(query)
         return result.scalar() or 0

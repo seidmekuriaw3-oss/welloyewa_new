@@ -286,7 +286,7 @@ class CategoryRepository(BaseRepository[Category]):
                     })
             return tree
         
-        categories = await self.get_all(active_only=True)
+        categories = await self.get_all(filters={"is_active": True})
         return build_tree(categories)
     
     async def update_product_count(self, category_id: int) -> None:
