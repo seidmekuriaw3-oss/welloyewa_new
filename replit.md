@@ -61,4 +61,4 @@ See `.agents/memory/wolloyewa-import-fixes.md` for the full list of import error
 
 ## User preferences
 
-- Keep `ENABLE_WEB_APP=False` — the web_app router has unresolved import issues.
+- `ENABLE_WEB_APP=True` — web_app router is working; templates directory created at `bot/web_app/templates/`

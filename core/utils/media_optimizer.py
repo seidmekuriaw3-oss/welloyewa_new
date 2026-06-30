@@ -275,7 +275,7 @@ class MediaOptimizer:
                 # Try to load a font
                 try:
                     font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 36)
-                except:
+                except (OSError, IOError):
                     font = ImageFont.load_default()
                 
                 # Calculate text position (bottom right)

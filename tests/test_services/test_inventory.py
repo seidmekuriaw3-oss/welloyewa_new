@@ -239,7 +239,7 @@ class TestInventoryRepository:
         assert low_stock == []
     
     @pytest.mark.asyncio
-async def test_get_inventory_stats(self):
+    async def test_get_inventory_stats(self):
         """Test getting inventory statistics."""
         from apps.inventory.repository import InventoryRepository
         

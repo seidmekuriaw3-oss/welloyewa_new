@@ -188,7 +188,7 @@ class BackupVerifier:
             # Clean up test database
             try:
                 subprocess.run(["dropdb", temp_db], capture_output=True)
-            except:
+            except Exception:
                 pass
             
             return False

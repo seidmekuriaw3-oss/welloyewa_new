@@ -68,22 +68,33 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Handle category selection callback.
-    
-    Shows products in the selected category.
-    """
+    """Handle category selection: cat_<id>"""
     query = update.callback_query
     await query.answer()
-    
-    # Extract category ID
+
+    # Extract category ID — data is exactly "cat_<id>"
     category_id = int(query.data.split("_")[1])
-    
-    # Store in context for pagination
+
     context.user_data["current_category"] = category_id
     context.user_data["current_page"] = 1
-    
+
     await show_category_products(update, context, category_id, page=1)
+
+
+async def category_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle category pagination: cat_page_<category_id>_<page>"""
+    query = update.callback_query
+    await query.answer()
+
+    # data format: "cat_page_<category_id>_<page>"
+    parts = query.data.split("_")
+    category_id = int(parts[2])
+    page = int(parts[3])
+
+    context.user_data["current_category"] = category_id
+    context.user_data["current_page"] = page
+
+    await show_category_products(update, context, category_id, page=page)
 
 
 async def show_category_products(
@@ -185,15 +196,11 @@ async def show_category_products(
 
 
 async def product_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Handle product selection callback.
-    
-    Shows detailed product information.
-    """
+    """Handle product selection: prod_<id>"""
     query = update.callback_query
     await query.answer()
-    
-    # Extract product ID
+
+    # data is "prod_<id>" — split gives ['prod', '<id>']
     product_id = int(query.data.split("_")[1])
     
     async for db in get_db_session():
@@ -281,6 +288,7 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 __all__ = [
     "menu_command",
     "category_callback",
+    "category_page_callback",
     "product_callback",
     "show_category_products",
     "text_message_handler",

@@ -250,6 +250,19 @@ async def filter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await search_command(update, context)
 
 
+async def product_from_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle prod_search_<id> — view a product from within a search result."""
+    query = update.callback_query
+    await query.answer()
+    # Delegate to catalog product_callback (import here to avoid circular)
+    from bot.handlers.catalog import product_callback
+    # Rewrite callback data so catalog can parse it normally: prod_<id>
+    product_id = query.data.split("_")[2]
+    query.data = f"prod_{product_id}"
+    await product_callback(update, context)
+    return FILTER_RESULTS
+
+
 async def cancel_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     Cancel the search conversation.
@@ -270,6 +283,7 @@ __all__ = [
     "start_search",
     "search_query_handler",
     "filter_callback",
+    "product_from_search",
     "cancel_search",
     "WAITING_QUERY",
     "FILTER_RESULTS",
