@@ -46,7 +46,11 @@ def setup_dispatcher(application: Application) -> Application:
     application.add_handler(TypeHandler(Update, ensure_user_registered), group=-1)
     logger.info("Auth middleware registered (group -1)")
 
-    # ── Main menu callback (must be registered FIRST, highest priority) ──────
+    # ── Onboarding callbacks (highest priority — before menu and catalog) ────
+    # Handles language selection during new-user onboarding (Step 1)
+    application.add_handler(CallbackQueryHandler(start.onboard_language_callback, pattern="^onboard_lang_"))
+
+    # ── Main menu callback ────────────────────────────────────────────────────
     application.add_handler(CallbackQueryHandler(start.menu_callback, pattern="^menu_"))
 
     # ── Command handlers ─────────────────────────────────────────────────────
