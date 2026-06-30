@@ -371,4 +371,4 @@ heap.dump
 *.heapsnapshot
 *.heapprofile
 v8.log
-*.cpuprofile
+*.cpuprofile.dev_encryption_key

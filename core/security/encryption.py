@@ -53,13 +53,31 @@ class EncryptionManager:
                 "ENCRYPTION_KEY must be set to a valid Fernet key in production. "
                 "Generate one with: python3 -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
             )
-        # Development/testing only: use a per-session temporary key
+        # Development/testing only: persist a generated key to .dev_encryption_key so it
+        # survives restarts without requiring a manually entered secret.
+        dev_key_path = ".dev_encryption_key"
+        import os
+        if os.path.exists(dev_key_path):
+            try:
+                stored = open(dev_key_path, "rb").read().strip()
+                self._fernet = Fernet(stored)
+                logger.info("Loaded persistent dev encryption key from %s", dev_key_path)
+                return
+            except Exception:
+                pass
         temp_key = Fernet.generate_key()
+        try:
+            with open(dev_key_path, "wb") as f:
+                f.write(temp_key)
+            logger.warning(
+                "Generated and saved a dev encryption key to %s. "
+                "Encrypted data will persist across restarts. "
+                "For production, set ENCRYPTION_KEY to a valid Fernet key.",
+                dev_key_path,
+            )
+        except Exception:
+            logger.warning("Could not save dev encryption key — data will not survive restarts.")
         self._fernet = Fernet(temp_key)
-        logger.warning(
-            "Using a temporary per-session encryption key. "
-            "Encrypted data will NOT survive restarts. Set ENCRYPTION_KEY for persistence."
-        )
     
     def encrypt(self, data: Union[str, bytes]) -> str:
         """
