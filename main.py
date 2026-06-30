@@ -106,18 +106,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if settings.ENVIRONMENT == "development" and application_instance:
             logger.info("Starting Telegram bot in POLLING mode...")
             await application_instance.initialize()
-            # Delete any existing webhook before polling to avoid Conflict errors
-            try:
-                await application_instance.bot.delete_webhook(drop_pending_updates=True)
-                logger.info("Webhook cleared, starting polling...")
-            except Exception as wh_err:
-                logger.warning(f"Could not delete webhook (continuing): {wh_err}")
-            # Brief pause to let any previous polling instance fully close
-            await asyncio.sleep(2)
+            # Delete any existing webhook/poll before starting to avoid Conflict errors
+            for _attempt in range(5):
+                try:
+                    await application_instance.bot.delete_webhook(drop_pending_updates=True)
+                    logger.info("Webhook cleared, starting polling...")
+                    break
+                except Exception as wh_err:
+                    logger.warning(f"Could not delete webhook (attempt {_attempt+1}): {wh_err}")
+                    await asyncio.sleep(3)
+            # Wait for Telegram to release any previous long-poll connection (~30s timeout)
+            await asyncio.sleep(5)
             await application_instance.start()
             await application_instance.updater.start_polling(
                 drop_pending_updates=True,
                 allowed_updates=["message", "callback_query", "inline_query"],
+                error_callback=lambda err: logger.warning(f"Polling error (will retry): {err}"),
             )
             logger.info("Telegram bot polling started!")
 
