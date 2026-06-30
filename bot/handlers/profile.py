@@ -3,13 +3,14 @@
 # ============================
 """Telegram bot user profile and order history handlers."""
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ContextTypes
 
 from core.logger import logger
 from core.utils.currency import format_etb
 from apps.users.services import UserService, VendorService
 from apps.orders.services import OrderService
+from apps.users.schemas import UserUpdate
 from infrastructure.database.session import get_db_session
 
 
@@ -253,22 +254,62 @@ async def show_vendor_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Handle contact sharing for phone number update.
+    Handle contact sharing.
+
+    Works in two situations:
+    1. New-user onboarding  — started from /start phone-sharing prompt
+    2. Profile update       — started from "📞 ስልክ አዘምን" profile button
+
+    After saving the number we:
+    - Remove the ReplyKeyboard (clean UI)
+    - If onboarding: confirm and show the main menu
+    - Otherwise: just confirm
     """
     contact = update.message.contact
-    user_id = update.effective_user.id
-    
-    if contact:
-        phone_number = contact.phone_number
-        
-        async for db in get_db_session():
-            user_service = UserService(db)
-            user = await user_service.get_user_by_telegram(user_id)
-            
-            if user:
-                await user_service.update_user(user.id, {"phone_number": phone_number})
-                await update.effective_message.reply_text("✅ ስልክ ቁጥርዎ በሚገባ ተዘምኗል!")
-            break
+    tg_user = update.effective_user
+
+    if not contact:
+        return
+
+    phone_number = contact.phone_number
+
+    saved = False
+    async for db in get_db_session():
+        user_service = UserService(db)
+        user = await user_service.get_user_by_telegram(tg_user.id)
+
+        if user:
+            await user_service.update_user(
+                user.id,
+                UserUpdate(phone_number=phone_number),
+            )
+            # Invalidate the middleware cache so next request sees updated phone
+            from bot.middlewares.auth import auth_middleware
+            auth_middleware.invalidate(tg_user.id)
+            saved = True
+        break
+
+    # Always remove the phone-sharing keyboard
+    await update.message.reply_text(
+        "✅ ስልክ ቁጥርዎ ተመዝግቧል!" if saved else "❌ ስልክ ቁጥሩን ማስቀመጥ አልተቻለም። ቆይቶ እንደገና ይሞክሩ።",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+    if not saved:
+        return
+
+    # If this was the new-user onboarding flow, show the main menu now
+    if context.user_data.pop("onboarding", False):
+        from core.config import settings
+        from bot.handlers.start import _build_main_menu
+
+        is_admin = tg_user.id in settings.admin_ids_list
+        await update.message.reply_text(
+            "🌟 *ዎሎየዋ ስቶር* — ዋና ምናሌ\n\n"
+            "📌 ከዚህ በታች ካሉት ቁልፎች ይምረጡ።",
+            parse_mode="Markdown",
+            reply_markup=_build_main_menu(is_admin),
+        )
 
 
 def get_role_amharic(role: str) -> str:

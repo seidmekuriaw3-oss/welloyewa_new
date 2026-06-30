@@ -2,17 +2,20 @@
 # -*- coding: utf-8 -*-
 """Telegram bot dispatcher - registers all handlers and middlewares."""
 
+from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
     CallbackQueryHandler,
     MessageHandler,
     ConversationHandler,
+    TypeHandler,
     filters,
 )
 
 from core.config import settings
 from core.logger import logger
+from bot.middlewares.auth import ensure_user_registered
 
 
 def setup_dispatcher(application: Application) -> Application:
@@ -36,6 +39,12 @@ def setup_dispatcher(application: Application) -> Application:
         from bot.handlers.admin import admin_input
     except Exception as e:
         logger.warning(f"Admin handlers disabled: {e}")
+
+    # ── MIDDLEWARE (group -1, runs before every other handler) ───────────────
+    # ensure_user_registered creates the DB record for new users and populates
+    # context.user_data["user_id"] / ["user_role"] / ["user"] for all handlers.
+    application.add_handler(TypeHandler(Update, ensure_user_registered), group=-1)
+    logger.info("Auth middleware registered (group -1)")
 
     # ── Main menu callback (must be registered FIRST, highest priority) ──────
     application.add_handler(CallbackQueryHandler(start.menu_callback, pattern="^menu_"))
@@ -137,7 +146,8 @@ def setup_dispatcher(application: Application) -> Application:
 
     # ── Message handlers (catch-all, registered last) ─────────────────────────
     application.add_handler(MessageHandler(filters.LOCATION, location.location_message_handler))
-    application.add_handler(MessageHandler(filters.CONTACT,  profile.contact_handler))
+    # Contact handler: saves phone on sharing AND completes new-user onboarding
+    application.add_handler(MessageHandler(filters.CONTACT, profile.contact_handler))
 
     # Admin text-input state handler — must run BEFORE the general text handler
     if admin_input is not None:
