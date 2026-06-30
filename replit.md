@@ -4,7 +4,7 @@ Ethiopian e-commerce Telegram bot with multi-vendor support. Built with FastAPI 
 
 ## Stack
 - **Python 3.11**
-- **FastAPI** (REST API + webhook receiver) on port **8000**
+- **FastAPI** (REST API + webhook receiver) on port **5000**
 - **python-telegram-bot v20+** (polling or webhook)
 - **SQLAlchemy 2 + asyncpg** (async PostgreSQL)
 - **Alembic** (migrations)
@@ -13,10 +13,10 @@ Ethiopian e-commerce Telegram bot with multi-vendor support. Built with FastAPI 
 ## Running the app
 
 ```
-uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn main:app --host 0.0.0.0 --port 5000
 ```
 
-Workflow: **Start application** (port 8000, console output).
+Workflow: **Start application** (port 5000, webview output).
 
 ## Required secrets / env vars
 
