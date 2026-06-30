@@ -64,7 +64,7 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await query.message.edit_text(message_text, parse_mode="Markdown", reply_markup=reply_markup)
         await query.answer()
     else:
-        await update.message.reply_text(message_text, parse_mode="Markdown", reply_markup=reply_markup)
+        await update.effective_message.reply_text(message_text, parse_mode="Markdown", reply_markup=reply_markup)
 
 
 async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -181,7 +181,7 @@ async def show_category_products(
     if query:
         await query.message.edit_text(text, parse_mode="Markdown", reply_markup=reply_markup)
     else:
-        await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
+        await update.effective_message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
 
 
 async def product_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -251,10 +251,10 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     
     Searches for products matching the text.
     """
-    text = update.message.text
+    text = update.effective_message.text
     
     if len(text) < 3:
-        await update.message.reply_text("እባክዎ ቢያንስ 3 ፊደላት ያስገቡ።")
+        await update.effective_message.reply_text("እባክዎ ቢያንስ 3 ፊደላት ያስገቡ።")
         return
     
     # Search for products
@@ -264,7 +264,7 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         break
     
     if not products:
-        await update.message.reply_text(f"🔍 '{text}' የሚል ምርት አልተገኘም።")
+        await update.effective_message.reply_text(f"🔍 '{text}' የሚል ምርት አልተገኘም።")
         return
     
     # Build results message
@@ -275,7 +275,7 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     
     result_text += "\nተጨማሪ ውጤት ለማየት /search ይጠቀሙ።"
     
-    await update.message.reply_text(result_text, parse_mode="Markdown")
+    await update.effective_message.reply_text(result_text, parse_mode="Markdown")
 
 
 __all__ = [

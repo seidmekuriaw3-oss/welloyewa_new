@@ -26,7 +26,7 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         user = await user_service.get_user_by_telegram(user_id)
         
         if not user:
-            await update.message.reply_text("❌ ተጠቃሚ አልተገኘም።")
+            await update.effective_message.reply_text("❌ ተጠቃሚ አልተገኘም።")
             return
         
         # Get user stats
@@ -80,7 +80,7 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         await update.callback_query.answer()
     else:
-        await update.message.reply_text(
+        await update.effective_message.reply_text(
             profile_text,
             parse_mode="Markdown",
             reply_markup=reply_markup
@@ -102,7 +102,7 @@ async def orders_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         user = await user_service.get_user_by_telegram(user_id)
         
         if not user:
-            await update.message.reply_text("❌ ተጠቃሚ አልተገኘም።")
+            await update.effective_message.reply_text("❌ ተጠቃሚ አልተገኘም።")
             return
         
         order_service = OrderService(db)
@@ -115,7 +115,7 @@ async def orders_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         break
     
     if not orders:
-        await update.message.reply_text(
+        await update.effective_message.reply_text(
             "📦 *ምንም ትዕዛዞች የሉም*\n\n"
             "ምርቶችን ለመግዛት /menu ይጫኑ።",
             parse_mode="Markdown"
@@ -165,7 +165,7 @@ async def orders_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         await update.callback_query.answer()
     else:
-        await update.message.reply_text(
+        await update.effective_message.reply_text(
             orders_text,
             parse_mode="Markdown",
             reply_markup=reply_markup
@@ -267,7 +267,7 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             
             if user:
                 await user_service.update_user(user.id, {"phone_number": phone_number})
-                await update.message.reply_text("✅ ስልክ ቁጥርዎ በሚገባ ተዘምኗል!")
+                await update.effective_message.reply_text("✅ ስልክ ቁጥርዎ በሚገባ ተዘምኗል!")
             break
 
 

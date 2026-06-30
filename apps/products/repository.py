@@ -6,7 +6,7 @@
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Tuple
 from decimal import Decimal
-from sqlalchemy import select, update, func, and_, or_
+from sqlalchemy import select, update, func, and_, or_, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.common.repository import BaseRepository
