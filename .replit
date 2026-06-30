@@ -5,7 +5,7 @@ stack = "BEST_EFFORT_FALLBACK"
 
 [nix]
 channel = "stable-25_05"
-packages = ["cargo", "file", "fontconfig", "ghostscript", "glib", "glibcLocales", "gmp", "harfbuzz", "libGL", "libGLU", "libiconv", "libxcrypt", "libyaml", "openssl", "pango", "pkg-config", "postgresql", "rustc", "xsimd"]
+packages = ["cargo", "file", "fontconfig", "freetype", "ghostscript", "glib", "glibcLocales", "gmp", "harfbuzz", "lcms2", "libGL", "libGLU", "libiconv", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "libyaml", "openjpeg", "openssl", "pango", "pkg-config", "postgresql", "rustc", "tcl", "tk", "xsimd", "zlib"]
 
 [userenv]
 
