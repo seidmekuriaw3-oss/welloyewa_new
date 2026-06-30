@@ -177,7 +177,26 @@ class BaseRepository(Generic[ModelType]):
         
         result = await self.db.execute(query)
         return result.scalars().all()
-    
+
+    async def get_all_with_count(
+        self,
+        filters: Optional[Dict[str, Any]] = None,
+        order_by: Optional[str] = None,
+        order_desc: bool = False,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
+        """Return (list_of_records, total_count) honouring the same filters."""
+        total = await self.count(filters)
+        records = await self.get_all(
+            filters=filters,
+            order_by=order_by,
+            order_desc=order_desc,
+            limit=limit,
+            offset=offset,
+        )
+        return records, total
+
     async def update(
         self,
         id: int,
