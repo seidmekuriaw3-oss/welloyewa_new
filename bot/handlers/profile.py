@@ -581,16 +581,18 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     saved = False
     async for db in get_db_session():
-        user_service = UserService(db)
-        user = await user_service.get_user_by_telegram(tg_user.id)
-        if user:
-            await user_service.update_user(user.id, UserUpdate(phone_number=phone_number))
-            from bot.middlewares.auth import auth_middleware
-            auth_middleware.invalidate(tg_user.id)
-            # Update in-memory cache too
-            if "user" in context.user_data:
-                context.user_data["user"]["phone_number"] = phone_number
-            saved = True
+        try:
+            user_service = UserService(db)
+            user = await user_service.get_user_by_telegram(tg_user.id)
+            if user:
+                await user_service.update_user(user.id, UserUpdate(phone_number=phone_number))
+                from bot.middlewares.auth import auth_middleware
+                auth_middleware.invalidate(tg_user.id)
+                if "user" in context.user_data:
+                    context.user_data["user"]["phone_number"] = phone_number
+                saved = True
+        except Exception as e:
+            logger.error(f"contact_handler: failed to save phone {phone_number} for {tg_user.id}: {e}")
         break
 
     await update.message.reply_text(

@@ -15,29 +15,36 @@ from core.constants import PHONE_PATTERN, TIN_PATTERN, LICENSE_PATTERN, EMAIL_PA
 def validate_phone(phone: str, normalize: bool = True) -> tuple[bool, Optional[str]]:
     """
     Validate Ethiopian phone number.
-    
-    Args:
-        phone: Phone number to validate
-        normalize: Whether to return normalized phone number
-        
-    Returns:
-        Tuple of (is_valid, normalized_phone)
+
+    Accepts all common formats:
+    • Local short:        09XXXXXXXX  (10 digits)
+    • Local short:        07XXXXXXXX  (10 digits)
+    • International +251: +251 9XXXXXXXX / +251918498153 (12-13 digits)
+    • International 251:  251 9XXXXXXXX (12 digits, no +)
+
+    Always normalises to the local 09/07XXXXXXXX format.
     """
     if not phone:
         return False, None
-    
-    # Remove any non-digit characters
+
+    # Strip spaces, dashes, parentheses, + sign
     cleaned = re.sub(r'\D', '', phone)
-    
-    # Check if it's a valid Ethiopian number
+
+    # Convert international format → local format
+    # +251 or 00251 prefix  (e.g. 251918498153 → 0918498153)
+    if cleaned.startswith('251') and len(cleaned) == 12:
+        cleaned = '0' + cleaned[3:]
+    elif cleaned.startswith('00251') and len(cleaned) == 14:
+        cleaned = '0' + cleaned[5:]
+
+    # Now validate against the local pattern
     pattern = re.compile(PHONE_PATTERN)
-    
     if not pattern.match(cleaned):
         return False, None
-    
+
     if normalize:
         return True, cleaned
-    
+
     return True, None
 
 
