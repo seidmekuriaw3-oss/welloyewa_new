@@ -108,24 +108,24 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """
     Handle /start.
 
-    Flow for NEW users:
+    Flow for NEW users (truly never seen before, no context.user_data either):
         Step 1 → Language selection (onboard_lang_* callback)
         Step 2 → Phone sharing  (contact_handler in profile.py)
         Step 3 → Main menu
 
-    Flow for RETURNING users:
+    Flow for RETURNING users (DB record found OR context.user_data has prior session):
         → Main menu directly (with a gentle nudge if phone is still missing)
     """
     tg_user = update.effective_user
     logger.info(f"User {tg_user.id} (@{tg_user.username}) started the bot")
 
-    is_new_user = False
     user = None
+    db_found = False
 
     async for db in get_db_session():
         user_service = UserService(db)
         existing = await user_service.get_user_by_telegram(tg_user.id)
-        is_new_user = existing is None
+        db_found = existing is not None
         user = await user_service.get_or_create_user(
             telegram_id=tg_user.id,
             first_name=tg_user.first_name or "User",
@@ -135,10 +135,41 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         auth_middleware.invalidate(tg_user.id)
         break
 
+    # --- Determine if this is truly a new user ---
+    # A user is "new" only when:
+    #   1. They have no DB record AND
+    #   2. They have no prior context.user_data session (no saved user_id)
+    # This prevents returning users from seeing the language screen again if
+    # the DB row was lost between restarts (their context.user_data persists).
+    has_prior_session = bool(context.user_data.get("user_id"))
+    is_new_user = (not db_found) and (not has_prior_session)
+
+    # If DB was missing but context has the user — restore it now
+    if not db_found and has_prior_session:
+        cached = context.user_data.get("user", {})
+        lang_restore = cached.get("language", "am")
+        if user:
+            try:
+                from apps.users.schemas import UserUpdate
+                async for db in get_db_session():
+                    us = UserService(db)
+                    await us.update_user(user.id, UserUpdate(language=lang_restore))
+                    break
+            except Exception:
+                pass
+        logger.info(
+            f"User {tg_user.id} restored from context.user_data (DB row was missing)"
+        )
+
+    # Always clear the stale onboarding flag for returning users so that
+    # reopening /start never loops back to language selection.
+    if not is_new_user:
+        context.user_data.pop("onboarding", None)
+
     is_admin = tg_user.id in settings.admin_ids_list
 
     if is_new_user:
-        # Step 1: ask language — message is written in all three so everyone understands
+        # Step 1: ask language — written in all three so everyone understands
         await update.message.reply_text(
             "🌟 *ዎሎየዋ ስቶር* — *Wolloyewa Store* 🌟\n\n"
             "🇪🇹 እንኳን ደህና መጡ! ቋንቋዎን ይምረጡ።\n"
@@ -148,12 +179,16 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             parse_mode="Markdown",
             reply_markup=_build_language_keyboard(),
         )
-        # Mark that we are in onboarding so subsequent steps know the context
         context.user_data["onboarding"] = True
 
     else:
         # Returning user — go straight to the main menu
-        lang = (user.language or "am") if user else "am"
+        lang = "am"
+        if user and user.language:
+            lang = user.language
+        elif context.user_data.get("user", {}).get("language"):
+            lang = context.user_data["user"]["language"]
+
         greetings = {
             "am": f"👤 ሰላም, *{tg_user.first_name}*! እንኳን ደህና መጡ 🎉",
             "en": f"👤 Hello, *{tg_user.first_name}*! Welcome back 🎉",
@@ -165,7 +200,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             "om": "\n\n⚠️ Lakkoofsi bilbilaa hin kuufamne — Profaayilii keessaa guuntaa.",
         }
         text = greetings.get(lang, greetings["am"])
-        if user and not user.phone_number:
+        phone_missing = (not user or not user.phone_number)
+        if phone_missing:
             text += nudge.get(lang, nudge["am"])
 
         await update.message.reply_text(
