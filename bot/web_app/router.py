@@ -210,22 +210,33 @@ async def orders_page(request: Request):
 
 @web_app_router.get("/api/categories")
 async def get_categories(db=Depends(get_db_session)):
-    """Get categories for web app (proxies /api/v1/products/categories)."""
-    from apps.products.services import CategoryService
-    category_service = CategoryService(db)
-    categories = await category_service.get_all_categories()
+    """Get categories for web app with live product counts."""
+    from sqlalchemy import select, func
+    from apps.products.models import Category, Product
+
+    result = await db.execute(
+        select(
+            Category,
+            func.count(Product.id).label("live_count"),
+        )
+        .outerjoin(Product, (Product.category_id == Category.id) & (Product.is_deleted == False))
+        .where(Category.is_active == True)
+        .group_by(Category.id)
+        .order_by(Category.name)
+    )
+    rows = result.all()
     return [
         {
-            "id": c.id,
-            "name": c.name,
-            "name_am": c.name_am or "",
-            "slug": c.slug or c.name,
-            "icon_url": c.icon_url or "",
-            "image_url": c.image_url or "",
-            "product_count": c.product_count or 0,
-            "is_featured": c.is_featured,
+            "id": cat.id,
+            "name": cat.name,
+            "name_am": cat.name_am or "",
+            "slug": cat.slug or cat.name,
+            "icon_url": getattr(cat, "icon_url", "") or "",
+            "image_url": getattr(cat, "image_url", "") or "",
+            "product_count": count,
+            "is_featured": getattr(cat, "is_featured", False),
         }
-        for c in categories
+        for cat, count in rows
     ]
 
 
