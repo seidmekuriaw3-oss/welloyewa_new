@@ -260,6 +260,55 @@ async def get_products(
     }
 
 
+@web_app_router.get("/api/search")
+async def search_products(q: str = "", limit: int = 6, db=Depends(get_db_session)):
+    """
+    Autocomplete / search endpoint.
+    Returns up to `limit` products whose name or Amharic name contains `q` (case-insensitive).
+    """
+    from sqlalchemy import select, or_, func
+    from sqlalchemy.orm import selectinload
+    from apps.products.models import Product
+    from core.constants import ProductStatus
+
+    q = q.strip()
+    if not q:
+        return {"items": [], "query": q}
+
+    pattern = f"%{q}%"
+    stmt = (
+        select(Product)
+        .options(selectinload(Product.category_rel))
+        .where(
+            Product.is_deleted == False,
+            Product.status == ProductStatus.ACTIVE,
+            or_(
+                func.lower(Product.name).like(func.lower(pattern)),
+                func.lower(func.coalesce(Product.name_am, "")).like(func.lower(pattern)),
+            ),
+        )
+        .order_by(Product.name)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    products = result.scalars().all()
+
+    return {
+        "items": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "name_am": getattr(p, "name_am", "") or "",
+                "price": float(p.price),
+                "category": p.category_rel.name if p.category_rel else "",
+                "image_url": (p.images[0] if p.images else "") if p.images else "",
+            }
+            for p in products
+        ],
+        "query": q,
+    }
+
+
 @web_app_router.get("/api/product/{product_id}")
 async def get_product(product_id: int, db=Depends(get_db_session)):
     """Get single product."""
