@@ -120,6 +120,108 @@ async def get_products_on_sale(
     return [ProductResponse.model_validate(p) for p in products]
 
 
+# ============================
+# Category Endpoints (must be BEFORE /{product_id} to avoid route shadowing)
+# ============================
+
+@router.get("/categories", response_model=List[CategoryResponse])
+async def get_categories(
+    db: AsyncSession = Depends(get_db_session),
+) -> List[CategoryResponse]:
+    """Get all categories."""
+    category_service = CategoryService(db)
+    categories = await category_service.get_all_categories()
+    return [CategoryResponse.model_validate(c) for c in categories]
+
+
+@router.get("/categories/tree", response_model=List[dict])
+async def get_category_tree(
+    db: AsyncSession = Depends(get_db_session),
+) -> List[dict]:
+    """Get hierarchical category tree."""
+    category_service = CategoryService(db)
+    return await category_service.get_category_tree()
+
+
+@router.post("/categories", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
+async def create_category(
+    data: CategoryCreate,
+    current_user: dict = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db_session),
+) -> CategoryResponse:
+    """Create a new category (admin only)."""
+    category_service = CategoryService(db)
+    try:
+        category = await category_service.create_category(data)
+        return CategoryResponse.model_validate(category)
+    except ValidationError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+
+@router.put("/categories/{category_id}", response_model=CategoryResponse)
+async def update_category(
+    category_id: int,
+    data: CategoryUpdate,
+    current_user: dict = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db_session),
+) -> CategoryResponse:
+    """Update a category (admin only)."""
+    category_service = CategoryService(db)
+    try:
+        category = await category_service.update_category(category_id, data)
+        return CategoryResponse.model_validate(category)
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.delete("/categories/{category_id}", response_model=MessageResponse)
+async def delete_category(
+    category_id: int,
+    current_user: dict = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db_session),
+) -> MessageResponse:
+    """Delete a category (admin only)."""
+    category_service = CategoryService(db)
+    try:
+        await category_service.delete_category(category_id)
+        return MessageResponse(message=f"Category {category_id} deleted successfully")
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+# ============================
+# Vendor Product Management (must be BEFORE /{product_id})
+# ============================
+
+@router.get("/vendor/products", response_model=PaginatedResponse[ProductResponse])
+async def get_my_products(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    current_user: dict = Depends(get_current_vendor),
+    db: AsyncSession = Depends(get_db_session),
+) -> PaginatedResponse[ProductResponse]:
+    """Get current vendor's products."""
+    product_service = ProductService(db)
+    products = await product_service.get_vendor_products(
+        vendor_id=current_user["vendor_id"],
+        status=status,
+        limit=page_size,
+        offset=(page - 1) * page_size,
+    )
+    total = len(products)
+    return PaginatedResponse.create(
+        items=[ProductResponse.model_validate(p) for p in products],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+# ============================
+# Single Product by ID (dynamic segment — must come LAST)
+# ============================
+
 @router.get("/{product_id}", response_model=ProductResponse)
 async def get_product(
     product_id: int,
@@ -258,119 +360,6 @@ async def create_product_review(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-# ============================
-# Category Endpoints
-# ============================
-
-@router.get("/categories", response_model=List[CategoryResponse])
-async def get_categories(
-    db: AsyncSession = Depends(get_db_session),
-) -> List[CategoryResponse]:
-    """
-    Get all categories.
-    """
-    category_service = CategoryService(db)
-    categories = await category_service.get_all_categories()
-    return [CategoryResponse.model_validate(c) for c in categories]
-
-
-@router.get("/categories/tree", response_model=List[dict])
-async def get_category_tree(
-    db: AsyncSession = Depends(get_db_session),
-) -> List[dict]:
-    """
-    Get hierarchical category tree.
-    """
-    category_service = CategoryService(db)
-    return await category_service.get_category_tree()
-
-
-@router.post("/categories", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
-async def create_category(
-    data: CategoryCreate,
-    current_user: dict = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db_session),
-) -> CategoryResponse:
-    """
-    Create a new category (admin only).
-    """
-    category_service = CategoryService(db)
-    
-    try:
-        category = await category_service.create_category(data)
-        return CategoryResponse.model_validate(category)
-    except ValidationError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-
-
-@router.put("/categories/{category_id}", response_model=CategoryResponse)
-async def update_category(
-    category_id: int,
-    data: CategoryUpdate,
-    current_user: dict = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db_session),
-) -> CategoryResponse:
-    """
-    Update a category (admin only).
-    """
-    category_service = CategoryService(db)
-    
-    try:
-        category = await category_service.update_category(category_id, data)
-        return CategoryResponse.model_validate(category)
-    except NotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-
-
-@router.delete("/categories/{category_id}", response_model=MessageResponse)
-async def delete_category(
-    category_id: int,
-    current_user: dict = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db_session),
-) -> MessageResponse:
-    """
-    Delete a category (admin only).
-    """
-    category_service = CategoryService(db)
-    
-    try:
-        await category_service.delete_category(category_id)
-        return MessageResponse(message=f"Category {category_id} deleted successfully")
-    except NotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-
-
-# ============================
-# Vendor Product Management
-# ============================
-
-@router.get("/vendor/products", response_model=PaginatedResponse[ProductResponse])
-async def get_my_products(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    status: Optional[str] = Query(None, description="Filter by status"),
-    current_user: dict = Depends(get_current_vendor),
-    db: AsyncSession = Depends(get_db_session),
-) -> PaginatedResponse[ProductResponse]:
-    """
-    Get current vendor's products.
-    """
-    product_service = ProductService(db)
-    
-    products = await product_service.get_vendor_products(
-        vendor_id=current_user["vendor_id"],
-        status=status,
-        limit=page_size,
-        offset=(page - 1) * page_size,
-    )
-    total = len(products)  # Would need separate count query
-    
-    return PaginatedResponse.create(
-        items=[ProductResponse.model_validate(p) for p in products],
-        total=total,
-        page=page,
-        page_size=page_size,
-    )
 
 
 __all__ = ["router"]

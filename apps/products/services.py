@@ -331,9 +331,14 @@ class CategoryService:
         return await self.category_repo.get_tree()
     
     async def get_all_categories(self, active_only: bool = True) -> List[Category]:
-        """Get all categories."""
-        filters = {"is_active": True} if active_only else None
-        return await self.category_repo.get_all(filters=filters)
+        """Get all categories with children eagerly loaded."""
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        stmt = select(Category).options(selectinload(Category.children))
+        if active_only:
+            stmt = stmt.where(Category.is_active == True)
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
 
 
 class ReviewService:
