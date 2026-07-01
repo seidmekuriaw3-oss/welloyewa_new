@@ -307,18 +307,101 @@ async def api_checkout(body: CheckoutRequest, db=Depends(get_db_session)):
     }
 
 
+@web_app_router.post("/api/auth")
+async def tg_auth(request: Request, db=Depends(get_db_session)):
+    """
+    Authenticate a Telegram Mini App user via initData HMAC-SHA256 verification.
+    Returns a short-lived JWT access token + basic user info.
+
+    In DEBUG mode with empty initData, falls back to the first DB user so the
+    flow is testable directly in the browser without a real Telegram session.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    init_data: str = body.get("init_data", "")
+    tg_user: Optional[dict] = None
+
+    if init_data:
+        tg_user = _verify_telegram_init_data(init_data, settings.TELEGRAM_BOT_TOKEN)
+        if tg_user is None:
+            raise HTTPException(status_code=401, detail="Invalid Telegram auth data")
+
+    user_service = UserService(db)
+    db_user = None
+
+    if tg_user and tg_user.get("id"):
+        db_user = await user_service.get_or_create_user(
+            telegram_id=int(tg_user["id"]),
+            first_name=tg_user.get("first_name") or "User",
+            username=tg_user.get("username"),
+        )
+    elif settings.DEBUG:
+        # Dev fallback: use first user in DB (seeded system vendor or real user)
+        from sqlalchemy import select
+        from apps.users.models import User
+        result = await db.execute(select(User).limit(1))
+        db_user = result.scalar_one_or_none()
+
+    if not db_user:
+        raise HTTPException(
+            status_code=401,
+            detail="Could not identify your account. Please open the store via Telegram.",
+        )
+
+    from core.security import create_access_token
+    token = create_access_token({"sub": str(db_user.id), "telegram_id": db_user.telegram_id})
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": db_user.id,
+            "first_name": db_user.first_name or "User",
+            "last_name": db_user.last_name or "",
+            "username": db_user.username or "",
+            "telegram_id": db_user.telegram_id,
+        },
+    }
+
+
 @web_app_router.get("/api/orders")
 async def get_orders(
     current_user=Depends(get_current_user),
     db=Depends(get_db_session),
 ):
-    """Get user orders."""
-    order_service = OrderService(db)
-    orders, total = await order_service.get_user_orders(current_user["id"])
-    return {
-        "items": [o.to_dict() for o in orders],
-        "total": total,
-    }
+    """Get order history for the authenticated user."""
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+    from apps.orders.models import Order
+
+    result = await db.execute(
+        select(Order)
+        .where(Order.user_id == current_user["id"])
+        .options(selectinload(Order.items))
+        .order_by(Order.created_at.desc())
+        .limit(50)
+    )
+    orders = result.scalars().all()
+
+    def _fmt_order(o: "Order") -> dict:
+        return {
+            "id": o.id,
+            "order_number": o.order_number,
+            "status": str(o.status.value if hasattr(o.status, "value") else o.status),
+            "total": float(o.total),
+            "subtotal": float(o.subtotal),
+            "shipping_fee": float(o.shipping_fee),
+            "payment_method": str(o.payment_method.value if hasattr(o.payment_method, "value") else o.payment_method),
+            "payment_status": str(o.payment_status.value if hasattr(o.payment_status, "value") else o.payment_status),
+            "shipping_city": o.shipping_city,
+            "created_at": o.created_at.isoformat() if o.created_at else None,
+            "item_count": len(o.items),
+        }
+
+    return {"items": [_fmt_order(o) for o in orders], "total": len(orders)}
 
 
 @web_app_router.get("/api/user/profile")
@@ -326,10 +409,23 @@ async def get_user_profile(
     current_user=Depends(get_current_user),
     db=Depends(get_db_session),
 ):
-    """Get user profile."""
+    """Get profile for the authenticated user."""
     user_service = UserService(db)
     user = await user_service.get_user(current_user["id"])
-    return user.to_dict()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "id": user.id,
+        "first_name": user.first_name,
+        "last_name": user.last_name or "",
+        "username": user.username or "",
+        "telegram_id": user.telegram_id,
+        "phone_number": user.phone_number or "",
+        "email": user.email or "",
+        "language": user.language,
+        "city": user.city or "",
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
 
 
 __all__ = ["web_app_router"]
