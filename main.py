@@ -12,6 +12,8 @@ License: Proprietary
 
 import asyncio
 import logging
+import os
+import socket
 import sys
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional
@@ -27,7 +29,6 @@ from core.logger import setup_logging
 from core.lifespan import lifespan_manager
 from core.security.middleware import SecurityHeadersMiddleware
 
-import os
 os.makedirs("./logs", exist_ok=True)
 
 setup_logging()
@@ -102,12 +103,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 else:
                     raise net_err
 
-        # Start polling only in development mode (not when deployed)
+        # Start polling only in development mode (not when deployed) and avoid duplicate local sessions
         _is_deployed = os.environ.get("REPLIT_DEPLOYMENT", "").strip() == "1"
-        if settings.ENVIRONMENT == "development" and application_instance and not _is_deployed:
+        _disable_bot_polling = os.environ.get("DISABLE_BOT_POLLING", "1").strip() in {"1", "true", "True", "yes", "y"}
+        if settings.ENVIRONMENT == "development" and application_instance and not _is_deployed and not _disable_bot_polling:
             logger.info("Starting Telegram bot in POLLING mode...")
             await application_instance.initialize()
-            # Delete any existing webhook/poll before starting to avoid Conflict errors
             for _attempt in range(5):
                 try:
                     await application_instance.bot.delete_webhook(drop_pending_updates=True)
@@ -116,7 +117,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 except Exception as wh_err:
                     logger.warning(f"Could not delete webhook (attempt {_attempt+1}): {wh_err}")
                     await asyncio.sleep(3)
-            # Wait for Telegram to release any previous long-poll connection (~30s timeout)
             await asyncio.sleep(5)
             await application_instance.start()
             await application_instance.updater.start_polling(
@@ -125,6 +125,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 error_callback=lambda err: logger.warning(f"Polling error (will retry): {err}"),
             )
             logger.info("Telegram bot polling started!")
+        elif settings.ENVIRONMENT == "development" and application_instance and not _is_deployed:
+            logger.info("Bot polling disabled for local run to avoid duplicate Telegram sessions")
 
     except Exception as e:
         logger.warning(f"Telegram bot initialization failed (continuing): {e}")
@@ -300,15 +302,44 @@ except Exception as _e:
     logger.warning(f"Could not mount static files: {_e}")
 
 
+def find_available_port(start_port: int, host: str = "0.0.0.0", max_attempts: int = 20) -> int:
+    """Return the first free port starting from the preferred port."""
+    for port in range(start_port, start_port + max_attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((host, port))
+                return port
+            except OSError:
+                continue
+    raise RuntimeError(f"No available port found starting from {start_port}")
+
+
 def main() -> None:
     """Main entry point."""
     try:
         import uvicorn
+        preferred_port = int(getattr(settings, "PORT", 8000))
+        host = settings.HOST if hasattr(settings, "HOST") else "0.0.0.0"
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind((host, preferred_port))
+            selected_port = preferred_port
+        except OSError:
+            selected_port = find_available_port(preferred_port + 1, host=host)
+            logger.warning(f"Port {preferred_port} is busy; using port {selected_port} instead")
+
+        if selected_port != preferred_port:
+            settings.PORT = selected_port
+            os.environ["PORT"] = str(selected_port)
+            settings.WEB_APP_URL = f"http://localhost:{selected_port}/app/"
+
         loop_policy = "asyncio" if sys.platform == "win32" else "uvloop"
         uvicorn.run(
             "main:app",
-            host=settings.HOST if hasattr(settings, "HOST") else "0.0.0.0",
-            port=settings.PORT if hasattr(settings, "PORT") else 5000,
+            host=host,
+            port=selected_port,
             reload=False,
             log_level=settings.LOG_LEVEL.lower(),
             access_log=settings.DEBUG,

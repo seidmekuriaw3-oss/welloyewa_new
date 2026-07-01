@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     TIMEZONE: str = Field(default="Africa/Addis_Ababa")
     HOST: str = Field(default="0.0.0.0")
     PORT: int = Field(default=8000)
+    WEB_APP_URL: Optional[str] = Field(default=None)
     
     @field_validator("ENVIRONMENT")
     @classmethod
@@ -138,7 +139,9 @@ class Settings(BaseSettings):
 
     @property
     def web_app_url(self) -> str:
-        """Public HTTPS URL for the Telegram Mini App store page."""
+        """Public URL for the Telegram Mini App store page."""
+        if self.WEB_APP_URL:
+            return self.WEB_APP_URL.rstrip("/") + "/"
         if self.REPLIT_DOMAINS:
             domain = self.REPLIT_DOMAINS.split(",")[0].strip()
             return f"https://{domain}/app/"
