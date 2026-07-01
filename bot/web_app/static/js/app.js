@@ -132,3 +132,15 @@ window.formatPrice = formatPrice;
 window.getCategoryEmoji = getCategoryEmoji;
 window.fetchProducts = fetchProducts;
 window.fetchProduct = fetchProduct;
+
+function updateCartBadge() {
+  const badge = document.getElementById('cart-count');
+  const stored = JSON.parse(localStorage.getItem('cart') || '[]');
+  const count = stored.reduce((s, i) => s + (i.qty || 1), 0);
+  if (badge) {
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'inline' : 'none';
+  }
+  cart.updateBadge();
+}
+window.updateCartBadge = updateCartBadge;
