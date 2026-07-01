@@ -173,6 +173,12 @@ async def checkout_page(request: Request):
     return templates.TemplateResponse(request, "checkout.html")
 
 
+@web_app_router.get("/orders", response_class=HTMLResponse)
+async def orders_page(request: Request):
+    """Order history page."""
+    return templates.TemplateResponse(request, "orders.html")
+
+
 # ---------------------------------------------------------------------------
 # JSON API endpoints
 # ---------------------------------------------------------------------------
@@ -365,6 +371,86 @@ async def tg_auth(request: Request, db=Depends(get_db_session)):
             "telegram_id": db_user.telegram_id,
         },
     }
+
+
+class MyOrdersRequest(BaseModel):
+    init_data: Optional[str] = None
+
+
+@web_app_router.post("/api/my-orders")
+async def api_my_orders(body: MyOrdersRequest, db=Depends(get_db_session)):
+    """
+    Return order history for the Telegram Mini App user.
+    Identifies the user via initData (HMAC-verified), with DEBUG fallback.
+    """
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+    from apps.orders.models import Order
+    from apps.users.models import User
+
+    tg_user: Optional[dict] = None
+    if body.init_data:
+        tg_user = _verify_telegram_init_data(body.init_data, settings.TELEGRAM_BOT_TOKEN)
+
+    db_user = None
+    if tg_user and tg_user.get("id"):
+        user_service = UserService(db)
+        db_user = await user_service.get_user_by_telegram(int(tg_user["id"]))
+
+    if not db_user and settings.DEBUG:
+        result = await db.execute(select(User).limit(1))
+        db_user = result.scalar_one_or_none()
+
+    if not db_user:
+        raise HTTPException(
+            status_code=401,
+            detail="Could not identify your account. Please open this store via Telegram.",
+        )
+
+    result = await db.execute(
+        select(Order)
+        .where(Order.user_id == db_user.id)
+        .options(selectinload(Order.items))
+        .order_by(Order.created_at.desc())
+        .limit(30)
+    )
+    orders = result.scalars().all()
+
+    def _serialize(o: Order) -> dict:
+        items = []
+        for it in (o.items or []):
+            name = f"Product #{it.product_id}"
+            if hasattr(it, "product_name") and it.product_name:
+                name = it.product_name
+            elif it.product:
+                name = it.product.name
+            items.append({
+                "product_id":  it.product_id,
+                "name":        name,
+                "quantity":    it.quantity,
+                "unit_price":  float(it.unit_price),
+                "total_price": float(it.total_price),
+            })
+        return {
+            "id":               o.id,
+            "order_number":     o.order_number,
+            "status":           o.status.value if hasattr(o.status, "value") else str(o.status),
+            "payment_method":   o.payment_method.value if hasattr(o.payment_method, "value") else str(o.payment_method),
+            "payment_status":   o.payment_status.value if hasattr(o.payment_status, "value") else str(o.payment_status),
+            "subtotal":         float(o.subtotal),
+            "shipping_fee":     float(o.shipping_fee),
+            "tax":              float(o.tax),
+            "total":            float(o.total),
+            "shipping_city":    o.shipping_city,
+            "shipping_address": o.shipping_address,
+            "shipping_phone":   o.shipping_phone,
+            "tracking_number":  o.tracking_number,
+            "customer_notes":   o.customer_notes,
+            "created_at":       o.created_at.isoformat() if o.created_at else None,
+            "items":            items,
+        }
+
+    return {"orders": [_serialize(o) for o in orders], "total": len(orders)}
 
 
 @web_app_router.get("/api/orders")
