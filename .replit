@@ -22,6 +22,7 @@ CELERY_TASK_ALWAYS_EAGER = "True"
 LOG_FILE_PATH = "./logs/bot_errors.log"
 PROMETHEUS_ENABLED = "False"
 REDIS_URL = "redis://localhost:6379/0"
+DISABLE_BOT_POLLING = "0"
 
 [workflows]
 runButton = "Project"
