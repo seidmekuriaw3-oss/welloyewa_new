@@ -102,8 +102,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 else:
                     raise net_err
 
-        # Start polling in development mode
-        if settings.ENVIRONMENT == "development" and application_instance:
+        # Start polling only in development mode (not when deployed)
+        _is_deployed = os.environ.get("REPLIT_DEPLOYMENT", "").strip() == "1"
+        if settings.ENVIRONMENT == "development" and application_instance and not _is_deployed:
             logger.info("Starting Telegram bot in POLLING mode...")
             await application_instance.initialize()
             # Delete any existing webhook/poll before starting to avoid Conflict errors
@@ -149,7 +150,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown
     logger.info("Shutting down application...")
 
-    if application_instance and settings.ENVIRONMENT == "development":
+    if application_instance and settings.ENVIRONMENT == "development" and not os.environ.get("REPLIT_DEPLOYMENT", "").strip() == "1":
         try:
             logger.info("Stopping Telegram bot polling...")
             if application_instance.updater and application_instance.updater.running:
