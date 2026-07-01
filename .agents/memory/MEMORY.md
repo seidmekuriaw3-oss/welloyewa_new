@@ -2,3 +2,4 @@
 - [Wolloyewa startup config](wolloyewa-startup-config.md) — env vars, DB URL, Pydantic DSN, and startup notes
 - [Wolloyewa admin routing](wolloyewa-admin-routing.md) — full admin_* callback routing, multi-step text state system, service signatures, per-entity buttons, CSV export
 - [Wolloyewa deep audit fixes](wolloyewa-deep-audit.md) — dispatcher double-reg, missing callbacks, cat_page_ crash, bare excepts, test syntax, web_app template
+- [Wolloyewa web app templates](wolloyewa-web-app-templates.md) — 8 Jinja2 templates created; key security and routing patterns

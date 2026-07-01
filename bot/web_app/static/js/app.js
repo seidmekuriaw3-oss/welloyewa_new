@@ -69,6 +69,29 @@ function formatPrice(amount) {
   return 'ETB ' + Number(amount).toLocaleString('en-ET', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// HTML-escape untrusted strings before injecting into innerHTML
+function he(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Validate a URL is safe (http/https only) before using in src/href
+function safeUrl(url) {
+  if (!url) return '';
+  try {
+    const u = new URL(url);
+    return (u.protocol === 'http:' || u.protocol === 'https:') ? url : '';
+  } catch { return ''; }
+}
+
+window.he = he;
+window.safeUrl = safeUrl;
+
 // Category emoji map
 const categoryEmoji = {
   electronics: '📱',

@@ -34,12 +34,18 @@ web_app_router = APIRouter(prefix="/app", tags=["Web App"])
 # Telegram initData verification
 # ---------------------------------------------------------------------------
 
+_INIT_DATA_MAX_AGE_SECONDS = 3600  # reject initData older than 1 hour
+
+
 def _verify_telegram_init_data(init_data: str, bot_token: str) -> Optional[dict]:
     """
     Verify Telegram Mini App initData using HMAC-SHA256.
+    Also validates auth_date freshness (max 1 hour).
     Returns the parsed user dict if valid, None otherwise.
     https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
     """
+    import time as _time
+
     try:
         params = dict(urllib.parse.parse_qsl(init_data, strict_parsing=True))
     except Exception:
@@ -48,6 +54,16 @@ def _verify_telegram_init_data(init_data: str, bot_token: str) -> Optional[dict]
     received_hash = params.pop("hash", None)
     if not received_hash:
         return None
+
+    # Validate auth_date freshness
+    auth_date_str = params.get("auth_date")
+    if auth_date_str:
+        try:
+            auth_date = int(auth_date_str)
+            if abs(_time.time() - auth_date) > _INIT_DATA_MAX_AGE_SECONDS:
+                return None
+        except (ValueError, TypeError):
+            return None
 
     data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(params.items()))
     secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
@@ -191,6 +207,27 @@ async def orders_page(request: Request):
 # ---------------------------------------------------------------------------
 # JSON API endpoints
 # ---------------------------------------------------------------------------
+
+@web_app_router.get("/api/categories")
+async def get_categories(db=Depends(get_db_session)):
+    """Get categories for web app (proxies /api/v1/products/categories)."""
+    from apps.products.services import CategoryService
+    category_service = CategoryService(db)
+    categories = await category_service.get_all_categories()
+    return [
+        {
+            "id": c.id,
+            "name": c.name,
+            "name_am": c.name_am or "",
+            "slug": c.slug or c.name,
+            "icon_url": c.icon_url or "",
+            "image_url": c.image_url or "",
+            "product_count": c.product_count or 0,
+            "is_featured": c.is_featured,
+        }
+        for c in categories
+    ]
+
 
 @web_app_router.get("/api/products")
 async def get_products(
