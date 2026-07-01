@@ -149,34 +149,43 @@ async def _send_order_confirmation(
 # Page routes
 # ---------------------------------------------------------------------------
 
+_BASE_CTX = {"project_name": settings.PROJECT_NAME}
+
+
 @web_app_router.get("/", response_class=HTMLResponse)
 async def index_page(request: Request):
-    """Main web app index page."""
-    return templates.TemplateResponse(request, "index.html", {"project_name": settings.PROJECT_NAME})
+    return templates.TemplateResponse(request, "index.html", {**_BASE_CTX, "page": "home"})
+
+
+@web_app_router.get("/categories", response_class=HTMLResponse)
+async def categories_page(request: Request):
+    return templates.TemplateResponse(request, "categories.html", {**_BASE_CTX, "page": "categories"})
+
+
+@web_app_router.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_page(request: Request):
+    return templates.TemplateResponse(request, "dashboard.html", {**_BASE_CTX, "page": "dashboard"})
 
 
 @web_app_router.get("/product/{product_id}", response_class=HTMLResponse)
 async def product_page(request: Request, product_id: int):
-    """Product detail page."""
-    return templates.TemplateResponse(request, "product.html", {"product_id": product_id})
+    return templates.TemplateResponse(request, "product.html", {**_BASE_CTX, "page": "product", "product_id": product_id})
 
 
 @web_app_router.get("/cart", response_class=HTMLResponse)
 async def cart_page(request: Request):
-    """Shopping cart page."""
-    return templates.TemplateResponse(request, "cart.html")
+    return templates.TemplateResponse(request, "cart.html", {**_BASE_CTX, "page": "cart"})
 
 
 @web_app_router.get("/checkout", response_class=HTMLResponse)
 async def checkout_page(request: Request):
     """Checkout page."""
-    return templates.TemplateResponse(request, "checkout.html")
+    return templates.TemplateResponse(request, "checkout.html", {**_BASE_CTX, "page": "checkout"})
 
 
 @web_app_router.get("/orders", response_class=HTMLResponse)
 async def orders_page(request: Request):
-    """Order history page."""
-    return templates.TemplateResponse(request, "orders.html")
+    return templates.TemplateResponse(request, "orders.html", {**_BASE_CTX, "page": "orders"})
 
 
 # ---------------------------------------------------------------------------
