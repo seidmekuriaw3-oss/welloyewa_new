@@ -244,20 +244,67 @@ async def get_categories(db=Depends(get_db_session)):
 async def get_products(
     page: int = 1,
     page_size: int = 20,
+    q: str = "",
+    category_id: Optional[int] = None,
     db=Depends(get_db_session),
 ):
-    """Get products for web app."""
-    product_service = ProductService(db)
-    products, total = await product_service.product_repo.get_all_with_count(
-        limit=page_size,
-        offset=(page - 1) * page_size,
+    """Get products for web app with optional search and category filter."""
+    from sqlalchemy import select, or_, func
+    from apps.products.models import Product
+    from core.constants import ProductStatus
+    from fastapi.responses import JSONResponse
+
+    q = q.strip()
+    conditions = [Product.is_deleted == False]
+
+    if q:
+        pattern = f"%{q}%"
+        conditions.append(
+            or_(
+                func.lower(Product.name).like(func.lower(pattern)),
+                func.lower(func.coalesce(Product.name_am, "")).like(func.lower(pattern)),
+            )
+        )
+    if category_id is not None:
+        conditions.append(Product.category_id == category_id)
+
+    count_stmt = select(func.count()).select_from(Product).where(*conditions)
+    total_result = await db.execute(count_stmt)
+    total = total_result.scalar() or 0
+
+    stmt = (
+        select(Product)
+        .where(*conditions)
+        .order_by(Product.is_featured.desc(), Product.id)
+        .limit(page_size)
+        .offset((page - 1) * page_size)
     )
-    return {
-        "items": [p.to_dict() for p in products],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    }
+    result = await db.execute(stmt)
+    products = result.scalars().all()
+
+    items = [
+        {
+            "id": p.id,
+            "name": p.name,
+            "name_am": p.name_am or "",
+            "slug": p.slug or "",
+            "description": p.description or "",
+            "price": float(p.price),
+            "compare_price": float(p.compare_price) if p.compare_price else None,
+            "stock_quantity": p.stock_quantity,
+            "images": p.images or [],
+            "status": p.status if isinstance(p.status, str) else str(p.status.value),
+            "is_featured": p.is_featured,
+            "category_id": p.category_id,
+            "category_type": p.category_type or "",
+        }
+        for p in products
+    ]
+
+    return JSONResponse(
+        content={"items": items, "total": total, "page": page, "page_size": page_size},
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @web_app_router.get("/api/search")
