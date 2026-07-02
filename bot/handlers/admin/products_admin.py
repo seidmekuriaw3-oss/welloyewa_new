@@ -40,6 +40,7 @@ async def products_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYP
         [InlineKeyboardButton("📋 ሁሉንም ምርቶች",   callback_data="admin_list_products")],
         [InlineKeyboardButton("➕ አዲስ ምርት",       callback_data="admin_add_product")],
         [InlineKeyboardButton("📁 ምድቦች",          callback_data="admin_categories")],
+        [InlineKeyboardButton("🖼️ ምስሎች ማስተዳደር", callback_data="admin_product_images")],
         [InlineKeyboardButton("⏳ በመጠባበቅ ላይ",    callback_data="admin_pending_products")],
         [InlineKeyboardButton("🔙 ወደ አስተዳደር",     callback_data="admin_back")],
     ]
@@ -419,6 +420,164 @@ async def do_create_product_with_category(
         )
 
 
+# ── Image management ──────────────────────────────────────────────────────────
+
+async def list_products_for_images(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Show paginated product list where each row has an 'Add Image' button."""
+    query = update.callback_query
+    page = context.user_data.get("admin_images_page", 1)
+    page_size = 8
+
+    try:
+        async for db in get_db_session():
+            product_service = ProductService(db)
+            products, total = await product_service.product_repo.get_all_with_count(
+                limit=page_size,
+                offset=(page - 1) * page_size,
+                order_by="created_at",
+                order_desc=True,
+            )
+            break
+    except Exception as exc:
+        logger.error("list_products_for_images error: %s", exc)
+        await query.message.edit_text(
+            "❌ ምርቶችን ለማምጣት ስህተት ተፈጥሯል።",
+            reply_markup=_products_back_keyboard(),
+        )
+        return
+
+    if not products:
+        await query.message.edit_text(
+            "📦 ምንም ምርቶች አልተገኙም።",
+            reply_markup=_products_back_keyboard(),
+        )
+        return
+
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    text = f"🖼️ *ምስሎች ማስተዳደር* — ገጽ {page}/{total_pages}\n\nምርቱን ይምረጡ:\n\n"
+
+    keyboard = []
+    for p in products:
+        img_count = len(p.images) if p.images else 0
+        emoji = STATUS_EMOJI.get(str(p.status), "📦")
+        keyboard.append([InlineKeyboardButton(
+            f"{emoji} {p.name[:22]} 🖼️{img_count}",
+            callback_data=f"admin_add_image_{p.id}",
+        )])
+
+    nav = []
+    if page > 1:
+        nav.append(InlineKeyboardButton("◀️ ቀዳሚ", callback_data="admin_images_page_prev"))
+    if page < total_pages:
+        nav.append(InlineKeyboardButton("ቀጣይ ▶️", callback_data="admin_images_page_next"))
+    if nav:
+        keyboard.append(nav)
+    keyboard.append([InlineKeyboardButton("🔙 ወደ ምርት አስተዳደር", callback_data="admin_products_back")])
+
+    await query.message.edit_text(
+        text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def show_product_images(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, product_id: int
+) -> None:
+    """Show current images for a product with remove buttons + upload prompt."""
+    query = update.callback_query
+
+    try:
+        async for db in get_db_session():
+            product_service = ProductService(db)
+            product = await product_service.product_repo.get(product_id)
+            break
+    except Exception as exc:
+        logger.error("show_product_images error: %s", exc)
+        await query.message.edit_text(
+            "❌ ምርቱ አልተገኘም።",
+            reply_markup=_products_back_keyboard(),
+        )
+        return
+
+    if not product:
+        await query.message.edit_text("❌ ምርቱ አልተገኘም።", reply_markup=_products_back_keyboard())
+        return
+
+    images = product.images or []
+    text = (
+        f"🖼️ *{product.name}* (ID: {product_id})\n\n"
+        f"ምስሎች: {len(images)}\n\n"
+    )
+    if images:
+        for i, url in enumerate(images, 1):
+            text += f"• ምስል {i}: `{url}`\n"
+    else:
+        text += "_ምንም ምስሎች የሉም_\n"
+    text += "\n📷 ምስል ለመጨምር ከዚህ በታች ያለውን ቁልፍ ይጫኑ:"
+
+    keyboard = []
+    for i in range(len(images)):
+        keyboard.append([InlineKeyboardButton(
+            f"🗑️ ምስል {i + 1} ሰርዝ",
+            callback_data=f"admin_remove_image_{product_id}_{i}",
+        )])
+    keyboard.append([InlineKeyboardButton(
+        "📷 ምስል ጨምር", callback_data=f"admin_prompt_image_{product_id}"
+    )])
+    keyboard.append([InlineKeyboardButton("🔙 ወደ ምርቶች", callback_data="admin_product_images")])
+
+    await query.message.edit_text(
+        text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def prompt_upload_image(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, product_id: int
+) -> None:
+    """Set admin state to waiting_product_image and ask for a photo."""
+    query = update.callback_query
+    context.user_data["admin_state"] = "waiting_product_image"
+    context.user_data["admin_image_product_id"] = product_id
+
+    await query.message.reply_text(
+        f"📷 *ምርት ID {product_id} ምስል መጨምር*\n\n"
+        "አሁን ምርቱን ፎቶ ይላኩ (Telegram ፎቶ እንጂ ፋይል አይደለም):\n\n"
+        "❌ ለመሰርዝ 'ሰርዝ' ይላኩ",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("❌ ሰርዝ", callback_data=f"admin_add_image_{product_id}")]
+        ]),
+    )
+
+
+async def do_remove_product_image(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, product_id: int, img_index: int
+) -> None:
+    """Remove one image from a product by index."""
+    query = update.callback_query
+
+    try:
+        async for db in get_db_session():
+            product_service = ProductService(db)
+            product = await product_service.product_repo.get(product_id)
+            if not product:
+                raise ValueError("not found")
+            images = list(product.images or [])
+            if img_index < len(images):
+                removed = images.pop(img_index)
+                await product_service.product_repo.update(product_id, {"images": images})
+                logger.info("Removed image %s from product %s", removed, product_id)
+            break
+    except Exception as exc:
+        logger.error("remove_image %s[%s] error: %s", product_id, img_index, exc)
+        await query.answer("❌ ምስሉን ለማስወገድ ስህተት ተፈጥሯል።", show_alert=True)
+        return
+
+    await query.answer("✅ ምስሉ ተሰርዟል!")
+    await show_product_images(update, context, product_id)
+
+
 # ── legacy stub (dispatcher.py registers product_admin_callback for ^prod_admin_) ──
 
 async def product_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -440,4 +599,8 @@ __all__ = [
     "do_reject_product",
     "do_create_product_with_category",
     "product_admin_callback",
+    "list_products_for_images",
+    "show_product_images",
+    "prompt_upload_image",
+    "do_remove_product_image",
 ]

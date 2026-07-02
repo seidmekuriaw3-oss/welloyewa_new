@@ -191,6 +191,14 @@ def setup_dispatcher(application: Application) -> Application:
             ),
             group=0,
         )
+        # Admin photo handler — intercepts photos when admin is in waiting_product_image state
+        application.add_handler(
+            MessageHandler(
+                filters.PHOTO,
+                admin_input.handle_admin_photo_input,
+            ),
+            group=0,
+        )
 
     application.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, catalog.text_message_handler),

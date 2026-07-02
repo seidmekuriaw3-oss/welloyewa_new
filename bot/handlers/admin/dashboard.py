@@ -278,6 +278,28 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await do_create_product_with_category(update, context, cat_id)
         return
 
+    # admin_add_image_<id>  → show image management panel for that product
+    if action.startswith("admin_add_image_"):
+        product_id = int(action.split("_")[-1])
+        from bot.handlers.admin.products_admin import show_product_images
+        await show_product_images(update, context, product_id)
+        return
+
+    # admin_prompt_image_<id>  → set state and ask admin to send a photo
+    if action.startswith("admin_prompt_image_"):
+        product_id = int(action.split("_")[-1])
+        from bot.handlers.admin.products_admin import prompt_upload_image
+        await prompt_upload_image(update, context, product_id)
+        return
+
+    # admin_remove_image_<product_id>_<index>
+    if action.startswith("admin_remove_image_"):
+        parts = action[len("admin_remove_image_"):].rsplit("_", 1)
+        product_id, img_index = int(parts[0]), int(parts[1])
+        from bot.handlers.admin.products_admin import do_remove_product_image
+        await do_remove_product_image(update, context, product_id, img_index)
+        return
+
     # admin_approve_product_<id>
     if action.startswith("admin_approve_product_"):
         product_id = int(action.split("_")[-1])
@@ -406,6 +428,25 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif action == "admin_pending_products":
         from bot.handlers.admin.products_admin import list_pending_products
         await list_pending_products(update, context)
+
+    elif action == "admin_product_images":
+        context.user_data["admin_images_page"] = context.user_data.get("admin_images_page", 1)
+        from bot.handlers.admin.products_admin import list_products_for_images
+        await list_products_for_images(update, context)
+
+    elif action == "admin_images_page_prev":
+        context.user_data["admin_images_page"] = max(
+            1, context.user_data.get("admin_images_page", 1) - 1
+        )
+        from bot.handlers.admin.products_admin import list_products_for_images
+        await list_products_for_images(update, context)
+
+    elif action == "admin_images_page_next":
+        context.user_data["admin_images_page"] = (
+            context.user_data.get("admin_images_page", 1) + 1
+        )
+        from bot.handlers.admin.products_admin import list_products_for_images
+        await list_products_for_images(update, context)
 
     elif action == "admin_add_product":
         from bot.handlers.admin.products_admin import start_add_product

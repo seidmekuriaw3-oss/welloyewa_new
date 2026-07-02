@@ -19,6 +19,9 @@ edit_category_name  → waiting for updated category name
 
 import io
 import csv
+import os
+import uuid
+import time
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
@@ -28,6 +31,12 @@ from core.config import settings
 from apps.products.services import ProductService, CategoryService
 from apps.products.schemas import ProductCreate, CategoryCreate, CategoryUpdate
 from infrastructure.database.session import get_db_session
+
+# Directory to store uploaded product images (served at /app/static/uploads/)
+_UPLOADS_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "..", "web_app", "static", "uploads"
+)
+os.makedirs(_UPLOADS_DIR, exist_ok=True)
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -210,4 +219,81 @@ async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_
         context.user_data["admin_state"] = None
 
 
-__all__ = ["handle_admin_text_input"]
+# ── Photo handler (called from dispatcher group 0) ───────────────────────────
+
+async def handle_admin_photo_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handles photo messages sent by admins when admin_state == 'waiting_product_image'.
+    Downloads the largest photo size, saves to static/uploads/, updates product.images.
+    """
+    if not _is_admin(update):
+        return
+
+    state = context.user_data.get("admin_state")
+    if state != "waiting_product_image":
+        return
+
+    product_id = context.user_data.get("admin_image_product_id")
+    if not product_id:
+        await update.message.reply_text("❌ ምርቱ ID ጠፍቷል። እባክዎ ዳግም ይሞክሩ።")
+        context.user_data["admin_state"] = None
+        return
+
+    # Get the largest available photo
+    photos = update.message.photo
+    if not photos:
+        await update.message.reply_text("⚠️ ፎቶ አልተቀበለም። እባክዎ ዳግም ይሞክሩ።")
+        return
+
+    largest = max(photos, key=lambda p: p.file_size or 0)
+
+    try:
+        # Download from Telegram
+        tg_file = await context.bot.get_file(largest.file_id)
+        filename = f"prod_{product_id}_{int(time.time())}_{uuid.uuid4().hex[:6]}.jpg"
+        save_path = os.path.join(_UPLOADS_DIR, filename)
+        await tg_file.download_to_drive(save_path)
+
+        url = f"/app/static/uploads/{filename}"
+
+        # Update product images list in DB
+        async for db in get_db_session():
+            product_service = ProductService(db)
+            product = await product_service.product_repo.get(product_id)
+            if not product:
+                raise ValueError(f"Product {product_id} not found")
+            existing = list(product.images or [])
+            existing.append(url)
+            await product_service.product_repo.update(product_id, {"images": existing})
+            break
+
+        context.user_data["admin_state"] = None
+        context.user_data.pop("admin_image_product_id", None)
+
+        await update.message.reply_photo(
+            photo=largest.file_id,
+            caption=(
+                f"✅ *ምስሉ ተጨምሯል!*\n\n"
+                f"• ምርት ID: {product_id}\n"
+                f"• URL: `{url}`\n"
+                f"• ጠቅላላ ምስሎች: {len(existing)}"
+            ),
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🖼️ ምስሎቹን ይዩ", callback_data=f"admin_add_image_{product_id}")],
+                [InlineKeyboardButton("🔙 ወደ ምርቶች", callback_data="admin_product_images")],
+            ]),
+        )
+        logger.info("Image saved for product %s → %s", product_id, url)
+
+    except Exception as exc:
+        logger.error("Photo upload for product %s failed: %s", product_id, exc)
+        await update.message.reply_text(
+            "❌ ምስሉን ለማስቀመጥ ስህተት ተፈጥሯል። እባክዎ ዳግም ይሞክሩ።",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("❌ ሰርዝ", callback_data="admin_product_images")]
+            ]),
+        )
+
+
+__all__ = ["handle_admin_text_input", "handle_admin_photo_input"]
