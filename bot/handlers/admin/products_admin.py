@@ -484,7 +484,11 @@ async def list_products_for_images(
 async def show_product_images(
     update: Update, context: ContextTypes.DEFAULT_TYPE, product_id: int
 ) -> None:
-    """Show current images for a product with remove buttons + upload prompt."""
+    """
+    Show current images for a product.
+    - Sends each saved image as a real thumbnail (reply_photo) with a delete button.
+    - Then sends a summary text message with 'Add Image' button.
+    """
     query = update.callback_query
 
     try:
@@ -494,42 +498,63 @@ async def show_product_images(
             break
     except Exception as exc:
         logger.error("show_product_images error: %s", exc)
-        await query.message.edit_text(
-            "❌ ምርቱ አልተገኘም።",
-            reply_markup=_products_back_keyboard(),
-        )
+        await query.message.edit_text("❌ ምርቱ አልተገኘም።", reply_markup=_products_back_keyboard())
         return
 
     if not product:
         await query.message.edit_text("❌ ምርቱ አልተገኘም።", reply_markup=_products_back_keyboard())
         return
 
+    name = product.name_am or product.name
     images = product.images or []
-    text = (
-        f"🖼️ *{product.name}* (ID: {product_id})\n\n"
-        f"ምስሎች: {len(images)}\n\n"
+    chat_id = query.message.chat.id
+
+    # ── Header message ──────────────────────────────────────────────────────
+    header = (
+        f"🖼️ *{name}*\n"
+        f"ID: {product_id} | ምስሎች: {len(images)}\n\n"
     )
-    if images:
-        for i, url in enumerate(images, 1):
-            text += f"• ምስል {i}: `{url}`\n"
+    if not images:
+        header += "_ምንም ምስሎች የሉም — ከዚህ በታች ፎቶ ጨምር_"
     else:
-        text += "_ምንም ምስሎች የሉም_\n"
-    text += "\n📷 ምስል ለመጨምር ከዚህ በታች ያለውን ቁልፍ ይጫኑ:"
+        header += "_ምስሎቹ ከዚህ በታች ተቀምጠዋል። ለማስወገድ 🗑️ ይጫኑ።_"
 
-    keyboard = []
-    for i in range(len(images)):
-        keyboard.append([InlineKeyboardButton(
-            f"🗑️ ምስል {i + 1} ሰርዝ",
-            callback_data=f"admin_remove_image_{product_id}_{i}",
-        )])
-    keyboard.append([InlineKeyboardButton(
-        "📷 ምስል ጨምር", callback_data=f"admin_prompt_image_{product_id}"
-    )])
-    keyboard.append([InlineKeyboardButton("🔙 ወደ ምርቶች", callback_data="admin_product_images")])
+    add_btn = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📷 ፎቶ ጨምር", callback_data=f"admin_prompt_image_{product_id}")],
+        [InlineKeyboardButton("🔙 ወደ ምርቶች",  callback_data="admin_product_images")],
+    ])
 
-    await query.message.edit_text(
-        text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    # Edit current message to header
+    try:
+        await query.message.edit_text(header, parse_mode="Markdown", reply_markup=add_btn)
+    except Exception:
+        await query.message.reply_text(header, parse_mode="Markdown", reply_markup=add_btn)
+
+    # ── Send each image as a real thumbnail ─────────────────────────────────
+    for i, url in enumerate(images):
+        del_kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton(
+                f"🗑️ ምስል {i+1} ሰርዝ",
+                callback_data=f"admin_remove_image_{product_id}_{i}",
+            )
+        ]])
+        try:
+            # Try as URL first; fall back silently if the URL is unreachable
+            await context.bot.send_photo(
+                chat_id=chat_id,
+                photo=url,
+                caption=f"ምስል {i+1}/{len(images)}",
+                reply_markup=del_kb,
+            )
+        except Exception as e:
+            logger.warning("Could not send thumbnail %s for product %s: %s", url, product_id, e)
+            # Send as a text fallback with the URL
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"🖼️ ምስል {i+1}: `{url}`",
+                parse_mode="Markdown",
+                reply_markup=del_kb,
+            )
 
 
 async def prompt_upload_image(

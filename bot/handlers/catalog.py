@@ -198,6 +198,9 @@ async def product_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     )
 
     # ── Keyboard ────────────────────────────────────────────────────────────
+    from core.config import settings
+    is_admin = update.effective_user.id in settings.admin_ids_list
+
     keyboard = [
         [
             InlineKeyboardButton("🛒 ወደ ቅርጫት ጨምር", callback_data=f"add_to_cart_{product.id}"),
@@ -206,11 +209,18 @@ async def product_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             InlineKeyboardButton("❤️ ወደ ተመራጮች", callback_data=f"add_to_wishlist_{product.id}"),
             InlineKeyboardButton("📝 ግምገማ", callback_data=f"review_{product.id}"),
         ],
-        [
-            InlineKeyboardButton("🔙 ወደ ኋላ", callback_data="menu_back"),
-            InlineKeyboardButton("🏠 ዋና ምናሌ", callback_data="menu_main"),
-        ],
     ]
+
+    if is_admin:
+        keyboard.append([
+            InlineKeyboardButton("📷 ፎቶ ጨምር",  callback_data=f"admin_prompt_image_{product.id}"),
+            InlineKeyboardButton("🖼️ ምስሎቹን ይዩ", callback_data=f"admin_add_image_{product.id}"),
+        ])
+
+    keyboard.append([
+        InlineKeyboardButton("🔙 ወደ ኋላ", callback_data="menu_back"),
+        InlineKeyboardButton("🏠 ዋና ምናሌ", callback_data="menu_main"),
+    ])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     # ── Decide: photo or text ───────────────────────────────────────────────

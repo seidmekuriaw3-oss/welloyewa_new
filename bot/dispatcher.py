@@ -69,8 +69,10 @@ def setup_dispatcher(application: Application) -> Application:
     application.add_handler(CommandHandler("shop",      start.shop_command))
 
     if dashboard is not None:
-        application.add_handler(CommandHandler("admin", dashboard.admin_command))
-        application.add_handler(CommandHandler("stats", dashboard.stats_command))
+        application.add_handler(CommandHandler("admin",     dashboard.admin_command))
+        application.add_handler(CommandHandler("stats",     dashboard.stats_command))
+    if admin_input is not None:
+        application.add_handler(CommandHandler("addphoto",  admin_input.addphoto_command))
 
     logger.info("Command handlers registered")
 
@@ -96,6 +98,10 @@ def setup_dispatcher(application: Application) -> Application:
 
     if dashboard is not None:
         application.add_handler(CallbackQueryHandler(dashboard.admin_callback, pattern="^admin_"))
+    if admin_input is not None:
+        application.add_handler(CallbackQueryHandler(
+            admin_input.addphoto_page_callback, pattern="^addphoto_page_"
+        ))
     if products_admin is not None:
         application.add_handler(CallbackQueryHandler(products_admin.product_admin_callback, pattern="^prod_admin_"))
     if orders_admin is not None:
