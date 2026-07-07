@@ -183,6 +183,11 @@ async def dashboard_page(request: Request):
     return templates.TemplateResponse(request, "dashboard.html", {**_BASE_CTX, "page": "dashboard"})
 
 
+@web_app_router.get("/profile", response_class=HTMLResponse)
+async def profile_page(request: Request):
+    return templates.TemplateResponse(request, "profile.html", {**_BASE_CTX, "page": "profile"})
+
+
 @web_app_router.get("/product/{product_id}", response_class=HTMLResponse)
 async def product_page(request: Request, product_id: int):
     return templates.TemplateResponse(request, "product.html", {**_BASE_CTX, "page": "product", "product_id": product_id})
