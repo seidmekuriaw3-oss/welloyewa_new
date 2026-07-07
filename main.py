@@ -244,7 +244,14 @@ async def health_check():
 
 @app.get("/")
 async def root():
-    """Root endpoint."""
+    """Root endpoint — redirect to web app."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/app/", status_code=302)
+
+
+@app.get("/status")
+async def status():
+    """API status endpoint."""
     return {
         "name": settings.PROJECT_NAME,
         "version": get_version(),
