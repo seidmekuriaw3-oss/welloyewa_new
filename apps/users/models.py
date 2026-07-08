@@ -30,7 +30,7 @@ class User(BaseModel, TimestampMixin, SoftDeleteMixin, MetadataMixin):
     __tablename__ = "users"
     
     # Identification
-    telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False, index=True)
+    telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, unique=True, nullable=True, index=True)
     username: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)

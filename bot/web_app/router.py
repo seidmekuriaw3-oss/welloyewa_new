@@ -173,6 +173,16 @@ async def index_page(request: Request):
     return templates.TemplateResponse(request, "index.html", {**_BASE_CTX, "page": "home"})
 
 
+@web_app_router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse(request, "login.html", {**_BASE_CTX, "page": "login"})
+
+
+@web_app_router.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request):
+    return templates.TemplateResponse(request, "register.html", {**_BASE_CTX, "page": "register"})
+
+
 @web_app_router.get("/categories", response_class=HTMLResponse)
 async def categories_page(request: Request):
     return templates.TemplateResponse(request, "categories.html", {**_BASE_CTX, "page": "categories"})
@@ -207,6 +217,115 @@ async def checkout_page(request: Request):
 @web_app_router.get("/orders", response_class=HTMLResponse)
 async def orders_page(request: Request):
     return templates.TemplateResponse(request, "orders.html", {**_BASE_CTX, "page": "orders"})
+
+
+# ---------------------------------------------------------------------------
+# Web Auth API endpoints  (non-Telegram users)
+# ---------------------------------------------------------------------------
+
+class WebRegisterRequest(BaseModel):
+    full_name: str
+    phone: str
+    password: str
+    email: Optional[str] = None
+
+
+class WebLoginRequest(BaseModel):
+    phone: str
+    password: str
+
+
+def _web_auth_response(db_user) -> dict:
+    from core.security import create_access_token
+    token = create_access_token({"sub": str(db_user.id), "role": getattr(db_user, "role", "customer")})
+    name_parts = []
+    if db_user.first_name:
+        name_parts.append(db_user.first_name)
+    if db_user.last_name:
+        name_parts.append(db_user.last_name)
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": db_user.id,
+            "full_name": " ".join(name_parts) or db_user.phone_number or "ደንበኛ",
+            "phone": db_user.phone_number or "",
+            "email": db_user.email or "",
+        },
+    }
+
+
+@web_app_router.post("/api/web/register")
+async def api_web_register(body: WebRegisterRequest, db=Depends(get_db_session)):
+    """Register a new web (non-Telegram) customer account."""
+    import re
+    from core.security import hash_password
+    from sqlalchemy import select
+    from apps.users.models import User
+
+    # Normalise phone
+    phone = re.sub(r"[\s\-()]", "", body.phone)
+    if not re.match(r"^(09|07)\d{8}$", phone):
+        raise HTTPException(status_code=422, detail="ስልክ ቁጥሩ ልክ አይደለም (ምሳሌ: 0912345678)")
+
+    if len(body.password) < 6:
+        raise HTTPException(status_code=422, detail="የይለፍ ቃሉ ቢያንስ 6 ፊደል መሆን አለበት")
+
+    # Check duplicate phone
+    result = await db.execute(select(User).where(User.phone_number == phone, User.is_deleted.isnot(True)))
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="ይህ ስልክ ቁጥር ቀደም ሲል ተመዝግቧል")
+
+    # Parse name
+    parts = body.full_name.strip().split(None, 1)
+    first_name = parts[0]
+    last_name = parts[1] if len(parts) > 1 else None
+
+    new_user = User(
+        first_name=first_name,
+        last_name=last_name,
+        phone_number=phone,
+        email=body.email or None,
+        password_hash=hash_password(body.password),
+        role="customer",
+        status="active",
+    )
+    db.add(new_user)
+    await db.flush()
+    await db.refresh(new_user)
+    await db.commit()
+
+    logger.info("Web registration: user_id=%s phone=%s", new_user.id, phone)
+    return _web_auth_response(new_user)
+
+
+@web_app_router.post("/api/web/login")
+async def api_web_login(body: WebLoginRequest, db=Depends(get_db_session)):
+    """Authenticate a web (non-Telegram) customer via phone + password."""
+    import re
+    from core.security import verify_password
+    from sqlalchemy import select
+    from apps.users.models import User
+
+    phone = re.sub(r"[\s\-()]", "", body.phone)
+
+    result = await db.execute(select(User).where(User.phone_number == phone, User.is_deleted.isnot(True)))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="ስልክ ቁጥሩ ወይም የይለፍ ቃሉ ስህተት ነው")
+
+    if not user.password_hash:
+        raise HTTPException(status_code=401, detail="ይህ አካውንት Telegram ብቻ ይጠቀማል። Telegram ቦቱን ይክፈቱ")
+
+    if not verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="ስልክ ቁጥሩ ወይም የይለፍ ቃሉ ስህተት ነው")
+
+    if getattr(user, "status", "active") != "active":
+        raise HTTPException(status_code=403, detail="አካውንቱ ንቁ አይደለም")
+
+    logger.info("Web login: user_id=%s phone=%s", user.id, phone)
+    return _web_auth_response(user)
 
 
 # ---------------------------------------------------------------------------
@@ -371,51 +490,72 @@ async def get_product(product_id: int, db=Depends(get_db_session)):
     return product.to_dict()
 
 
-@web_app_router.post("/api/checkout")
-async def api_checkout(body: CheckoutRequest, db=Depends(get_db_session)):
-    """
-    Place an order from the Telegram Mini App.
+def _user_from_bearer(request: Request, db) -> Optional[int]:
+    """Extract user_id from Authorization: Bearer <jwt> header, or None."""
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None
+    token = auth[7:]
+    from core.security import verify_token
+    payload = verify_token(token)
+    if not payload:
+        return None
+    try:
+        return int(payload.get("sub", 0))
+    except (ValueError, TypeError):
+        return None
 
-    Identifies the user via Telegram initData (HMAC-verified), creates
-    the order in the database, and sends a confirmation message back to
-    the user's Telegram chat.
+
+@web_app_router.post("/api/checkout")
+async def api_checkout(request: Request, body: CheckoutRequest, db=Depends(get_db_session)):
+    """
+    Place an order from the web app.
+    Accepts:
+      1. Telegram initData (HMAC-verified) in body.init_data
+      2. JWT Bearer token in Authorization header (web-registered users)
+      3. DEBUG fallback to first DB user
     """
     from apps.orders.schemas import OrderCreate, OrderItemCreate
     from core.constants import PaymentMethod, ShippingMethod
+    from sqlalchemy import select
+    from apps.users.models import User
 
     if not body.items:
         raise HTTPException(status_code=400, detail="Cart is empty.")
 
-    # ── Identify Telegram user ───────────────────────────────────────────────
-    tg_user: Optional[dict] = None
-    if body.init_data:
-        tg_user = _verify_telegram_init_data(body.init_data, settings.TELEGRAM_BOT_TOKEN)
-
     user_service = UserService(db)
     db_user = None
 
-    if tg_user and tg_user.get("id"):
-        tg_id = int(tg_user["id"])
-        db_user = await user_service.get_user_by_telegram(tg_id)
-        if not db_user:
-            db_user = await user_service.get_or_create_user(
-                telegram_id=tg_id,
-                first_name=tg_user.get("first_name") or body.full_name,
-                username=tg_user.get("username"),
-            )
+    # ── 1. Telegram initData ─────────────────────────────────────────────────
+    tg_user: Optional[dict] = None
+    if body.init_data:
+        tg_user = _verify_telegram_init_data(body.init_data, settings.TELEGRAM_BOT_TOKEN)
+        if tg_user and tg_user.get("id"):
+            tg_id = int(tg_user["id"])
+            db_user = await user_service.get_user_by_telegram(tg_id)
+            if not db_user:
+                db_user = await user_service.get_or_create_user(
+                    telegram_id=tg_id,
+                    first_name=tg_user.get("first_name") or body.full_name,
+                    username=tg_user.get("username"),
+                )
 
-    # Development fallback: use first seeded user so the checkout is testable
-    # in the browser without a real Telegram session.
+    # ── 2. Web JWT Bearer token ──────────────────────────────────────────────
+    if not db_user:
+        web_user_id = _user_from_bearer(request, db)
+        if web_user_id:
+            result = await db.execute(select(User).where(User.id == web_user_id, User.is_deleted == False))
+            db_user = result.scalar_one_or_none()
+
+    # ── 3. DEBUG fallback ────────────────────────────────────────────────────
     if not db_user and settings.DEBUG:
-        from sqlalchemy import select
-        from apps.users.models import User
         result = await db.execute(select(User).limit(1))
         db_user = result.scalar_one_or_none()
 
     if not db_user:
         raise HTTPException(
             status_code=401,
-            detail="Could not identify your account. Please open this store via Telegram.",
+            detail="ይቅርታ — ለዚህ ትዕዛዝ መስጠት ይግቡ ወይም ይመዝገቡ።",
         )
 
     # ── Map payment method ───────────────────────────────────────────────────
