@@ -430,4 +430,26 @@ async def handle_admin_photo_input(update: Update, context: ContextTypes.DEFAULT
         )
 
 
-__all__ = ["handle_admin_text_input", "handle_admin_photo_input", "addphoto_command"]
+async def addphoto_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles addphoto_page_<N> callbacks for the product picker pagination."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_admin(update):
+        return
+
+    try:
+        page = int(query.data.split("_")[-1])
+    except (ValueError, IndexError):
+        page = 1
+
+    context.user_data["addphoto_page"] = page
+    await _show_addphoto_picker(update, context, page=page)
+
+
+__all__ = [
+    "handle_admin_text_input",
+    "handle_admin_photo_input",
+    "addphoto_command",
+    "addphoto_page_callback",
+]
