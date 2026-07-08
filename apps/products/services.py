@@ -223,27 +223,27 @@ class ProductService:
         return product
     
     async def reserve_stock(self, product_id: int, quantity: int) -> bool:
-        """Reserve stock for an order."""
+        """Reserve stock for an order by decrementing stock_quantity on the product row."""
         product = await self.get_product(product_id)
-        
+
         if product.stock_quantity < quantity:
             return False
-        
-        product.stock_quantity -= quantity
-        await self.product_repo.update(product_id, {"stock_quantity": product.stock_quantity})
-        
-        # Create reservation in inventory service
-        await self.inventory_service.reserve_inventory(product_id, quantity)
-        
+
+        await self.product_repo.update(product_id, {
+            "stock_quantity": product.stock_quantity - quantity
+        })
+        logger.info("Stock reserved: product=%s qty=-%s remaining=%s",
+                    product_id, quantity, product.stock_quantity - quantity)
         return True
-    
+
     async def release_stock(self, product_id: int, quantity: int) -> None:
-        """Release reserved stock."""
+        """Return stock to the product row (e.g. on order cancellation)."""
         product = await self.get_product(product_id)
-        product.stock_quantity += quantity
-        await self.product_repo.update(product_id, {"stock_quantity": product.stock_quantity})
-        
-        await self.inventory_service.release_reservation(product_id, quantity)
+        await self.product_repo.update(product_id, {
+            "stock_quantity": product.stock_quantity + quantity
+        })
+        logger.info("Stock released: product=%s qty=+%s total=%s",
+                    product_id, quantity, product.stock_quantity + quantity)
     
     async def get_vendor_products(
         self,
