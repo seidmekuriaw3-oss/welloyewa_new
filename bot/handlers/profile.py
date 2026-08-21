@@ -135,6 +135,21 @@ _T = {
         "en": "📧 Send your email address:",
         "om": "📧 Teessoo imeelii kee ergi:",
     },
+    "email_invalid": {
+        "am": "❌ እባክዎ ትክክለኛ ኢሜይል ያስገቡ።",
+        "en": "❌ Please enter a valid email address.",
+        "om": "❌ Maaloo imeelii sirrii galchi.",
+    },
+    "email_saved": {
+        "am": "✅ ኢሜይልዎ ተቀምጧል።",
+        "en": "✅ Your email has been saved.",
+        "om": "✅ Imeeliin kee olkaa'ameera.",
+    },
+    "email_failed": {
+        "am": "❌ ኢሜይልዎን ማስቀመጥ አልተቻለም።",
+        "en": "❌ We could not save your email.",
+        "om": "❌ Imeelii kee olkaa'uu hin dandeenye.",
+    },
     # ── Vendor application ───────────────────────────────────────────────────
     "vendor_apply_title": {
         "am": "🏪 *ሻጅ ለመሆን ማመልከቻ*",
@@ -496,6 +511,68 @@ async def profile_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await show_vendor_panel(update, context)
 
 
+async def orders_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle orders_page_<number> pagination buttons."""
+    query = update.callback_query
+    try:
+        page = max(1, int(query.data.rsplit("_", 1)[1]))
+    except (ValueError, IndexError):
+        await query.answer("❌ የገጽ ቁጥሩ ልክ አይደለም።", show_alert=True)
+        return
+    await query.answer()
+    context.user_data["orders_page"] = page
+    await orders_command(update, context)
+
+
+async def vendor_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle vendor dashboard buttons with a useful response instead of dead clicks."""
+    query = update.callback_query
+    await query.answer()
+    action = query.data
+    lang = _get_lang(context)
+
+    if action == "vendor_products":
+        await query.message.edit_text(
+            "📦 *ምርቶቼ*\n\nየሻጭ ምርቶችን ለማስተዳደር የአስተዳዳሪ ፓነልን ወይም የድጋፍ ቡድንን ያግኙ።",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton(t("btn_back_profile", lang), callback_data="profile_vendor_panel")
+            ]]),
+        )
+    elif action == "vendor_add_product":
+        await query.message.edit_text(
+            "➕ *አዲስ ምርት ለመጨመር*\n\nእባክዎ ለማስገባት የምርቱን መረጃ ለአስተዳዳሪ ይላኩ።",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton(t("btn_back_profile", lang), callback_data="profile_vendor_panel")
+            ]]),
+        )
+    elif action == "vendor_orders":
+        await query.message.edit_text(
+            "📦 *የሻጭ ትዕዛዞች*\n\nየሻጭ ትዕዛዝ መረጃ ሲኖር እዚህ ይታያል።",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton(t("btn_back_profile", lang), callback_data="profile_vendor_panel")
+            ]]),
+        )
+    elif action == "vendor_stats":
+        await query.message.edit_text(
+            "📊 *የሽያጭ ስታቲስቲክስ*\n\nስታቲስቲክስ ለማየት የሽያጭ እንቅስቃሴ እስኪመዘገብ ይጠብቁ።",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton(t("btn_back_profile", lang), callback_data="profile_vendor_panel")
+            ]]),
+        )
+    elif action == "vendor_settings":
+        await query.message.edit_text(
+            "⚙️ *የሻጭ ቅንብሮች*\n\nለውጦችን ለማድረግ የድጋፍ ቡድንን ያግኙ።",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton(t("btn_back_profile", lang), callback_data="profile_vendor_panel")
+            ]]),
+        )
+
+
 # ---------------------------------------------------------------------------
 # Language change handler  (lang_am / lang_en / lang_om from Profile)
 # ---------------------------------------------------------------------------
@@ -618,6 +695,60 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
 
 
+async def profile_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Save text entered after the profile email/update prompts."""
+    field = context.user_data.get("updating_field")
+    if context.user_data.get("vendor_application"):
+        context.user_data.pop("vendor_application", None)
+        await update.effective_message.reply_text(
+            "✅ ማመልከቻዎ ተቀብሏል። አስተዳደሩ ከገመገመ በኋላ ያሳውቅዎታል።"
+        )
+        return
+    if field == "phone":
+        value = (update.effective_message.text or "").strip()
+        digits = "".join(ch for ch in value if ch.isdigit() or ch == "+")
+        if len(digits.replace("+", "")) < 9:
+            await update.effective_message.reply_text(
+                t("phone_invalid", _get_lang(context))
+            )
+            return
+        tg_id = update.effective_user.id
+        saved = False
+        async for db in get_db_session():
+            user = await UserService(db).get_user_by_telegram(tg_id)
+            if user:
+                await UserService(db).update_user(
+                    user.id, UserUpdate(phone_number=value)
+                )
+                saved = True
+            break
+        context.user_data.pop("updating_field", None)
+        await update.effective_message.reply_text(
+            t("phone_saved", _get_lang(context))
+            if saved else t("phone_failed", _get_lang(context))
+        )
+        return
+    if field != "email":
+        return
+    value = (update.effective_message.text or "").strip()
+    if "@" not in value or "." not in value.split("@")[-1]:
+        await update.effective_message.reply_text(t("email_invalid", _get_lang(context)))
+        return
+
+    tg_id = update.effective_user.id
+    saved = False
+    async for db in get_db_session():
+        user = await UserService(db).get_user_by_telegram(tg_id)
+        if user:
+            await UserService(db).update_user(user.id, UserUpdate(email=value))
+            saved = True
+        break
+    context.user_data.pop("updating_field", None)
+    await update.effective_message.reply_text(
+        t("email_saved", _get_lang(context)) if saved else t("email_failed", _get_lang(context))
+    )
+
+
 # ---------------------------------------------------------------------------
 # Legacy helper (kept for any caller that still imports it)
 # ---------------------------------------------------------------------------
@@ -630,6 +761,9 @@ __all__ = [
     "profile_command",
     "orders_command",
     "profile_callback",
+    "orders_page_callback",
+    "vendor_callback",
+    "profile_text_handler",
     "language_callback",
     "contact_handler",
     "show_vendor_panel",

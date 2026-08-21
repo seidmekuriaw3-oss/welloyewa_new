@@ -50,9 +50,6 @@ def setup_dispatcher(application: Application) -> Application:
     # Handles language selection during new-user onboarding (Step 1)
     application.add_handler(CallbackQueryHandler(start.onboard_language_callback, pattern="^onboard_lang_"))
 
-    # ── Main menu callback ────────────────────────────────────────────────────
-    application.add_handler(CallbackQueryHandler(start.menu_callback, pattern="^menu_"))
-
     # ── Command handlers ─────────────────────────────────────────────────────
     application.add_handler(CommandHandler("start",     start.start_command))
     application.add_handler(CommandHandler("help",      start.help_command))
@@ -85,8 +82,14 @@ def setup_dispatcher(application: Application) -> Application:
     application.add_handler(CallbackQueryHandler(cart.cart_callback,             pattern="^cart_"))
     application.add_handler(CallbackQueryHandler(cart.cart_callback,             pattern="^add_to_cart_"))
     application.add_handler(CallbackQueryHandler(profile.profile_callback,       pattern="^profile_"))
+    application.add_handler(CallbackQueryHandler(profile.orders_page_callback,   pattern="^orders_page_"))
+    application.add_handler(CallbackQueryHandler(profile.vendor_callback,        pattern="^vendor_"))
     # Language change from Profile screen (lang_am / lang_en / lang_om)
     application.add_handler(CallbackQueryHandler(profile.language_callback,      pattern="^lang_"))
+    application.add_handler(CallbackQueryHandler(location.location_callback,    pattern="^(share_location|enter_city)$"))
+    application.add_handler(CallbackQueryHandler(broadcaster.broadcast_callback, pattern="^broadcast_(all|active|new|vendors|cancel)$"))
+    application.add_handler(CallbackQueryHandler(broadcaster.broadcast_send_callback, pattern="^broadcast_send$"))
+    application.add_handler(CallbackQueryHandler(start.noop_callback,           pattern="^(noop|out_of_stock)$"))
     # Wishlist: both wish_ (legacy) and wishlist_ / add_to_wishlist_
     application.add_handler(CallbackQueryHandler(wishlist.wishlist_callback,     pattern="^wish_"))
     application.add_handler(CallbackQueryHandler(wishlist.wishlist_callback,     pattern="^wishlist_"))
@@ -136,12 +139,12 @@ def setup_dispatcher(application: Application) -> Application:
     application.add_handler(checkout_conv)
 
     # Search conversation
-    # NOTE: ^menu_search$ is handled by start.menu_callback (^menu_ pattern registered earlier);
-    # menu_callback calls search.search_command which shows the prompt, then the next user text
-    # goes to search_query_handler below via WAITING_QUERY state.
+    # menu_search is an entry point here, so the next user text is tracked by
+    # the conversation and reaches search_query_handler.
     search_conv = ConversationHandler(
         entry_points=[
-            CommandHandler("search", search.start_search),
+            CommandHandler("search", search.search_command),
+            CallbackQueryHandler(search.start_search, pattern="^menu_search$"),
         ],
         states={
             search.WAITING_QUERY: [
@@ -162,10 +165,12 @@ def setup_dispatcher(application: Application) -> Application:
     application.add_handler(search_conv)
 
     # Feedback conversation
-    # NOTE: ^menu_feedback$ is handled by start.menu_callback before this conv is reached.
+    # menu_feedback and review_* are entry points here and retain feedback state.
     feedback_conv = ConversationHandler(
         entry_points=[
-            CommandHandler("feedback", feedback.start_feedback),
+            CommandHandler("feedback", feedback.feedback_command),
+            CallbackQueryHandler(feedback.start_feedback, pattern="^menu_feedback$"),
+            CallbackQueryHandler(feedback.start_feedback, pattern="^review_"),
         ],
         states={
             feedback.WAITING_RATING: [
@@ -180,6 +185,10 @@ def setup_dispatcher(application: Application) -> Application:
         persistent=True,
     )
     application.add_handler(feedback_conv)
+
+    # Keep this after the conversation entry points so menu_search/menu_feedback
+    # are claimed by their conversations and retain their next-message state.
+    application.add_handler(CallbackQueryHandler(start.menu_callback, pattern="^menu_"))
 
     logger.info("Conversation handlers registered")
 

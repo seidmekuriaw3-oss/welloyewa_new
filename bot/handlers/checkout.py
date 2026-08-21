@@ -232,7 +232,13 @@ async def show_order_confirmation(
 ) -> int:
     """Show order confirmation with total and details."""
     user_id = update.effective_user.id
-    cart = await get_user_cart(user_id)
+    cart = await get_user_cart(user_id, context)
+    if not cart:
+        await update.effective_message.reply_text(
+            "🛒 *የግዢ ቅርጫትዎ ባዶ ነው!*",
+            parse_mode="Markdown",
+        )
+        return ConversationHandler.END
     
     if not cart:
         await update.callback_query.message.edit_text("🛒 ቅርጫትዎ ባዶ ነው!")
@@ -310,7 +316,7 @@ async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     
     # Create order
     user_id = update.effective_user.id
-    cart = await get_user_cart(user_id)
+    cart = await get_user_cart(user_id, context)
     address_id = context.user_data.get("checkout_address_id")
     payment_method = context.user_data.get("checkout_payment_method")
     
@@ -349,7 +355,7 @@ async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         order = await order_service.create_order(user.id, order_create)
         
         # Clear cart
-        await clear_cart(user_id)
+        await clear_cart(user_id, context)
         
         # Process payment
         payment_response = await process_payment(

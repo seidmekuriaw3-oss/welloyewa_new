@@ -3,7 +3,13 @@
 # ============================
 """Telegram bot location sharing handlers."""
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
 from telegram.ext import ContextTypes
 
 from core.logger import logger
@@ -76,20 +82,16 @@ async def location_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     await query.answer()
     
     if query.data == "share_location":
-        # Request location
-        keyboard = [
-            [InlineKeyboardButton("📍 ቦታዬን አጋራ", callback_data="share_location")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
+        # Telegram only supports request_location on a ReplyKeyboard button,
+        # not on InlineKeyboardButton or reply_location().
+        reply_markup = ReplyKeyboardMarkup(
+            [[KeyboardButton("📍 ቦታዬን አጋራ", request_location=True)]],
+            one_time_keyboard=True,
+            resize_keyboard=True,
+        )
         await query.message.reply_text(
             "📍 እባክዎ ከታች ያለውን ቁልፍ በመጫን ቦታዎን ያጋሩ።",
             reply_markup=reply_markup
-        )
-        
-        # Force reply location button
-        await query.message.reply_location(
-            request_location=True
         )
         
     elif query.data == "enter_city":

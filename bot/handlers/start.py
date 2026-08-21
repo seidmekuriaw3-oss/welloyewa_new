@@ -349,9 +349,18 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
 
     elif action == "admin":
-        await query.edit_message_text("🔧 /admin")
+        from bot.handlers.admin.dashboard import admin_command
+        # admin_command expects update.message, so show the panel inline here.
+        if update.effective_user.id not in settings.admin_ids_list:
+            await query.edit_message_text("❌ ፈቃድ የለዎትም።")
+        else:
+            from bot.handlers.admin.dashboard import ADMIN_MENU_TEXT, _admin_main_keyboard
+            await query.edit_message_text(
+                ADMIN_MENU_TEXT, parse_mode="Markdown",
+                reply_markup=_admin_main_keyboard(),
+            )
 
-    elif action == "back":
+    elif action in ("back", "main", "start"):
         tg_user = update.effective_user
         is_admin = tg_user.id in settings.admin_ids_list
         lang = context.user_data.get("user", {}).get("language", "am")
@@ -369,6 +378,11 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     else:
         logger.warning(f"Unknown menu action: {action}")
         await query.edit_message_text("❓ /start")
+
+
+async def noop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Acknowledge intentionally inert/status buttons without leaving a spinner."""
+    await update.callback_query.answer()
 
 
 # ---------------------------------------------------------------------------
@@ -453,6 +467,7 @@ __all__ = [
     "help_command",
     "unknown_command",
     "menu_callback",
+    "noop_callback",
     "onboard_language_callback",
     "_build_main_menu",
     "_build_phone_keyboard",

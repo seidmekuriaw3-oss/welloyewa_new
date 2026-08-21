@@ -77,6 +77,10 @@ async def addphoto_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     Otherwise → show a searchable product list so admin can pick one.
     """
     if not _is_admin(update):
+        # This handler is the first text handler in group 0. Delegate profile
+        # text prompts for regular users so the catch-all cannot swallow them.
+        from bot.handlers.profile import profile_text_handler
+        await profile_text_handler(update, context)
         return
 
     args = context.args or []
@@ -192,10 +196,19 @@ async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_
     Only runs when context.user_data["admin_state"] is set.
     """
     if not _is_admin(update):
+        # This handler is first in group 0, so delegate non-admin text states
+        # before the general catch-all can consume the message.
+        from bot.handlers.location import city_text_handler
+        from bot.handlers.profile import profile_text_handler
+        await city_text_handler(update, context)
+        await profile_text_handler(update, context)
         return
 
     state = context.user_data.get("admin_state")
     if not state:
+        # Broadcast input also uses group 0 and must not be swallowed here.
+        from bot.handlers.broadcaster import broadcast_message_handler
+        await broadcast_message_handler(update, context)
         return
 
     text = (update.message.text or "").strip()
