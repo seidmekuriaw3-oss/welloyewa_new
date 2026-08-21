@@ -69,6 +69,8 @@ class OrderService:
             
             items_data.append({
                 "product_id": item.product_id,
+                "vendor_id": product.vendor_id,
+                "vendor_status": OrderStatus.PENDING.value,
                 "product_name": product.name,
                 "product_sku": product.sku,
                 "quantity": item.quantity,
@@ -239,6 +241,35 @@ class OrderService:
     ) -> Tuple[List[Order], int]:
         """Get orders for a vendor."""
         return await self.order_repo.get_by_vendor(vendor_id, status, limit, offset)
+
+    async def update_vendor_order_status(
+        self, order_id: int, vendor_id: int, data: OrderStatusUpdate, user_id: int
+    ) -> Order:
+        """Update only this vendor's items in a shared customer order."""
+        order = await self.get_order(order_id)
+        items = await self.order_item_repo.get_by_order(order_id)
+        vendor_items = [item for item in items if item.vendor_id == vendor_id]
+        if not vendor_items:
+            raise PermissionError("This order does not contain products from this vendor")
+        for item in vendor_items:
+            if not self._is_valid_transition(item.vendor_status, data.status):
+                raise OrderStatusError(item.vendor_status, data.status)
+            item.vendor_status = data.status
+        all_statuses = {item.vendor_status for item in items}
+        if all_statuses == {OrderStatus.DELIVERED.value}:
+            order.status = OrderStatus.DELIVERED.value
+        elif all_statuses and all_statuses.issubset(
+            {OrderStatus.SHIPPED.value, OrderStatus.DELIVERED.value}
+        ):
+            order.status = OrderStatus.SHIPPED.value
+        elif OrderStatus.PROCESSING.value in all_statuses:
+            order.status = OrderStatus.PROCESSING.value
+        elif all_statuses == {OrderStatus.CONFIRMED.value}:
+            order.status = OrderStatus.CONFIRMED.value
+        elif all_statuses == {OrderStatus.CANCELLED.value}:
+            order.status = OrderStatus.CANCELLED.value
+        await self.db.flush()
+        return order
     
     async def cancel_order(self, order_id: int, user_id: int, reason: Optional[str] = None) -> Order:
         """Cancel an order."""

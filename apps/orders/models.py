@@ -147,6 +147,12 @@ class OrderItem(BaseModel, TimestampMixin):
     
     order_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
     product_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    vendor_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("vendors.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    vendor_status: Mapped[str] = mapped_column(
+        String(50), nullable=False, default=OrderStatus.PENDING.value, index=True
+    )
     
     # Snapshot of product details at time of purchase
     product_name: Mapped[str] = mapped_column(String(255), nullable=False)

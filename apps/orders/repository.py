@@ -6,7 +6,7 @@
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Tuple
 from decimal import Decimal
-from sqlalchemy import select, update, func, and_, or_
+from sqlalchemy import select, update, func, and_, or_, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.common.repository import BaseRepository
@@ -58,15 +58,27 @@ class OrderRepository(BaseRepository[Order]):
         offset: int = 0,
     ) -> Tuple[List[Order], int]:
         """Get orders by vendor ID."""
-        conditions = [Order.vendor_id == vendor_id]
+        conditions = [or_(Order.vendor_id == vendor_id, OrderItem.vendor_id == vendor_id)]
         if status:
-            conditions.append(Order.status == status)
+            conditions.append(
+                or_(Order.status == status, OrderItem.vendor_status == status)
+            )
         
-        count_query = select(func.count()).select_from(Order).where(and_(*conditions))
+        count_query = (
+            select(func.count(distinct(Order.id)))
+            .select_from(Order)
+            .outerjoin(OrderItem, OrderItem.order_id == Order.id)
+            .where(and_(*conditions))
+        )
         count_result = await self.db.execute(count_query)
         total = count_result.scalar() or 0
         
-        query = select(Order).where(and_(*conditions))
+        query = (
+            select(Order)
+            .outerjoin(OrderItem, OrderItem.order_id == Order.id)
+            .where(and_(*conditions))
+            .distinct()
+        )
         query = query.order_by(Order.created_at.desc()).offset(offset).limit(limit)
         result = await self.db.execute(query)
         
@@ -139,14 +151,17 @@ class OrderRepository(BaseRepository[Order]):
     async def get_vendor_stats(self, vendor_id: int) -> Dict[str, Any]:
         """Get order statistics for a vendor."""
         query = select(
-            func.count().label("total_orders"),
-            func.sum(Order.total).label("total_revenue"),
-            func.sum(func.case((Order.status == OrderStatus.PENDING.value, 1), else_=0)).label("pending"),
-            func.sum(func.case((Order.status == OrderStatus.PROCESSING.value, 1), else_=0)).label("processing"),
-            func.sum(func.case((Order.status == OrderStatus.SHIPPED.value, 1), else_=0)).label("shipped"),
-            func.sum(func.case((Order.status == OrderStatus.DELIVERED.value, 1), else_=0)).label("delivered"),
-            func.sum(func.case((Order.status == OrderStatus.CANCELLED.value, 1), else_=0)).label("cancelled"),
-        ).where(Order.vendor_id == vendor_id)
+            func.count(distinct(Order.id)).label("total_orders"),
+            func.sum(OrderItem.total_price).label("total_revenue"),
+            func.sum(func.case((OrderItem.vendor_status == OrderStatus.PENDING.value, 1), else_=0)).label("pending"),
+            func.sum(func.case((OrderItem.vendor_status == OrderStatus.PROCESSING.value, 1), else_=0)).label("processing"),
+            func.sum(func.case((OrderItem.vendor_status == OrderStatus.SHIPPED.value, 1), else_=0)).label("shipped"),
+            func.sum(func.case((OrderItem.vendor_status == OrderStatus.DELIVERED.value, 1), else_=0)).label("delivered"),
+            func.sum(func.case((OrderItem.vendor_status == OrderStatus.CANCELLED.value, 1), else_=0)).label("cancelled"),
+        ).select_from(Order).outerjoin(OrderItem, OrderItem.order_id == Order.id).where(
+            or_(Order.vendor_id == vendor_id, OrderItem.vendor_id == vendor_id),
+            or_(OrderItem.vendor_id == vendor_id, Order.vendor_id == vendor_id)
+        )
         
         result = await self.db.execute(query)
         row = result.one()

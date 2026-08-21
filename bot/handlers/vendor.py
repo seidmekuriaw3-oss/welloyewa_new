@@ -106,8 +106,8 @@ async def vendor_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             if not order or order.vendor_id != vendor.id:
                 await query.message.edit_text("❌ ይህ ትዕዛዝ የእርስዎ አይደለም።", reply_markup=_back())
                 break
-            await OrderService(db).update_order_status(
-                order_id, OrderStatusUpdate(status=status), update.effective_user.id
+            await OrderService(db).update_vendor_order_status(
+                order_id, vendor.id, OrderStatusUpdate(status=status), update.effective_user.id
             )
             await query.message.edit_text("✅ የትዕዛዙ ሁኔታ ተቀይሯል።", reply_markup=_back())
             break
@@ -194,10 +194,14 @@ async def show_vendor_order(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         return
     async for db in get_db_session():
         order = await OrderService(db).get_order(order_id)
+        items = await OrderService(db).order_item_repo.get_by_order(order_id)
         break
-    if not order or order.vendor_id != vendor.id:
+    vendor_items = [item for item in items if item.vendor_id == vendor.id]
+    if not order or (order.vendor_id != vendor.id and not vendor_items):
         await update.effective_message.edit_text("❌ ትዕዛዙ አልተገኘም።", reply_markup=_back())
         return
+    vendor_total = sum((item.total_price for item in vendor_items), Decimal("0"))
+    vendor_status = vendor_items[0].vendor_status if vendor_items else order.status
     keyboard = [[
         InlineKeyboardButton("✅ Confirm", callback_data=f"vendor_status_{order_id}_confirmed"),
         InlineKeyboardButton("🔄 Processing", callback_data=f"vendor_status_{order_id}_processing"),
@@ -206,8 +210,8 @@ async def show_vendor_order(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         InlineKeyboardButton("🔙 Back", callback_data="vendor_orders"),
     ]]
     await update.effective_message.edit_text(
-        f"📋 *ትዕዛዝ #{order.order_number}*\n\n💰 {format_etb(order.total)}\n"
-        f"📍 {order.shipping_address}, {order.shipping_city}\nሁኔታ: {order.status}",
+        f"📋 *ትዕዛዝ #{order.order_number}*\n\n💰 {format_etb(vendor_total)}\n"
+        f"📍 {order.shipping_address}, {order.shipping_city}\nሁኔታ: {vendor_status}",
         parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard)
     )
 

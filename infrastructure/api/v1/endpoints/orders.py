@@ -211,7 +211,9 @@ async def update_order_status(
     order_service = OrderService(db)
     
     try:
-        order = await order_service.update_order_status(order_id, data, current_user["id"])
+        order = await order_service.update_vendor_order_status(
+            order_id, current_user["vendor_id"], data, current_user["id"]
+        )
         return OrderResponse.model_validate(order)
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
