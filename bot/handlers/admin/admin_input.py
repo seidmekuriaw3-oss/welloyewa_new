@@ -200,8 +200,10 @@ async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_
         # before the general catch-all can consume the message.
         from bot.handlers.location import city_text_handler
         from bot.handlers.profile import profile_text_handler
+        from bot.handlers.vendor import vendor_text_handler
         await city_text_handler(update, context)
         await profile_text_handler(update, context)
+        await vendor_text_handler(update, context)
         return
 
     state = context.user_data.get("admin_state")

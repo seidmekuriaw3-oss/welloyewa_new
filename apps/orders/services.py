@@ -52,9 +52,12 @@ class OrderService:
         # Calculate totals from items
         subtotal = Decimal('0')
         items_data = []
+        vendor_ids = set()
         
         for item in data.items:
             product = await self.product_service.get_product(item.product_id)
+            if product.vendor_id:
+                vendor_ids.add(product.vendor_id)
             
             # Check stock
             if product.stock_quantity < item.quantity:
@@ -82,6 +85,10 @@ class OrderService:
         order_data = {
             "order_number": generate_order_number(),
             "user_id": user_id,
+            # A single-vendor cart can be routed directly to that vendor's
+            # dashboard. Multi-vendor carts remain unassigned until order
+            # splitting is implemented.
+            "vendor_id": next(iter(vendor_ids)) if len(vendor_ids) == 1 else None,
             "status": OrderStatus.PENDING.value,
             "subtotal": subtotal,
             "shipping_fee": shipping_fee,

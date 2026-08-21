@@ -25,7 +25,7 @@ def setup_dispatcher(application: Application) -> Application:
     # ── Import all handler modules ──────────────────────────────────────────
     from bot.handlers import (
         start, catalog, cart, checkout,
-        profile, feedback, search, wishlist,
+        profile, feedback, search, wishlist, vendor,
         location, deep_linking, broadcaster, errors,
     )
 
@@ -83,7 +83,7 @@ def setup_dispatcher(application: Application) -> Application:
     application.add_handler(CallbackQueryHandler(cart.cart_callback,             pattern="^add_to_cart_"))
     application.add_handler(CallbackQueryHandler(profile.profile_callback,       pattern="^profile_"))
     application.add_handler(CallbackQueryHandler(profile.orders_page_callback,   pattern="^orders_page_"))
-    application.add_handler(CallbackQueryHandler(profile.vendor_callback,        pattern="^vendor_"))
+    application.add_handler(CallbackQueryHandler(vendor.vendor_callback,         pattern="^vendor_"))
     # Language change from Profile screen (lang_am / lang_en / lang_om)
     application.add_handler(CallbackQueryHandler(profile.language_callback,      pattern="^lang_"))
     application.add_handler(CallbackQueryHandler(location.location_callback,    pattern="^(share_location|enter_city)$"))
