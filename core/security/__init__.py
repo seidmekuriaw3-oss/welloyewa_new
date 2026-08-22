@@ -66,12 +66,24 @@ _pwd_context = CryptContext(
 )
 
 
+def _password_for_bcrypt(password: str) -> str:
+    """Keep passwords within bcrypt's input limit without truncating them."""
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
 def hash_password(password: str) -> str:
-    return _pwd_context.hash(password)
+    return "sha256$" + _pwd_context.hash(_password_for_bcrypt(password))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return _pwd_context.verify(plain_password, hashed_password)
+    try:
+        if hashed_password.startswith("sha256$"):
+            return _pwd_context.verify(
+                _password_for_bcrypt(plain_password), hashed_password.removeprefix("sha256$")
+            )
+        return _pwd_context.verify(plain_password, hashed_password)
+    except ValueError:
+        return False
 
 
 def create_access_token(
@@ -111,7 +123,10 @@ def generate_secure_token(length: int = 32) -> str:
 def sanitize_input(text: str) -> str:
     import re
 
-    return re.sub(r'[<>&\'""]', "", text).strip()
+    from bleach import clean
+
+    text = re.sub(r"<(script|style)\b[^>]*>.*?</\1\s*>", "", text, flags=re.IGNORECASE | re.DOTALL)
+    return clean(text, tags=[], attributes={}, protocols=[], strip=True).strip()
 
 
 def validate_phone_number(phone: str) -> bool:
@@ -136,6 +151,18 @@ def mask_sensitive_data(data: str, visible_start: int = 2, visible_end: int = 2)
 
 def hash_telegram_id(telegram_id: int) -> str:
     return hashlib.sha256(str(telegram_id).encode()).hexdigest()
+
+
+class SecurityHeaders:
+    """Return the default headers for non-embedded responses and tests."""
+
+    @staticmethod
+    def get_headers() -> dict[str, str]:
+        return {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "X-XSS-Protection": "1; mode=block",
+        }
 
 
 def generate_csrf_token() -> str:

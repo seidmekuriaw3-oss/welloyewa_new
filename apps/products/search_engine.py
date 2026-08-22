@@ -71,7 +71,7 @@ class ProductSearchEngine:
         # Build base conditions
         conditions = [
             Product.status == ProductStatus.ACTIVE.value,
-            not Product.is_deleted,
+            Product.is_deleted.is_(False),
         ]
 
         # Search query (full-text)
@@ -202,7 +202,7 @@ class ProductSearchEngine:
             .where(
                 and_(
                     Product.status == ProductStatus.ACTIVE.value,
-                    not Product.is_deleted,
+                    Product.is_deleted.is_(False),
                     or_(Product.name.ilike(search_pattern), Product.name_am.ilike(search_pattern)),
                 )
             )
@@ -228,7 +228,7 @@ class ProductSearchEngine:
         """
         conditions = [
             Product.status == ProductStatus.ACTIVE.value,
-            not Product.is_deleted,
+            Product.is_deleted.is_(False),
         ]
 
         if query:

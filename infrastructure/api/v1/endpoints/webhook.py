@@ -8,7 +8,9 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
+from core.config import settings
 from core.logger import logger
+from infrastructure.payments.payment_verifier import verify_payment_signature
 
 router = APIRouter(tags=["webhooks"])
 
@@ -35,8 +37,14 @@ async def chapa_webhook(
             logger.warning("Chapa webhook missing signature")
             raise HTTPException(status_code=401, detail="Missing signature")
 
-        # Verify webhook signature
-        # is_valid = verify_payment_signature(payload, settings.CHAPA_WEBHOOK_SECRET, signature)
+        # Reject forged payment notifications before scheduling any state change.
+        if not settings.CHAPA_WEBHOOK_SECRET or not verify_payment_signature(
+            payload,
+            settings.CHAPA_WEBHOOK_SECRET,
+            signature_header=signature,
+        ):
+            logger.warning("Chapa webhook signature verification failed")
+            raise HTTPException(status_code=401, detail="Invalid signature")
 
         # Process in background
         background_tasks.add_task(process_chapa_webhook, payload)
@@ -44,6 +52,8 @@ async def chapa_webhook(
         logger.info(f"Received Chapa webhook: {payload.get('event', 'unknown')}")
         return {"status": "received"}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Chapa webhook error: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -63,12 +73,19 @@ async def telebirr_webhook(
         body = await request.body()
         payload = json.loads(body)
 
+        from infrastructure.payments.telebirr import TelebirrProvider
+
+        if not settings.TELEBIRR_APP_KEY or not TelebirrProvider()._verify_signature(payload):
+            raise HTTPException(status_code=401, detail="Invalid signature")
+
         # Process in background
         background_tasks.add_task(process_telebirr_webhook, payload)
 
         logger.info(f"Received Telebirr webhook: {payload.get('tradeStatus', 'unknown')}")
         return {"status": "received"}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Telebirr webhook error: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -88,12 +105,19 @@ async def cbe_birr_webhook(
         body = await request.body()
         payload = json.loads(body)
 
+        from infrastructure.payments.cbe_birr import CBEBirrProvider
+
+        if not settings.CBE_BIRR_SECRET_KEY or not CBEBirrProvider()._verify_signature(payload):
+            raise HTTPException(status_code=401, detail="Invalid signature")
+
         # Process in background
         background_tasks.add_task(process_cbe_birr_webhook, payload)
 
         logger.info(f"Received CBE Birr webhook: {payload.get('transactionStatus', 'unknown')}")
         return {"status": "received"}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"CBE Birr webhook error: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e

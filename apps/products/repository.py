@@ -6,7 +6,7 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import String, and_, func, or_, select, update
+from sqlalchemy import String, and_, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.common.repository import BaseRepository
@@ -22,13 +22,13 @@ class ProductRepository(BaseRepository[Product]):
 
     async def get_by_slug(self, slug: str) -> Product | None:
         """Get product by slug."""
-        query = select(Product).where(Product.slug == slug, not Product.is_deleted)
+        query = select(Product).where(Product.slug == slug, Product.is_deleted.is_(False))
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
     async def get_by_sku(self, sku: str) -> Product | None:
         """Get product by SKU."""
-        query = select(Product).where(Product.sku == sku, not Product.is_deleted)
+        query = select(Product).where(Product.sku == sku, Product.is_deleted.is_(False))
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
@@ -40,7 +40,7 @@ class ProductRepository(BaseRepository[Product]):
         offset: int = 0,
     ) -> list[Product]:
         """Get products by vendor ID."""
-        query = select(Product).where(Product.vendor_id == vendor_id, not Product.is_deleted)
+        query = select(Product).where(Product.vendor_id == vendor_id, Product.is_deleted.is_(False))
 
         if status:
             query = query.where(Product.status == status)
@@ -59,7 +59,7 @@ class ProductRepository(BaseRepository[Product]):
         query = select(Product).where(
             Product.category_id == category_id,
             Product.status == ProductStatus.ACTIVE.value,
-            not Product.is_deleted,
+            Product.is_deleted.is_(False),
         )
         query = query.order_by(Product.created_at.desc()).offset(offset).limit(limit)
         result = await self.db.execute(query)
@@ -72,7 +72,7 @@ class ProductRepository(BaseRepository[Product]):
     ) -> list[Product]:
         """Get active products."""
         query = select(Product).where(
-            Product.status == ProductStatus.ACTIVE.value, not Product.is_deleted
+            Product.status == ProductStatus.ACTIVE.value, Product.is_deleted.is_(False)
         )
         query = query.order_by(Product.created_at.desc()).offset(offset).limit(limit)
         result = await self.db.execute(query)
@@ -83,7 +83,7 @@ class ProductRepository(BaseRepository[Product]):
         query = select(Product).where(
             Product.is_featured,
             Product.status == ProductStatus.ACTIVE.value,
-            not Product.is_deleted,
+            Product.is_deleted.is_(False),
         )
         query = query.order_by(Product.created_at.desc()).limit(limit)
         result = await self.db.execute(query)
@@ -95,7 +95,7 @@ class ProductRepository(BaseRepository[Product]):
         query = select(Product).where(
             Product.is_on_sale,
             Product.status == ProductStatus.ACTIVE.value,
-            not Product.is_deleted,
+            Product.is_deleted.is_(False),
             or_(Product.sale_start_date <= now, Product.sale_start_date.is_(None)),
             or_(Product.sale_end_date >= now, Product.sale_end_date.is_(None)),
         )
@@ -109,7 +109,7 @@ class ProductRepository(BaseRepository[Product]):
         query = select(Product).where(
             Product.created_at >= cutoff,
             Product.status == ProductStatus.ACTIVE.value,
-            not Product.is_deleted,
+            Product.is_deleted.is_(False),
         )
         query = query.order_by(Product.created_at.desc()).limit(limit)
         result = await self.db.execute(query)
@@ -128,7 +128,7 @@ class ProductRepository(BaseRepository[Product]):
 
         conditions = [
             Product.status == ProductStatus.ACTIVE.value,
-            not Product.is_deleted,
+            Product.is_deleted.is_(False),
             or_(
                 Product.name.ilike(search_pattern),
                 Product.name_am.ilike(search_pattern),
@@ -162,7 +162,7 @@ class ProductRepository(BaseRepository[Product]):
             Product.stock_quantity <= Product.low_stock_threshold,
             Product.stock_quantity > 0,
             Product.status == ProductStatus.ACTIVE.value,
-            not Product.is_deleted,
+            Product.is_deleted.is_(False),
         )
 
         if vendor_id:
@@ -181,7 +181,7 @@ class ProductRepository(BaseRepository[Product]):
         query = select(Product).where(
             Product.stock_quantity == 0,
             Product.status == ProductStatus.ACTIVE.value,
-            not Product.is_deleted,
+            Product.is_deleted.is_(False),
         )
 
         if vendor_id:
@@ -213,17 +213,17 @@ class ProductRepository(BaseRepository[Product]):
         """Get product statistics for a vendor."""
         query = select(
             func.count().label("total"),
-            func.sum(func.case((Product.status == ProductStatus.ACTIVE.value, 1), else_=0)).label(
+            func.sum(case((Product.status == ProductStatus.ACTIVE.value, 1), else_=0)).label(
                 "active"
             ),
-            func.sum(func.case((Product.status == ProductStatus.DRAFT.value, 1), else_=0)).label(
+            func.sum(case((Product.status == ProductStatus.DRAFT.value, 1), else_=0)).label(
                 "draft"
             ),
-            func.sum(func.case((Product.stock_quantity == 0, 1), else_=0)).label("out_of_stock"),
+            func.sum(case((Product.stock_quantity == 0, 1), else_=0)).label("out_of_stock"),
             func.sum(
-                func.case((Product.stock_quantity <= Product.low_stock_threshold, 1), else_=0)
+                case((Product.stock_quantity <= Product.low_stock_threshold, 1), else_=0)
             ).label("low_stock"),
-        ).where(Product.vendor_id == vendor_id, not Product.is_deleted)
+        ).where(Product.vendor_id == vendor_id, Product.is_deleted.is_(False))
 
         result = await self.db.execute(query)
         row = result.one()
@@ -295,7 +295,7 @@ class CategoryRepository(BaseRepository[Category]):
         count_query = select(func.count()).where(
             Product.category_id == category_id,
             Product.status == ProductStatus.ACTIVE.value,
-            not Product.is_deleted,
+            Product.is_deleted.is_(False),
         )
         count = await self.db.execute(count_query)
         product_count = count.scalar() or 0
@@ -348,11 +348,11 @@ class ReviewRepository(BaseRepository[Review]):
         query = select(
             func.count().label("total"),
             func.avg(Review.rating).label("average"),
-            func.sum(func.case((Review.rating == 5, 1), else_=0)).label("rating_5"),
-            func.sum(func.case((Review.rating == 4, 1), else_=0)).label("rating_4"),
-            func.sum(func.case((Review.rating == 3, 1), else_=0)).label("rating_3"),
-            func.sum(func.case((Review.rating == 2, 1), else_=0)).label("rating_2"),
-            func.sum(func.case((Review.rating == 1, 1), else_=0)).label("rating_1"),
+            func.sum(case((Review.rating == 5, 1), else_=0)).label("rating_5"),
+            func.sum(case((Review.rating == 4, 1), else_=0)).label("rating_4"),
+            func.sum(case((Review.rating == 3, 1), else_=0)).label("rating_3"),
+            func.sum(case((Review.rating == 2, 1), else_=0)).label("rating_2"),
+            func.sum(case((Review.rating == 1, 1), else_=0)).label("rating_1"),
         ).where(Review.product_id == product_id, Review.is_approved)
 
         result = await self.db.execute(query)

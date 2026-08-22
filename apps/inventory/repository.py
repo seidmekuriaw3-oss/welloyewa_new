@@ -6,7 +6,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.common.repository import BaseRepository
@@ -108,11 +108,11 @@ class InventoryRepository(BaseRepository[Inventory]):
 
         query = select(
             func.count().label("total_products"),
-            func.sum(func.case((Inventory.quantity == 0, 1), else_=0)).label("out_of_stock"),
+            func.sum(case((Inventory.quantity == 0, 1), else_=0)).label("out_of_stock"),
             func.sum(
-                func.case((Inventory.quantity <= Inventory.low_stock_threshold, 1), else_=0)
+                case((Inventory.quantity <= Inventory.low_stock_threshold, 1), else_=0)
             ).label("low_stock"),
-            func.sum(func.case((Inventory.quantity > 0, 1), else_=0)).label("in_stock"),
+            func.sum(case((Inventory.quantity > 0, 1), else_=0)).label("in_stock"),
             func.sum(Inventory.quantity).label("total_units"),
         ).where(and_(*conditions) if conditions else True)
 

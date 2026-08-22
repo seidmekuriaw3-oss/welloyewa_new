@@ -21,6 +21,14 @@ from infrastructure.database.session import get_db_session
 # ---------------------------------------------------------------------------
 
 
+def _build_store_button(label: str) -> InlineKeyboardButton:
+    """Build a Mini App button only when Telegram can reach an HTTPS URL."""
+    store_url = settings.web_app_url
+    if store_url.lower().startswith("https://"):
+        return InlineKeyboardButton(label, web_app=WebAppInfo(url=store_url))
+    return InlineKeyboardButton(label, callback_data="menu_products")
+
+
 def _build_main_menu(is_admin: bool = False, lang: str = "am") -> InlineKeyboardMarkup:
     """Build the main menu inline keyboard (label changes with language)."""
     labels = {
@@ -65,12 +73,7 @@ def _build_main_menu(is_admin: bool = False, lang: str = "am") -> InlineKeyboard
         "om": "🛍️ Suuqa Bani",
     }
     keyboard = [
-        [
-            InlineKeyboardButton(
-                open_store_labels.get(lang, open_store_labels["en"]),
-                web_app=WebAppInfo(url=settings.web_app_url),
-            )
-        ],
+        [_build_store_button(open_store_labels.get(lang, open_store_labels["en"]))],
         [
             InlineKeyboardButton(L["products"], callback_data="menu_products"),
             InlineKeyboardButton(L["search"], callback_data="menu_search"),
@@ -487,10 +490,7 @@ async def shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     markup = InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton(
-                    button_labels.get(lang, button_labels["en"]),
-                    web_app=WebAppInfo(url=settings.web_app_url),
-                )
+                _build_store_button(button_labels.get(lang, button_labels["en"]))
             ]
         ]
     )

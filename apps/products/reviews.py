@@ -6,7 +6,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.products.models import Product, Review
@@ -220,11 +220,11 @@ class ReviewManager:
         query = select(
             func.count().label("total"),
             func.avg(Review.rating).label("average"),
-            func.sum(func.case((Review.rating == 5, 1), else_=0)).label("rating_5"),
-            func.sum(func.case((Review.rating == 4, 1), else_=0)).label("rating_4"),
-            func.sum(func.case((Review.rating == 3, 1), else_=0)).label("rating_3"),
-            func.sum(func.case((Review.rating == 2, 1), else_=0)).label("rating_2"),
-            func.sum(func.case((Review.rating == 1, 1), else_=0)).label("rating_1"),
+            func.sum(case((Review.rating == 5, 1), else_=0)).label("rating_5"),
+            func.sum(case((Review.rating == 4, 1), else_=0)).label("rating_4"),
+            func.sum(case((Review.rating == 3, 1), else_=0)).label("rating_3"),
+            func.sum(case((Review.rating == 2, 1), else_=0)).label("rating_2"),
+            func.sum(case((Review.rating == 1, 1), else_=0)).label("rating_1"),
         ).where(Review.product_id == product_id, Review.is_approved)
 
         result = await self.db.execute(query)

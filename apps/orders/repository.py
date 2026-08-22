@@ -6,7 +6,7 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import and_, distinct, func, or_, select
+from sqlalchemy import and_, case, distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.common.repository import BaseRepository
@@ -153,19 +153,19 @@ class OrderRepository(BaseRepository[Order]):
                 func.count(distinct(Order.id)).label("total_orders"),
                 func.sum(OrderItem.total_price).label("total_revenue"),
                 func.sum(
-                    func.case((OrderItem.vendor_status == OrderStatus.PENDING.value, 1), else_=0)
+                    case((OrderItem.vendor_status == OrderStatus.PENDING.value, 1), else_=0)
                 ).label("pending"),
                 func.sum(
-                    func.case((OrderItem.vendor_status == OrderStatus.PROCESSING.value, 1), else_=0)
+                    case((OrderItem.vendor_status == OrderStatus.PROCESSING.value, 1), else_=0)
                 ).label("processing"),
                 func.sum(
-                    func.case((OrderItem.vendor_status == OrderStatus.SHIPPED.value, 1), else_=0)
+                    case((OrderItem.vendor_status == OrderStatus.SHIPPED.value, 1), else_=0)
                 ).label("shipped"),
                 func.sum(
-                    func.case((OrderItem.vendor_status == OrderStatus.DELIVERED.value, 1), else_=0)
+                    case((OrderItem.vendor_status == OrderStatus.DELIVERED.value, 1), else_=0)
                 ).label("delivered"),
                 func.sum(
-                    func.case((OrderItem.vendor_status == OrderStatus.CANCELLED.value, 1), else_=0)
+                    case((OrderItem.vendor_status == OrderStatus.CANCELLED.value, 1), else_=0)
                 ).label("cancelled"),
             )
             .select_from(Order)

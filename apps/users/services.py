@@ -55,10 +55,10 @@ class AuthService:
         # Validate phone number if provided
         phone = None
         if data.phone_number:
-            is_valid, normalized = Validator.phone(data.phone_number, normalize=True)
-            if not is_valid:
+            try:
+                phone = Validator.phone(data.phone_number, normalize=True)
+            except ValueError:
                 raise ValidationError(f"Invalid phone number: {data.phone_number}")
-            phone = normalized
 
         # Check if user already exists
         if data.telegram_id:

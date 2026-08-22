@@ -111,7 +111,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         # Start polling only in development mode (not when deployed) and avoid duplicate local sessions
         _is_deployed = os.environ.get("REPLIT_DEPLOYMENT", "").strip() == "1"
-        _disable_bot_polling = os.environ.get("DISABLE_BOT_POLLING", "1").strip() in {
+        default_disable_polling = "0" if settings.ENVIRONMENT == "development" else "1"
+        _disable_bot_polling = os.environ.get("DISABLE_BOT_POLLING", default_disable_polling).strip() in {
             "1",
             "true",
             "True",

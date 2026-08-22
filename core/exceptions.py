@@ -40,12 +40,18 @@ class WolloyewaException(Exception):
 class DatabaseError(WolloyewaException):
     """Base exception for database-related errors."""
 
-    def __init__(self, message: str = "Database error occurred", **kwargs):
+    def __init__(
+        self,
+        message: str = "Database error occurred",
+        code: str = "DATABASE_ERROR",
+        status_code: int = 500,
+        details: dict[str, Any] | None = None,
+    ):
         super().__init__(
             message=message,
-            code="DATABASE_ERROR",
-            status_code=500,
-            **kwargs,
+            code=code,
+            status_code=status_code,
+            details=details,
         )
 
 

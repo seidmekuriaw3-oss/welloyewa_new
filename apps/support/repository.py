@@ -6,7 +6,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import String, and_, func, or_, select, update
+from sqlalchemy import String, and_, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.common.repository import BaseRepository
@@ -101,11 +101,11 @@ class TicketRepository(BaseRepository[Ticket]):
     async def get_ticket_stats(self) -> dict[str, Any]:
         """Get ticket statistics."""
         query = select(
-            func.sum(func.case((Ticket.status == "open", 1), else_=0)).label("open"),
-            func.sum(func.case((Ticket.status == "in_progress", 1), else_=0)).label("in_progress"),
-            func.sum(func.case((Ticket.status == "resolved", 1), else_=0)).label("resolved"),
-            func.sum(func.case((Ticket.status == "closed", 1), else_=0)).label("closed"),
-            func.avg(func.case((Ticket.rating.isnot(None), Ticket.rating), else_=0)).label(
+            func.sum(case((Ticket.status == "open", 1), else_=0)).label("open"),
+            func.sum(case((Ticket.status == "in_progress", 1), else_=0)).label("in_progress"),
+            func.sum(case((Ticket.status == "resolved", 1), else_=0)).label("resolved"),
+            func.sum(case((Ticket.status == "closed", 1), else_=0)).label("closed"),
+            func.avg(case((Ticket.rating.isnot(None), Ticket.rating), else_=0)).label(
                 "avg_rating"
             ),
         )

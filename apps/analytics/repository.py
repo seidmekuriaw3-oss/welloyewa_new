@@ -391,7 +391,7 @@ class UserActivityRepository:
         cutoff = datetime.utcnow() - timedelta(days=days)
 
         query = select(func.count(User.id.distinct())).where(
-            User.last_active >= cutoff, not User.is_deleted
+            User.last_active >= cutoff, User.is_deleted.is_(False)
         )
 
         result = await self.db.execute(query)

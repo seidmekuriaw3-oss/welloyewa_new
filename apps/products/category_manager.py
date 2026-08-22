@@ -121,7 +121,7 @@ class CategoryManager:
             query = select(Product).where(
                 Product.category_id == category_id,
                 Product.status == ProductStatus.ACTIVE.value,
-                not Product.is_deleted,
+                Product.is_deleted.is_(False),
             )
             query = query.offset(offset).limit(limit)
             result = await self.db.execute(query)
@@ -134,7 +134,7 @@ class CategoryManager:
         query = select(Product).where(
             Product.category_id.in_(category_ids),
             Product.status == ProductStatus.ACTIVE.value,
-            not Product.is_deleted,
+            Product.is_deleted.is_(False),
         )
         query = query.offset(offset).limit(limit)
         result = await self.db.execute(query)
@@ -173,7 +173,7 @@ class CategoryManager:
                 .where(
                     Product.category_id == category_id,
                     Product.status == ProductStatus.ACTIVE.value,
-                    not Product.is_deleted,
+                    Product.is_deleted.is_(False),
                 )
             )
             result = await self.db.execute(query)
@@ -188,7 +188,7 @@ class CategoryManager:
             .where(
                 Product.category_id.in_(category_ids),
                 Product.status == ProductStatus.ACTIVE.value,
-                not Product.is_deleted,
+                Product.is_deleted.is_(False),
             )
         )
         result = await self.db.execute(query)

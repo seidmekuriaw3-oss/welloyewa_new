@@ -42,6 +42,14 @@ class Settings(BaseSettings):
             raise ValueError(f"ENVIRONMENT must be one of {allowed}")
         return v
 
+    @field_validator("DEBUG")
+    @classmethod
+    def reject_debug_in_production(cls, v: bool, info) -> bool:
+        """Prevent insecure debug fallbacks from running in production."""
+        if v and info.data.get("ENVIRONMENT") == "production":
+            raise ValueError("DEBUG must be False in production.")
+        return v
+
     # ============================
     # Database
     # ============================

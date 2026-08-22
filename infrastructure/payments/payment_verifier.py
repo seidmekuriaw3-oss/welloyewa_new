@@ -88,11 +88,8 @@ def verify_payment_signature(
         True if signature is valid
     """
     # Get signature from header or payload
-    signature = None
-    if signature_header:
-        # Would need to access headers from request context
-        pass
-    elif signature_field:
+    signature = signature_header
+    if not signature and signature_field:
         signature = payload.get(signature_field)
 
     if not signature:

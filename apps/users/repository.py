@@ -6,7 +6,7 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.common.repository import BaseRepository
@@ -50,7 +50,7 @@ class UserRepository(BaseRepository[User]):
         role: str | None = None,
     ) -> list[User]:
         """Get active users with optional role filter."""
-        query = select(User).where(User.status == "active", not User.is_deleted)
+        query = select(User).where(User.status == "active", User.is_deleted.is_(False))
 
         if role:
             query = query.where(User.role == role)
@@ -61,7 +61,7 @@ class UserRepository(BaseRepository[User]):
 
     async def get_users_by_role(self, role: str, limit: int = 100) -> list[User]:
         """Get users by role."""
-        query = select(User).where(User.role == role, not User.is_deleted)
+        query = select(User).where(User.role == role, User.is_deleted.is_(False))
         query = query.order_by(User.created_at.desc()).limit(limit)
         result = await self.db.execute(query)
         return result.scalars().all()
@@ -76,14 +76,14 @@ class UserRepository(BaseRepository[User]):
 
     async def get_user_count_by_role(self) -> dict[str, int]:
         """Get count of users by role."""
-        query = select(User.role, func.count()).where(not User.is_deleted).group_by(User.role)
+        query = select(User.role, func.count()).where(User.is_deleted.is_(False)).group_by(User.role)
         result = await self.db.execute(query)
         return dict(result.all())
 
     async def get_recent_users(self, days: int = 7, limit: int = 50) -> list[User]:
         """Get users who joined in the last N days."""
         cutoff = datetime.utcnow() - timedelta(days=days)
-        query = select(User).where(User.created_at >= cutoff, not User.is_deleted)
+        query = select(User).where(User.created_at >= cutoff, User.is_deleted.is_(False))
         query = query.order_by(User.created_at.desc()).limit(limit)
         result = await self.db.execute(query)
         return result.scalars().all()
@@ -104,7 +104,7 @@ class UserRepository(BaseRepository[User]):
                 | (User.phone_number.ilike(search_pattern))
                 | (User.email.ilike(search_pattern))
             )
-            .where(not User.is_deleted)
+            .where(User.is_deleted.is_(False))
             .limit(limit)
         )
 
@@ -149,7 +149,7 @@ class VendorRepository(BaseRepository[Vendor]):
 
     async def get_pending_vendors(self, limit: int = 100) -> list[Vendor]:
         """Get vendors awaiting approval."""
-        query = select(Vendor).where(not Vendor.is_approved, Vendor.rejected_at.is_(None))
+        query = select(Vendor).where(Vendor.is_approved.is_(False), Vendor.rejected_at.is_(None))
         query = query.order_by(Vendor.created_at.asc()).limit(limit)
         result = await self.db.execute(query)
         return result.scalars().all()
@@ -175,8 +175,8 @@ class VendorRepository(BaseRepository[Vendor]):
         """Get overall vendor statistics."""
         query = select(
             func.count().label("total"),
-            func.sum(func.case((Vendor.is_approved, 1), else_=0)).label("approved"),
-            func.sum(func.case((not Vendor.is_approved, 1), else_=0)).label("pending"),
+            func.sum(case((Vendor.is_approved, 1), else_=0)).label("approved"),
+            func.sum(case((Vendor.is_approved.is_(False), 1), else_=0)).label("pending"),
         ).select_from(Vendor)
 
         result = await self.db.execute(query)

@@ -361,7 +361,7 @@ async def get_categories(db=Depends(get_db_session)):
             Category,
             func.count(Product.id).label("live_count"),
         )
-        .outerjoin(Product, (Product.category_id == Category.id) & (not Product.is_deleted))
+        .outerjoin(Product, (Product.category_id == Category.id) & Product.is_deleted.is_(False))
         .where(Category.is_active)
         .group_by(Category.id)
         .order_by(Category.name)
@@ -397,7 +397,7 @@ async def get_products(
     from apps.products.models import Product
 
     q = q.strip()
-    conditions = [not Product.is_deleted]
+    conditions = [Product.is_deleted.is_(False)]
 
     if q:
         pattern = f"%{q}%"
@@ -470,7 +470,7 @@ async def search_products(q: str = "", limit: int = 6, db=Depends(get_db_session
         select(Product)
         .options(selectinload(Product.category_rel))
         .where(
-            not Product.is_deleted,
+            Product.is_deleted.is_(False),
             Product.status == ProductStatus.ACTIVE,
             or_(
                 func.lower(Product.name).like(func.lower(pattern)),
@@ -566,7 +566,7 @@ async def api_checkout(request: Request, body: CheckoutRequest, db=Depends(get_d
         web_user_id = _user_from_bearer(request, db)
         if web_user_id:
             result = await db.execute(
-                select(User).where(User.id == web_user_id, not User.is_deleted)
+                select(User).where(User.id == web_user_id, User.is_deleted.is_(False))
             )
             db_user = result.scalar_one_or_none()
 

@@ -208,13 +208,21 @@ async def get_my_products(
 ) -> PaginatedResponse[ProductResponse]:
     """Get current vendor's products."""
     product_service = ProductService(db)
-    products = await product_service.get_vendor_products(
-        vendor_id=current_user["vendor_id"],
-        status=status,
-        limit=page_size,
-        offset=(page - 1) * page_size,
-    )
-    total = len(products)
+    if current_user.get("vendor_id"):
+        products = await product_service.get_vendor_products(
+            vendor_id=current_user["vendor_id"],
+            status=status,
+            limit=page_size,
+            offset=(page - 1) * page_size,
+        )
+        total = len(products)
+    else:
+        filters = {"status": status} if status else None
+        products, total = await product_service.product_repo.get_all_with_count(
+            filters=filters,
+            limit=page_size,
+            offset=(page - 1) * page_size,
+        )
     return PaginatedResponse.create(
         items=[ProductResponse.model_validate(p) for p in products],
         total=total,
@@ -259,9 +267,12 @@ async def create_product(
     Create a new product (vendor only).
     """
     product_service = ProductService(db)
+    vendor_id = current_user.get("vendor_id")
+    if not vendor_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vendor profile required")
 
     try:
-        product = await product_service.create_product(current_user["vendor_id"], data)
+        product = await product_service.create_product(vendor_id, data)
         return ProductResponse.model_validate(product)
     except ValidationError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
@@ -278,9 +289,12 @@ async def update_product(
     Update a product (vendor only).
     """
     product_service = ProductService(db)
+    vendor_id = current_user.get("vendor_id")
+    if not vendor_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vendor profile required")
 
     try:
-        product = await product_service.update_product(product_id, current_user["vendor_id"], data)
+        product = await product_service.update_product(product_id, vendor_id, data)
         return ProductResponse.model_validate(product)
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
@@ -298,9 +312,12 @@ async def delete_product(
     Delete a product (vendor only).
     """
     product_service = ProductService(db)
+    vendor_id = current_user.get("vendor_id")
+    if not vendor_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vendor profile required")
 
     try:
-        await product_service.delete_product(product_id, current_user["vendor_id"])
+        await product_service.delete_product(product_id, vendor_id)
         return MessageResponse(message=f"Product {product_id} deleted successfully")
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e

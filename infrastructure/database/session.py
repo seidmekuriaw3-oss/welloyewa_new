@@ -39,20 +39,18 @@ class DatabaseSessionManager:
             return
 
         # Create engine with connection pool
-        engine_kwargs = {
-            "pool_size": settings.DATABASE_POOL_SIZE,
-            "max_overflow": settings.DATABASE_MAX_OVERFLOW,
-            "pool_timeout": settings.DATABASE_POOL_TIMEOUT,
-            "pool_recycle": settings.DATABASE_POOL_RECYCLE,
-            "pool_pre_ping": settings.DATABASE_POOL_PRE_PING,
-            "echo": settings.DEBUG,
-        }
-
-        # Use NullPool for testing to avoid connection leaks
         if settings.ENVIRONMENT == "testing":
-            engine_kwargs["poolclass"] = NullPool
+            engine_kwargs = {"poolclass": NullPool, "echo": settings.DEBUG}
         else:
-            engine_kwargs["poolclass"] = AsyncAdaptedQueuePool
+            engine_kwargs = {
+                "pool_size": settings.DATABASE_POOL_SIZE,
+                "max_overflow": settings.DATABASE_MAX_OVERFLOW,
+                "pool_timeout": settings.DATABASE_POOL_TIMEOUT,
+                "pool_recycle": settings.DATABASE_POOL_RECYCLE,
+                "pool_pre_ping": settings.DATABASE_POOL_PRE_PING,
+                "poolclass": AsyncAdaptedQueuePool,
+                "echo": settings.DEBUG,
+            }
 
         raw_url = str(settings.DATABASE_URL)
         # Strip sslmode from URL (asyncpg uses connect_args instead)
