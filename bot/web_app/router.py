@@ -13,7 +13,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from apps.orders.services import OrderService
 from apps.products.services import ProductService
@@ -88,8 +88,8 @@ def _verify_telegram_init_data(init_data: str, bot_token: str) -> dict | None:
 class CartItemIn(BaseModel):
     id: int
     name: str
-    price: float
-    qty: int
+    price: float = Field(ge=0)
+    qty: int = Field(gt=0, le=100)
 
 
 class CheckoutRequest(BaseModel):
@@ -589,7 +589,21 @@ async def api_checkout(request: Request, body: CheckoutRequest, db=Depends(get_d
         pm = PaymentMethod.CASH_ON_DELIVERY
 
     # ── Calculate shipping fee ───────────────────────────────────────────────
-    subtotal = sum(i.price * i.qty for i in body.items)
+    from sqlalchemy import select
+
+    from apps.products.models import Product
+
+    product_ids = [item.id for item in body.items]
+    result = await db.execute(
+        select(Product.id, Product.price).where(
+            Product.id.in_(product_ids), Product.is_deleted.is_(False)
+        )
+    )
+    current_prices = {product_id: price for product_id, price in result.all()}
+    if len(current_prices) != len(set(product_ids)):
+        raise HTTPException(status_code=400, detail="One or more products are unavailable.")
+
+    subtotal = sum(float(current_prices[i.id]) * i.qty for i in body.items)
     shipping_fee = Decimal("0") if subtotal >= 1000 else Decimal("50")
 
     # ── Build and create order ───────────────────────────────────────────────
@@ -623,7 +637,10 @@ async def api_checkout(request: Request, body: CheckoutRequest, db=Depends(get_d
             full_name=body.full_name,
             city=body.city,
             total=float(order.total),
-            items=body.items,
+            items=[
+                CartItemIn(id=i.id, name=i.name, price=float(current_prices[i.id]), qty=i.qty)
+                for i in body.items
+            ],
             payment_method=body.payment_method,
         )
 

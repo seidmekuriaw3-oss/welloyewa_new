@@ -134,11 +134,21 @@ async def verify_and_update_order_payment(
     from core.constants import OrderStatus, PaymentStatus
 
     verifier = PaymentVerifier()
+    order_service = OrderService(db)
+    order = await order_service.get_order(order_id)
     verification = await verifier.verify_payment(method, transaction_id)
 
     if verification.verified:
+        if verification.amount is not None and verification.amount != order.total:
+            logger.error(
+                "Payment amount mismatch for order %s: expected=%s received=%s",
+                order_id,
+                order.total,
+                verification.amount,
+            )
+            return False
+
         # Update order payment status
-        order_service = OrderService(db)
         await order_service.update_payment_status(
             order_id=order_id,
             payment_status=PaymentStatus.PAID.value,

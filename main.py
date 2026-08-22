@@ -52,8 +52,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         await init_db()
         logger.info("Database connection pool initialized")
-        # Ensure all tables exist (idempotent - skips existing tables/types)
+        # Development can bootstrap an empty database; production must use migrations.
         try:
+            if settings.ENVIRONMENT == "production":
+                logger.info("Production schema management is delegated to Alembic")
+                raise StopIteration
             import re
 
             from sqlalchemy.ext.asyncio import create_async_engine
@@ -77,6 +80,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 await conn.run_sync(Base.metadata.create_all, checkfirst=True)
             await _schema_engine.dispose()
             logger.info("Database schema verified/created")
+        except StopIteration:
+            pass
         except Exception as schema_err:
             logger.warning(f"Schema auto-create skipped: {schema_err}")
     except Exception as e:
@@ -289,6 +294,12 @@ async def status():
 
 @app.get("/ready")
 async def readiness_probe():
+    from fastapi import HTTPException
+
+    from core.monitoring.health_checks import health_checker
+
+    if not await health_checker.is_ready():
+        raise HTTPException(status_code=503, detail="Application dependencies are not ready")
     return {"ready": True}
 
 

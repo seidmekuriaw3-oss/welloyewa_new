@@ -188,10 +188,9 @@ async def process_chapa_webhook(payload: dict[str, Any]) -> None:
 
     if event == "charge.success":
         transaction_id = data.get("tx_ref")
-        order_id = extract_order_id_from_ref(transaction_id)
 
         async for db in get_db_session():
-            await verify_and_update_order_payment(db, order_id, "chapa", transaction_id)
+            await _verify_payment_reference(db, transaction_id, "chapa")
             break
 
 
@@ -204,10 +203,9 @@ async def process_telebirr_webhook(payload: dict[str, Any]) -> None:
 
     if trade_status == "TRADE_SUCCESS":
         transaction_id = payload.get("outTradeNo")
-        order_id = extract_order_id_from_ref(transaction_id)
 
         async for db in get_db_session():
-            await verify_and_update_order_payment(db, order_id, "telebirr", transaction_id)
+            await _verify_payment_reference(db, transaction_id, "telebirr")
             break
 
 
@@ -220,11 +218,36 @@ async def process_cbe_birr_webhook(payload: dict[str, Any]) -> None:
 
     if transaction_status == "SUCCESS":
         transaction_id = payload.get("transactionId")
-        order_id = extract_order_id_from_ref(transaction_id)
 
         async for db in get_db_session():
-            await verify_and_update_order_payment(db, order_id, "cbe_birr", transaction_id)
+            await _verify_payment_reference(db, transaction_id, "cbe_birr")
             break
+
+
+async def _verify_payment_reference(db, reference: str | None, method: str) -> bool:
+    """Resolve gateway order references and update only the matching order."""
+    from apps.orders.services import OrderService
+    from infrastructure.payments.payment_verifier import verify_and_update_order_payment
+
+    if not reference:
+        logger.warning("Ignoring payment webhook without a transaction reference")
+        return False
+
+    order_service = OrderService(db)
+    order_id = extract_order_id_from_ref(reference)
+    if order_id:
+        return await verify_and_update_order_payment(db, order_id, method, reference)
+
+    order_number = extract_order_number_from_ref(reference)
+    if not order_number:
+        logger.warning("Ignoring payment webhook with invalid reference: %s", reference)
+        return False
+    try:
+        order = await order_service.get_order_by_number(order_number)
+    except Exception as exc:
+        logger.warning("Payment reference did not match an order: %s (%s)", reference, exc)
+        return False
+    return await verify_and_update_order_payment(db, order.id, method, reference)
 
 
 async def process_generic_webhook(webhook_type: str, payload: dict[str, Any]) -> None:
@@ -241,6 +264,16 @@ def extract_order_id_from_ref(reference: str) -> int:
         except (IndexError, ValueError):
             pass
     return 0
+
+
+def extract_order_number_from_ref(reference: str | None) -> str | None:
+    """Extract an order number from ORDER_<number> or ORD_<number> references."""
+    if not reference:
+        return None
+    for prefix in ("ORDER_", "ORD_"):
+        if reference.startswith(prefix):
+            return reference[len(prefix) :] or None
+    return None
 
 
 __all__ = ["router"]
