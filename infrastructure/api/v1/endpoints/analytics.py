@@ -3,21 +3,29 @@
 # ============================
 """REST API endpoints for analytics and reporting."""
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import Optional, List
 from datetime import datetime, timedelta
 
-from core.dependencies import get_current_user, get_current_vendor, get_current_admin, get_db_session
-from core.exceptions import NotFoundError, PermissionError
-from apps.analytics.services import SalesAnalyticsService, UserAnalyticsService, ProductAnalyticsService, DashboardService
-from apps.analytics.schemas import (
-    SalesReportResponse,
-    SalesSummaryResponse,
-    UserActivityReport,
-    ProductPerformanceReport,
-    DashboardSummary,
-)
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from apps.analytics.schemas import (
+    DashboardSummary,
+    SalesSummaryResponse,
+)
+from apps.analytics.services import (
+    AnalyticsService,
+    DashboardService,
+    ProductAnalyticsService,
+    SalesAnalyticsService,
+    UserAnalyticsService,
+)
+from core.dependencies import (
+    get_current_admin,
+    get_current_user,
+    get_current_vendor,
+    get_db_session,
+)
+from core.exceptions import NotFoundError
 
 router = APIRouter()
 
@@ -26,6 +34,7 @@ router = APIRouter()
 # Dashboard Endpoints
 # ============================
 
+
 @router.get("/dashboard", response_model=DashboardSummary)
 async def get_dashboard_summary(
     current_user: dict = Depends(get_current_user),
@@ -33,13 +42,13 @@ async def get_dashboard_summary(
 ) -> DashboardSummary:
     """
     Get dashboard summary for the current user.
-    
+
     Returns key metrics and recent data for the dashboard.
     """
     dashboard_service = DashboardService(db)
-    
+
     vendor_id = current_user.get("vendor_id") if current_user.get("is_vendor") else None
-    
+
     summary = await dashboard_service.get_dashboard_summary(vendor_id)
     return DashboardSummary(**summary)
 
@@ -51,11 +60,11 @@ async def get_admin_dashboard_summary(
 ) -> DashboardSummary:
     """
     Get admin dashboard summary.
-    
+
     Returns comprehensive metrics for the entire platform.
     """
     dashboard_service = DashboardService(db)
-    
+
     summary = await dashboard_service.get_dashboard_summary()
     return DashboardSummary(**summary)
 
@@ -64,96 +73,97 @@ async def get_admin_dashboard_summary(
 # Sales Analytics Endpoints
 # ============================
 
-@router.get("/sales/daily", response_model=List[dict])
+
+@router.get("/sales/daily", response_model=list[dict])
 async def get_daily_sales(
     days: int = Query(30, ge=1, le=90),
-    vendor_id: Optional[int] = Query(None),
+    vendor_id: int | None = Query(None),
     current_user: dict = Depends(get_current_vendor),
     db: AsyncSession = Depends(get_db_session),
-) -> List[dict]:
+) -> list[dict]:
     """
     Get daily sales for the last N days.
     """
     sales_service = SalesAnalyticsService(db)
-    
+
     # Vendor can only see their own data
     if current_user.get("is_vendor") and not vendor_id:
         vendor_id = current_user.get("vendor_id")
-    
+
     return await sales_service.get_daily_sales(days, vendor_id)
 
 
-@router.get("/sales/monthly", response_model=List[dict])
+@router.get("/sales/monthly", response_model=list[dict])
 async def get_monthly_sales(
     months: int = Query(12, ge=1, le=24),
-    vendor_id: Optional[int] = Query(None),
+    vendor_id: int | None = Query(None),
     current_user: dict = Depends(get_current_vendor),
     db: AsyncSession = Depends(get_db_session),
-) -> List[dict]:
+) -> list[dict]:
     """
     Get monthly sales for the last N months.
     """
     sales_service = SalesAnalyticsService(db)
-    
+
     if current_user.get("is_vendor") and not vendor_id:
         vendor_id = current_user.get("vendor_id")
-    
+
     return await sales_service.get_monthly_sales(months, vendor_id)
 
 
 @router.get("/sales/summary", response_model=SalesSummaryResponse)
 async def get_sales_summary(
-    start_date: Optional[datetime] = Query(None),
-    end_date: Optional[datetime] = Query(None),
-    vendor_id: Optional[int] = Query(None),
+    start_date: datetime | None = Query(None),
+    end_date: datetime | None = Query(None),
+    vendor_id: int | None = Query(None),
     current_user: dict = Depends(get_current_vendor),
     db: AsyncSession = Depends(get_db_session),
 ) -> SalesSummaryResponse:
     """
     Get sales summary for a date range.
-    
+
     If no dates provided, defaults to last 30 days.
     """
     sales_service = SalesAnalyticsService(db)
-    
+
     if not start_date:
         start_date = datetime.utcnow() - timedelta(days=30)
     if not end_date:
         end_date = datetime.utcnow()
-    
+
     if current_user.get("is_vendor") and not vendor_id:
         vendor_id = current_user.get("vendor_id")
-    
+
     summary = await sales_service.get_sales_summary(start_date, end_date, vendor_id)
     return SalesSummaryResponse(**summary)
 
 
-@router.get("/sales/top-products", response_model=List[dict])
+@router.get("/sales/top-products", response_model=list[dict])
 async def get_top_products(
     limit: int = Query(10, ge=1, le=50),
     days: int = Query(30, ge=1, le=90),
-    vendor_id: Optional[int] = Query(None),
+    vendor_id: int | None = Query(None),
     current_user: dict = Depends(get_current_vendor),
     db: AsyncSession = Depends(get_db_session),
-) -> List[dict]:
+) -> list[dict]:
     """
     Get top selling products.
     """
     sales_service = SalesAnalyticsService(db)
-    
+
     if current_user.get("is_vendor") and not vendor_id:
         vendor_id = current_user.get("vendor_id")
-    
+
     return await sales_service.get_top_products(limit, days, vendor_id)
 
 
-@router.get("/sales/top-categories", response_model=List[dict])
+@router.get("/sales/top-categories", response_model=list[dict])
 async def get_top_categories(
     limit: int = Query(10, ge=1, le=50),
     days: int = Query(30, ge=1, le=90),
     current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db_session),
-) -> List[dict]:
+) -> list[dict]:
     """
     Get top selling categories (admin only).
     """
@@ -165,12 +175,13 @@ async def get_top_categories(
 # User Analytics Endpoints
 # ============================
 
-@router.get("/users/growth", response_model=List[dict])
+
+@router.get("/users/growth", response_model=list[dict])
 async def get_user_growth(
     days: int = Query(30, ge=1, le=90),
     current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db_session),
-) -> List[dict]:
+) -> list[dict]:
     """
     Get user registration growth (admin only).
     """
@@ -220,6 +231,7 @@ async def get_user_segments(
 # Product Analytics Endpoints
 # ============================
 
+
 @router.get("/products/{product_id}/performance", response_model=dict)
 async def get_product_performance(
     product_id: int,
@@ -231,25 +243,25 @@ async def get_product_performance(
     Get performance metrics for a specific product.
     """
     product_service = ProductAnalyticsService(db)
-    
+
     try:
         return await product_service.get_product_performance(product_id, days)
     except NotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
-@router.get("/inventory/low-stock", response_model=List[dict])
+@router.get("/inventory/low-stock", response_model=list[dict])
 async def get_low_stock_report(
     current_user: dict = Depends(get_current_vendor),
     db: AsyncSession = Depends(get_db_session),
-) -> List[dict]:
+) -> list[dict]:
     """
     Get low stock products report.
     """
     product_service = ProductAnalyticsService(db)
-    
+
     vendor_id = current_user.get("vendor_id") if current_user.get("is_vendor") else None
-    
+
     return await product_service.get_low_stock_report(vendor_id)
 
 
@@ -262,15 +274,16 @@ async def get_inventory_analytics(
     Get inventory analytics summary.
     """
     product_service = ProductAnalyticsService(db)
-    
+
     vendor_id = current_user.get("vendor_id") if current_user.get("is_vendor") else None
-    
+
     return await product_service.get_inventory_analytics(vendor_id)
 
 
 # ============================
 # Report Generation Endpoints
 # ============================
+
 
 @router.get("/reports/sales/export")
 async def export_sales_report(
@@ -282,13 +295,13 @@ async def export_sales_report(
 ):
     """
     Export sales report (admin only).
-    
+
     Returns sales report in requested format.
     """
     analytics_service = AnalyticsService(db)
-    
+
     report = await analytics_service.generate_sales_report(start_date, end_date)
-    
+
     if format == "json":
         return report
     elif format == "csv":

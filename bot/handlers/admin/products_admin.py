@@ -3,23 +3,22 @@
 # ============================
 """Admin handlers for product management."""
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
-from datetime import datetime
 
+from apps.products.schemas import ProductCreate
+from apps.products.services import CategoryService, ProductService
 from core.logger import logger
 from core.utils.currency import format_etb
-from apps.products.services import ProductService, CategoryService
-from apps.products.schemas import ProductCreate
 from infrastructure.database.session import get_db_session
-
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
+
 def _products_back_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 ወደ ምርት አስተዳደር", callback_data="admin_products_back")]
-    ])
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🔙 ወደ ምርት አስተዳደር", callback_data="admin_products_back")]]
+    )
 
 
 STATUS_EMOJI = {
@@ -32,17 +31,18 @@ STATUS_EMOJI = {
 
 # ── Panels ────────────────────────────────────────────────────────────────────
 
+
 async def products_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show admin products management panel."""
     query = update.callback_query
 
     keyboard = [
-        [InlineKeyboardButton("📋 ሁሉንም ምርቶች",   callback_data="admin_list_products")],
-        [InlineKeyboardButton("➕ አዲስ ምርት",       callback_data="admin_add_product")],
-        [InlineKeyboardButton("📁 ምድቦች",          callback_data="admin_categories")],
+        [InlineKeyboardButton("📋 ሁሉንም ምርቶች", callback_data="admin_list_products")],
+        [InlineKeyboardButton("+ አዲስ ምርት", callback_data="admin_add_product")],
+        [InlineKeyboardButton("📁 ምድቦች", callback_data="admin_categories")],
         [InlineKeyboardButton("🖼️ ምስሎች ማስተዳደር", callback_data="admin_product_images")],
-        [InlineKeyboardButton("⏳ በመጠባበቅ ላይ",    callback_data="admin_pending_products")],
-        [InlineKeyboardButton("🔙 ወደ አስተዳደር",     callback_data="admin_back")],
+        [InlineKeyboardButton("⏳ በመጠባበቅ ላይ", callback_data="admin_pending_products")],
+        [InlineKeyboardButton("🔙 ወደ አስተዳደር", callback_data="admin_back")],
     ]
 
     await query.message.edit_text(
@@ -147,10 +147,14 @@ async def list_pending_products(update: Update, context: ContextTypes.DEFAULT_TY
             f"   👤 ሻጭ: {p.vendor_id} | 💰 {format_etb(p.price)}\n"
             f"   📅 {p.created_at.strftime('%Y-%m-%d')}\n\n"
         )
-        keyboard.append([
-            InlineKeyboardButton(f"✅ {p.name[:20]}", callback_data=f"admin_approve_product_{p.id}"),
-            InlineKeyboardButton("❌ ውድቅ", callback_data=f"admin_reject_product_{p.id}"),
-        ])
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    f"✅ {p.name[:20]}", callback_data=f"admin_approve_product_{p.id}"
+                ),
+                InlineKeyboardButton("❌ ውድቅ", callback_data=f"admin_reject_product_{p.id}"),
+            ]
+        )
 
     keyboard.append([InlineKeyboardButton("🔙 ወደ ምርት አስተዳደር", callback_data="admin_products_back")])
 
@@ -177,12 +181,16 @@ async def manage_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     keyboard = []
     for cat in categories[:15]:
         text += f"• *{cat.name}* (ID:{cat.id})\n"
-        keyboard.append([
-            InlineKeyboardButton(f"✏️ {cat.name[:18]}", callback_data=f"admin_cat_edit_{cat.id}"),
-            InlineKeyboardButton("🗑️ ሰርዝ",             callback_data=f"admin_cat_del_{cat.id}"),
-        ])
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    f"✏️ {cat.name[:18]}", callback_data=f"admin_cat_edit_{cat.id}"
+                ),
+                InlineKeyboardButton("🗑️ ሰርዝ", callback_data=f"admin_cat_del_{cat.id}"),
+            ]
+        )
 
-    keyboard.append([InlineKeyboardButton("➕ አዲስ ምድብ", callback_data="admin_add_category")])
+    keyboard.append([InlineKeyboardButton("+ አዲስ ምድብ", callback_data="admin_add_category")])
     keyboard.append([InlineKeyboardButton("🔙 ወደ ምርት አስተዳደር", callback_data="admin_products_back")])
 
     await query.message.edit_text(
@@ -194,6 +202,7 @@ async def manage_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 # ── Action functions (called by dashboard router) ─────────────────────────────
 
+
 async def start_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Begin add-product multi-step flow."""
     query = update.callback_query
@@ -203,13 +212,13 @@ async def start_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         context.user_data.pop(key, None)
 
     await query.message.reply_text(
-        "➕ *አዲስ ምርት ማስገባት*\n\n"
+        "+ *አዲስ ምርት ማስገባት*\n\n"
         "📝 የምርቱን ስም ያስገቡ (Amharic ወይም English):\n\n"
         "❌ ለመሰረዝ /cancel ይላኩ",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ ሰርዝ", callback_data="admin_products")]
-        ]),
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("❌ ሰርዝ", callback_data="admin_products")]]
+        ),
     )
 
 
@@ -219,12 +228,11 @@ async def start_add_category(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data["admin_state"] = "add_category_name"
 
     await query.message.reply_text(
-        "➕ *አዲስ ምድብ ማስገባት*\n\n"
-        "📝 የምድቡን ስም ያስገቡ:",
+        "+ *አዲስ ምድብ ማስገባት*\n\n" "📝 የምድቡን ስም ያስገቡ:",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ ሰርዝ", callback_data="admin_categories")]
-        ]),
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("❌ ሰርዝ", callback_data="admin_categories")]]
+        ),
     )
 
 
@@ -237,12 +245,11 @@ async def start_edit_category(
     context.user_data["admin_cat_id"] = cat_id
 
     await query.message.reply_text(
-        f"✏️ *ምድብ ማርትዕ* (ID: {cat_id})\n\n"
-        "📝 አዲሱን ስም ያስገቡ:",
+        f"✏️ *ምድብ ማርትዕ* (ID: {cat_id})\n\n" "📝 አዲሱን ስም ያስገቡ:",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ ሰርዝ", callback_data="admin_categories")]
-        ]),
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("❌ ሰርዝ", callback_data="admin_categories")]]
+        ),
     )
 
 
@@ -253,15 +260,18 @@ async def confirm_delete_category(
     query = update.callback_query
 
     await query.message.edit_text(
-        f"🗑️ *ምድቡን ለመሰረዝ እርግጠኛ ነዎት?* (ID: {cat_id})\n\n"
-        "⚠️ ይህ ድርጊት ሊቀለበስ አይችልም!",
+        f"🗑️ *ምድቡን ለመሰረዝ እርግጠኛ ነዎት?* (ID: {cat_id})\n\n" "⚠️ ይህ ድርጊት ሊቀለበስ አይችልም!",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([
+        reply_markup=InlineKeyboardMarkup(
             [
-                InlineKeyboardButton("✅ አዎ፣ ሰርዝ",  callback_data=f"admin_cat_del_confirm_{cat_id}"),
-                InlineKeyboardButton("❌ አይ",         callback_data="admin_categories"),
+                [
+                    InlineKeyboardButton(
+                        "✅ አዎ፣ ሰርዝ", callback_data=f"admin_cat_del_confirm_{cat_id}"
+                    ),
+                    InlineKeyboardButton("❌ አይ", callback_data="admin_categories"),
+                ]
             ]
-        ]),
+        ),
     )
 
 
@@ -280,24 +290,24 @@ async def do_delete_category(
         if success:
             await query.message.edit_text(
                 f"✅ ምድቡ (ID: {cat_id}) ተሰርዟል።",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]
-                ]),
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]]
+                ),
             )
         else:
             await query.message.edit_text(
                 f"❌ ምድቡ (ID: {cat_id}) አልተገኘም።",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]
-                ]),
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]]
+                ),
             )
     except Exception as exc:
         logger.error("Delete category %s error: %s", cat_id, exc)
         await query.message.edit_text(
             "❌ ምድቡን ለመሰረዝ ስህተት ተፈጥሯል።",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]
-            ]),
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]]
+            ),
         )
 
 
@@ -314,9 +324,9 @@ async def do_approve_product(
             break
         await query.message.edit_text(
             f"✅ ምርቱ (ID: {product_id}) ፀድቋል!",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 ወደ ምርቶች", callback_data="admin_pending_products")]
-            ]),
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("🔙 ወደ ምርቶች", callback_data="admin_pending_products")]]
+            ),
         )
     except Exception as exc:
         logger.error("Approve product %s error: %s", product_id, exc)
@@ -339,9 +349,9 @@ async def do_reject_product(
             break
         await query.message.edit_text(
             f"❌ ምርቱ (ID: {product_id}) ውድቅ ሆኗል።",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 ወደ ምርቶች", callback_data="admin_pending_products")]
-            ]),
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("🔙 ወደ ምርቶች", callback_data="admin_pending_products")]]
+            ),
         )
     except Exception as exc:
         logger.error("Reject product %s error: %s", product_id, exc)
@@ -357,16 +367,16 @@ async def do_create_product_with_category(
     """Final step: create product after admin picks a category via inline button."""
     query = update.callback_query
 
-    name  = context.user_data.pop("new_product_name", None)
+    name = context.user_data.pop("new_product_name", None)
     price = context.user_data.pop("new_product_price", None)
     stock = context.user_data.pop("new_product_stock", None)
 
     if not name or price is None or stock is None:
         await query.message.edit_text(
             "❌ ምርቱን ለመፍጠር ያስፈለጉ ዝርዝሮች ጠፍተዋል። እባክዎ ዳግም ይሞክሩ።",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 ወደ ምርቶች", callback_data="admin_products")]
-            ]),
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("🔙 ወደ ምርቶች", callback_data="admin_products")]]
+            ),
         )
         return
 
@@ -377,12 +387,14 @@ async def do_create_product_with_category(
     # Auto-generate a SKU from the product name
     import re
     import uuid
+
     sku_base = re.sub(r"[^A-Za-z0-9]", "", name.upper())[:8] or "PROD"
     sku = f"{sku_base}-{uuid.uuid4().hex[:6].upper()}"
 
     try:
         async for db in get_db_session():
             from apps.users.services import UserService
+
             user_service = UserService(db)
             admin_user = await user_service.get_user_by_telegram(admin_tg_id)
             vendor_id = admin_user.id if admin_user else 1
@@ -407,10 +419,12 @@ async def do_create_product_with_category(
             f"• ክምችት: {product.stock_quantity}\n"
             f"• ID: {product.id}",
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📋 ምርቶችን ይዩ", callback_data="admin_list_products")],
-                [InlineKeyboardButton("🔙 ወደ ምርት አስተዳደር", callback_data="admin_products")],
-            ]),
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [InlineKeyboardButton("📋 ምርቶችን ይዩ", callback_data="admin_list_products")],
+                    [InlineKeyboardButton("🔙 ወደ ምርት አስተዳደር", callback_data="admin_products")],
+                ]
+            ),
         )
     except Exception as exc:
         logger.error("Create product error: %s", exc)
@@ -422,9 +436,8 @@ async def do_create_product_with_category(
 
 # ── Image management ──────────────────────────────────────────────────────────
 
-async def list_products_for_images(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+
+async def list_products_for_images(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show paginated product list where each row has an 'Add Image' button."""
     query = update.callback_query
     page = context.user_data.get("admin_images_page", 1)
@@ -462,10 +475,14 @@ async def list_products_for_images(
     for p in products:
         img_count = len(p.images) if p.images else 0
         emoji = STATUS_EMOJI.get(str(p.status), "📦")
-        keyboard.append([InlineKeyboardButton(
-            f"{emoji} {p.name[:22]} 🖼️{img_count}",
-            callback_data=f"admin_add_image_{p.id}",
-        )])
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    f"{emoji} {p.name[:22]} 🖼️{img_count}",
+                    callback_data=f"admin_add_image_{p.id}",
+                )
+            ]
+        )
 
     nav = []
     if page > 1:
@@ -510,19 +527,18 @@ async def show_product_images(
     chat_id = query.message.chat.id
 
     # ── Header message ──────────────────────────────────────────────────────
-    header = (
-        f"🖼️ *{name}*\n"
-        f"ID: {product_id} | ምስሎች: {len(images)}\n\n"
-    )
+    header = f"🖼️ *{name}*\n" f"ID: {product_id} | ምስሎች: {len(images)}\n\n"
     if not images:
         header += "_ምንም ምስሎች የሉም — ከዚህ በታች ፎቶ ጨምር_"
     else:
         header += "_ምስሎቹ ከዚህ በታች ተቀምጠዋል። ለማስወገድ 🗑️ ይጫኑ።_"
 
-    add_btn = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📷 ፎቶ ጨምር", callback_data=f"admin_prompt_image_{product_id}")],
-        [InlineKeyboardButton("🔙 ወደ ምርቶች",  callback_data="admin_product_images")],
-    ])
+    add_btn = InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("📷 ፎቶ ጨምር", callback_data=f"admin_prompt_image_{product_id}")],
+            [InlineKeyboardButton("🔙 ወደ ምርቶች", callback_data="admin_product_images")],
+        ]
+    )
 
     # Edit current message to header
     try:
@@ -532,12 +548,16 @@ async def show_product_images(
 
     # ── Send each image as a real thumbnail ─────────────────────────────────
     for i, url in enumerate(images):
-        del_kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton(
-                f"🗑️ ምስል {i+1} ሰርዝ",
-                callback_data=f"admin_remove_image_{product_id}_{i}",
-            )
-        ]])
+        del_kb = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        f"🗑️ ምስል {i+1} ሰርዝ",
+                        callback_data=f"admin_remove_image_{product_id}_{i}",
+                    )
+                ]
+            ]
+        )
         try:
             # Try as URL first; fall back silently if the URL is unreachable
             await context.bot.send_photo(
@@ -570,9 +590,9 @@ async def prompt_upload_image(
         "አሁን ምርቱን ፎቶ ይላኩ (Telegram ፎቶ እንጂ ፋይል አይደለም):\n\n"
         "❌ ለመሰርዝ 'ሰርዝ' ይላኩ",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ ሰርዝ", callback_data=f"admin_add_image_{product_id}")]
-        ]),
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("❌ ሰርዝ", callback_data=f"admin_add_image_{product_id}")]]
+        ),
     )
 
 
@@ -605,27 +625,28 @@ async def do_remove_product_image(
 
 # ── legacy stub (dispatcher.py registers product_admin_callback for ^prod_admin_) ──
 
+
 async def product_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Legacy entry — all admin_ routing done in dashboard.admin_callback."""
     pass
 
 
 __all__ = [
-    "products_admin_panel",
-    "list_products",
-    "list_pending_products",
-    "manage_categories",
-    "start_add_product",
-    "start_add_category",
-    "start_edit_category",
     "confirm_delete_category",
-    "do_delete_category",
     "do_approve_product",
-    "do_reject_product",
     "do_create_product_with_category",
-    "product_admin_callback",
-    "list_products_for_images",
-    "show_product_images",
-    "prompt_upload_image",
+    "do_delete_category",
+    "do_reject_product",
     "do_remove_product_image",
+    "list_pending_products",
+    "list_products",
+    "list_products_for_images",
+    "manage_categories",
+    "product_admin_callback",
+    "products_admin_panel",
+    "prompt_upload_image",
+    "show_product_images",
+    "start_add_category",
+    "start_add_product",
+    "start_edit_category",
 ]

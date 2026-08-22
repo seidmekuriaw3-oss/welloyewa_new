@@ -5,21 +5,23 @@
 
 import asyncio
 import random
-from enum import Enum
-from typing import Dict, Any, Optional, Callable, List, Union
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from functools import wraps
+from enum import StrEnum
+from typing import Any
 
 from core.logger import logger
 
 
 class RetryableError(Exception):
     """Exception that should trigger a retry."""
+
     pass
 
 
-class RetryStrategy(str, Enum):
+class RetryStrategy(StrEnum):
     """Retry backoff strategies."""
+
     FIXED = "fixed"
     LINEAR = "linear"
     EXPONENTIAL = "exponential"
@@ -30,13 +32,13 @@ class RetryStrategy(str, Enum):
 @dataclass
 class RetryConfig:
     """Configuration for retry policy."""
-    
+
     max_attempts: int = 3
     initial_delay: float = 1.0
     max_delay: float = 30.0
     strategy: RetryStrategy = RetryStrategy.EXPONENTIAL
     multiplier: float = 2.0
-    retry_on: List[Union[int, Exception]] = field(default_factory=list)
+    retry_on: list[int | Exception] = field(default_factory=list)
     retry_on_timeout: bool = True
     jitter: bool = True
 
@@ -44,83 +46,83 @@ class RetryConfig:
 class RetryPolicy:
     """
     Retry policy for resilient operations.
-    
+
     Features:
     - Multiple backoff strategies
     - Configurable retry conditions
     - Jitter to prevent thundering herd
     - Max retry limits
     """
-    
-    def __init__(self, config: Optional[RetryConfig] = None):
+
+    def __init__(self, config: RetryConfig | None = None):
         self.config = config or RetryConfig()
-    
+
     def _calculate_delay(self, attempt: int) -> float:
         """
         Calculate delay for the given attempt.
-        
+
         Args:
             attempt: Attempt number (1-indexed)
-            
+
         Returns:
             Delay in seconds
         """
         if self.config.strategy == RetryStrategy.FIXED:
             delay = self.config.initial_delay
-        
+
         elif self.config.strategy == RetryStrategy.LINEAR:
             delay = self.config.initial_delay * attempt
-        
+
         elif self.config.strategy == RetryStrategy.EXPONENTIAL:
             delay = self.config.initial_delay * (self.config.multiplier ** (attempt - 1))
-        
+
         elif self.config.strategy == RetryStrategy.EXPONENTIAL_JITTER:
             delay = self.config.initial_delay * (self.config.multiplier ** (attempt - 1))
             if self.config.jitter:
                 delay = delay * (0.5 + random.random())
-        
+
         elif self.config.strategy == RetryStrategy.FULL_JITTER:
             max_delay = self.config.initial_delay * (self.config.multiplier ** (attempt - 1))
             delay = random.uniform(0, max_delay)
-        
+
         else:
             delay = self.config.initial_delay
-        
+
         return min(delay, self.config.max_delay)
-    
+
     def should_retry(self, attempt: int, exception: Exception) -> bool:
         """
         Determine if a retry should be attempted.
-        
+
         Args:
             attempt: Current attempt number
             exception: The exception that occurred
-            
+
         Returns:
             True if should retry
         """
         if attempt >= self.config.max_attempts:
             return False
-        
+
         # Check if exception type should trigger retry
         if self.config.retry_on:
             for retry_type in self.config.retry_on:
                 if isinstance(retry_type, type) and isinstance(exception, retry_type):
                     return True
-                if isinstance(retry_type, int) and hasattr(exception, 'status_code'):
+                if isinstance(retry_type, int) and hasattr(exception, "status_code"):
                     if exception.status_code == retry_type:
                         return True
-        
+
         # Check for timeout
         if self.config.retry_on_timeout and isinstance(exception, asyncio.TimeoutError):
             return True
-        
+
         # Check for RetryableError
         if isinstance(exception, RetryableError):
             return True
-        
+
         return False
-    
+
     async def execute(
         self,
         func: Callable,
@@ -129,30 +131,30 @@ class RetryPolicy:
     ) -> Any:
         """
         Execute a function with retry logic.
-        
+
         Args:
             func: Function to execute
             *args: Positional arguments
             **kwargs: Keyword arguments
-            
+
         Returns:
             Function result
-            
+
         Raises:
             Exception: Last exception if all retries fail
         """
         last_exception = None
-        
+
         for attempt in range(1, self.config.max_attempts + 1):
             try:
                 if asyncio.iscoroutinefunction(func):
                     return await func(*args, **kwargs)
                 else:
                     return func(*args, **kwargs)
-                    
+
             except Exception as e:
                 last_exception = e
-                
+
                 if self.should_retry(attempt, e):
                     delay = self._calculate_delay(attempt)
                     logger.warning(
@@ -162,20 +164,20 @@ class RetryPolicy:
                     await asyncio.sleep(delay)
                 else:
                     raise
-        
+
         raise last_exception
 
 
 class ExponentialBackoff:
     """
     Exponential backoff with jitter.
-    
+
     Usage:
         backoff = ExponentialBackoff()
         async for delay in backoff.retry():
             await operation()
     """
-    
+
     def __init__(
         self,
         base_delay: float = 1.0,
@@ -187,14 +189,14 @@ class ExponentialBackoff:
         self.max_delay = max_delay
         self.max_attempts = max_attempts
         self.jitter = jitter
-    
+
     def _get_delay(self, attempt: int) -> float:
         """Get delay for the given attempt."""
-        delay = self.base_delay * (2 ** attempt)
+        delay = self.base_delay * (2**attempt)
         if self.jitter:
             delay = delay * (0.5 + random.random())
         return min(delay, self.max_delay)
-    
+
     async def retry(self):
         """Async iterator for retry attempts."""
         for attempt in range(self.max_attempts):
@@ -206,11 +208,11 @@ class ExponentialBackoff:
 
 class FixedBackoff:
     """Fixed delay backoff."""
-    
+
     def __init__(self, delay: float = 1.0, max_attempts: int = 3):
         self.delay = delay
         self.max_attempts = max_attempts
-    
+
     async def retry(self):
         """Async iterator for retry attempts."""
         for attempt in range(self.max_attempts):
@@ -229,7 +231,7 @@ async def retry_request(
 ) -> Any:
     """
     Retry a function with configurable backoff.
-    
+
     Args:
         func: Function to execute
         *args: Positional arguments
@@ -237,7 +239,7 @@ async def retry_request(
         initial_delay: Initial delay between retries
         strategy: Retry strategy
         **kwargs: Keyword arguments for func
-        
+
     Returns:
         Function result
     """
@@ -251,11 +253,11 @@ async def retry_request(
 
 
 __all__ = [
-    "RetryPolicy",
-    "RetryConfig",
-    "RetryStrategy",
-    "RetryableError",
     "ExponentialBackoff",
     "FixedBackoff",
+    "RetryConfig",
+    "RetryPolicy",
+    "RetryStrategy",
+    "RetryableError",
     "retry_request",
 ]

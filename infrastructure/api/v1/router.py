@@ -6,15 +6,15 @@
 from fastapi import APIRouter
 
 from infrastructure.api.v1.endpoints import (
-    health,
-    webhook,
-    users,
-    products,
-    orders,
-    analytics,
-    payments,
     admin,
+    analytics,
     dashboards,
+    health,
+    orders,
+    payments,
+    products,
+    users,
+    webhook,
 )
 
 # Create main API router

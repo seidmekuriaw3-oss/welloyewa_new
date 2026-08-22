@@ -1,0 +1,93 @@
+Redis started on 127.0.0.1:6379
+[32m2026-07-02 00:33:03 | INFO     | root | Logging initialized | Level: INFO | Format: text[0m
+[32m2026-07-02 00:33:05 | INFO     | main | API v1 router registered[0m
+[32m2026-07-02 00:33:06 | INFO     | main | Webhook router registered[0m
+[32m2026-07-02 00:33:07 | INFO     | main | Web app router registered[0m
+[32m2026-07-02 00:33:07 | INFO     | main | Web app static files mounted at /app/static[0m
+[32mINFO[0m:     Started server process [[36m103[0m]
+[32mINFO[0m:     Waiting for application startup.
+[32m2026-07-02 00:33:07 | INFO     | main | Starting Wolloyewa_Store_Bot v1.0.0[0m
+[32m2026-07-02 00:33:07 | INFO     | main | Environment: development[0m
+[32m2026-07-02 00:33:08 | INFO     | core.logger | Database connection pool initialized (pool_size=20)[0m
+[32m2026-07-02 00:33:08 | INFO     | main | Database connection pool initialized[0m
+[32m2026-07-02 00:33:09 | INFO     | main | Database schema verified/created[0m
+[32m2026-07-02 00:33:09 | INFO     | core.logger | Redis connection established[0m
+[32m2026-07-02 00:33:09 | INFO     | main | Redis connection initialized[0m
+[32m2026-07-02 00:33:09 | INFO     | core.logger | Initializing Telegram bot...[0m
+[32m2026-07-02 00:33:09 | INFO     | core.logger | Using Redis-based persistence for Telegram bot state[0m
+[32m2026-07-02 00:33:09 | INFO     | core.logger | Setting up bot dispatcher...[0m
+[32m2026-07-02 00:33:09 | INFO     | core.logger | Auth middleware registered (group -1)[0m
+[32m2026-07-02 00:33:09 | INFO     | core.logger | Command handlers registered[0m
+[32m2026-07-02 00:33:09 | INFO     | core.logger | Callback handlers registered[0m
+/home/runner/workspace/bot/dispatcher.py:109: PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message. Read this FAQ entry to learn more about the per_* settings: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Frequently-Asked-Questions#what-do-the-per_-settings-in-conversationhandler-do.
+  checkout_conv = ConversationHandler(
+/home/runner/workspace/bot/dispatcher.py:136: PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message. Read this FAQ entry to learn more about the per_* settings: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Frequently-Asked-Questions#what-do-the-per_-settings-in-conversationhandler-do.
+  search_conv = ConversationHandler(
+/home/runner/workspace/bot/dispatcher.py:160: PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message. Read this FAQ entry to learn more about the per_* settings: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Frequently-Asked-Questions#what-do-the-per_-settings-in-conversationhandler-do.
+  feedback_conv = ConversationHandler(
+[32m2026-07-02 00:33:09 | INFO     | core.logger | Conversation handlers registered[0m
+[32m2026-07-02 00:33:09 | INFO     | core.logger | Message handlers registered[0m
+[32m2026-07-02 00:33:09 | INFO     | core.logger | Bot dispatcher setup complete ✓[0m
+[32m2026-07-02 00:33:09 | INFO     | core.logger | Telegram bot handlers registered successfully[0m
+[32m2026-07-02 00:33:09 | INFO     | core.logger | Bot initialized: User(allows_users_to_create_topics=False, api_kwargs={'supports_join_request_queries': False}, can_connect_to_business=False, can_join_groups=True, can_manage_bots=False, can_read_all_group_messages=False, first_name='ወሎየዋ ሱቅ', has_main_web_app=False, has_topics_enabled=False, id=8927914359, is_bot=True, supports_guest_queries=False, supports_inline_queries=False, username='Wolloyewa_Store_Bot')[0m
+[32m2026-07-02 00:33:09 | INFO     | main | Telegram bot initialized[0m
+[32m2026-07-02 00:33:09 | INFO     | main | Starting Telegram bot in POLLING mode...[0m
+[32m2026-07-02 00:33:10 | INFO     | main | Webhook cleared, starting polling...[0m
+[32m2026-07-02 00:33:15 | INFO     | apscheduler.scheduler | Scheduler started[0m
+[32m2026-07-02 00:33:15 | INFO     | main | Telegram bot polling started![0m
+[32m2026-07-02 00:33:15 | INFO     | core.logger | Task scheduler started[0m
+[32m2026-07-02 00:33:15 | INFO     | main | Background task scheduler started[0m
+[32m2026-07-02 00:33:15 | INFO     | core.logger | Running startup hooks...[0m
+[32m2026-07-02 00:33:15 | INFO     | core.logger | Starting Wolloyewa_Store_Bot v1.0.0[0m
+[32m2026-07-02 00:33:15 | INFO     | core.logger | Environment: development[0m
+[32m2026-07-02 00:33:15 | INFO     | core.logger | Debug mode: True[0m
+[32m2026-07-02 00:33:15 | INFO     | core.logger | All startup hooks completed successfully[0m
+[32m2026-07-02 00:33:15 | INFO     | main | Application startup completed[0m
+[32mINFO[0m:     Application startup complete.
+[32mINFO[0m:     Uvicorn running on [1mhttp://0.0.0.0:5000[0m (Press CTRL+C to quit)
+2026-07-02 00:33:26,305 INFO sqlalchemy.engine.Engine select pg_catalog.version()
+[32m2026-07-02 00:33:26 | INFO     | sqlalchemy.engine.Engine | select pg_catalog.version()[0m
+2026-07-02 00:33:26,305 INFO sqlalchemy.engine.Engine [raw sql] ()
+[32m2026-07-02 00:33:26 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()[0m
+2026-07-02 00:33:26,307 INFO sqlalchemy.engine.Engine select current_schema()
+[32m2026-07-02 00:33:26 | INFO     | sqlalchemy.engine.Engine | select current_schema()[0m
+2026-07-02 00:33:26,308 INFO sqlalchemy.engine.Engine [raw sql] ()
+[32m2026-07-02 00:33:26 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()[0m
+2026-07-02 00:33:26,309 INFO sqlalchemy.engine.Engine show standard_conforming_strings
+[32m2026-07-02 00:33:26 | INFO     | sqlalchemy.engine.Engine | show standard_conforming_strings[0m
+2026-07-02 00:33:26,309 INFO sqlalchemy.engine.Engine [raw sql] ()
+[32m2026-07-02 00:33:26 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()[0m
+2026-07-02 00:33:26,310 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+[32m2026-07-02 00:33:26 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)[0m
+2026-07-02 00:33:26,312 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM products
+[32m2026-07-02 00:33:26 | INFO     | sqlalchemy.engine.Engine | SELECT count(*) AS count_1 
+FROM products[0m
+2026-07-02 00:33:26,312 INFO sqlalchemy.engine.Engine [generated in 0.00016s] ()
+[32m2026-07-02 00:33:26 | INFO     | sqlalchemy.engine.Engine | [generated in 0.00016s] ()[0m
+2026-07-02 00:33:26,466 INFO sqlalchemy.engine.Engine SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+ LIMIT $1::INTEGER
+[32m2026-07-02 00:33:26 | INFO     | sqlalchemy.engine.Engine | SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+ LIMIT $1::INTEGER[0m
+2026-07-02 00:33:26,466 INFO sqlalchemy.engine.Engine [generated in 0.00025s] (3,)
+[32m2026-07-02 00:33:26 | INFO     | sqlalchemy.engine.Engine | [generated in 0.00025s] (3,)[0m
+2026-07-02 00:33:26,505 INFO sqlalchemy.engine.Engine ROLLBACK
+[32m2026-07-02 00:33:26 | INFO     | sqlalchemy.engine.Engine | ROLLBACK[0m
+[32mINFO[0m:     Shutting down
+[32mINFO[0m:     Waiting for application shutdown.
+[32m2026-07-02 00:33:31 | INFO     | main | Shutting down application...[0m
+[32m2026-07-02 00:33:31 | INFO     | main | Stopping Telegram bot polling...[0m
+[32m2026-07-02 00:33:31 | INFO     | apscheduler.scheduler | Scheduler has been shut down[0m
+[32m2026-07-02 00:33:31 | INFO     | core.logger | Task scheduler stopped[0m
+[32m2026-07-02 00:33:31 | INFO     | core.logger | Database connection pool closed[0m
+[32m2026-07-02 00:33:31 | INFO     | core.logger | Redis connection closed[0m
+[32m2026-07-02 00:33:31 | INFO     | core.logger | Shutting down bot...[0m
+[32m2026-07-02 00:33:31 | INFO     | core.logger | Bot shutdown complete[0m
+[32m2026-07-02 00:33:31 | INFO     | core.logger | Running shutdown hooks...[0m
+[32m2026-07-02 00:33:31 | INFO     | core.logger | Performing cleanup tasks...[0m
+[32m2026-07-02 00:33:31 | INFO     | core.logger | All shutdown hooks completed[0m
+[32m2026-07-02 00:33:31 | INFO     | main | Application shutdown completed[0m
+[32mINFO[0m:     Application shutdown complete.
+[32mINFO[0m:     Finished server process [[36m103[0m]

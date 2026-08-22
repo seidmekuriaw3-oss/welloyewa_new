@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Wolloyewa Store Bot - Main Entry Point
@@ -15,18 +14,18 @@ import logging
 import os
 import socket
 import sys
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.config import settings
-from core.logger import setup_logging
+from core.exceptions import WolloyewaException
 from core.lifespan import lifespan_manager
+from core.logger import setup_logging
 from core.security.middleware import SecurityHeadersMiddleware
 
 os.makedirs("./logs", exist_ok=True)
@@ -49,25 +48,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Database
     try:
-        from infrastructure.database.session import init_db, close_db
+        from infrastructure.database.session import close_db, init_db
+
         await init_db()
         logger.info("Database connection pool initialized")
-        # Ensure all tables exist (idempotent – skips existing tables/types)
+        # Ensure all tables exist (idempotent - skips existing tables/types)
         try:
             import re
+
             from sqlalchemy.ext.asyncio import create_async_engine
             from sqlalchemy.pool import NullPool
-            from infrastructure.database.base import Base
+
             # Import all models so metadata is fully populated
-            import apps.common.models  # noqa: F401
+            import apps.common.models
+            import apps.inventory.models
+            import apps.marketing.models
+            import apps.orders.models
+            import apps.products.models
+            import apps.support.models
             import apps.users.models  # noqa: F401
-            import apps.products.models  # noqa: F401
-            import apps.orders.models  # noqa: F401
-            import apps.inventory.models  # noqa: F401
-            import apps.marketing.models  # noqa: F401
-            import apps.support.models  # noqa: F401
+            from infrastructure.database.base import Base
+
             raw_url = str(settings.DATABASE_URL)
-            raw_url = re.sub(r'[?&]sslmode=[^&]*', '', raw_url).rstrip('?')
+            raw_url = re.sub(r"[?&]sslmode=[^&]*", "", raw_url).rstrip("?")
             db_url = raw_url.replace("postgresql://", "postgresql+asyncpg://")
             _schema_engine = create_async_engine(db_url, poolclass=NullPool)
             async with _schema_engine.begin() as conn:
@@ -81,7 +84,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Redis (optional)
     try:
-        from infrastructure.redis.client import init_redis, close_redis
+        from infrastructure.redis.client import close_redis, init_redis
+
         await init_redis()
         logger.info("Redis connection initialized")
     except Exception as e:
@@ -98,15 +102,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 break
             except Exception as net_err:
                 if attempt < 2:
-                    logger.warning(f"Bot init attempt {attempt + 1} failed, retrying in 3s: {net_err}")
+                    logger.warning(
+                        f"Bot init attempt {attempt + 1} failed, retrying in 3s: {net_err}"
+                    )
                     await asyncio.sleep(3)
                 else:
                     raise net_err
 
         # Start polling only in development mode (not when deployed) and avoid duplicate local sessions
         _is_deployed = os.environ.get("REPLIT_DEPLOYMENT", "").strip() == "1"
-        _disable_bot_polling = os.environ.get("DISABLE_BOT_POLLING", "1").strip() in {"1", "true", "True", "yes", "y"}
-        if settings.ENVIRONMENT == "development" and application_instance and not _is_deployed and not _disable_bot_polling:
+        _disable_bot_polling = os.environ.get("DISABLE_BOT_POLLING", "1").strip() in {
+            "1",
+            "true",
+            "True",
+            "yes",
+            "y",
+        }
+        if (
+            settings.ENVIRONMENT == "development"
+            and application_instance
+            and not _is_deployed
+            and not _disable_bot_polling
+        ):
             logger.info("Starting Telegram bot in POLLING mode...")
             await application_instance.initialize()
             for _attempt in range(5):
@@ -134,6 +151,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Scheduler
     try:
         from infrastructure.queues.scheduled_tasks import start_scheduler, stop_scheduler
+
         await start_scheduler()
         logger.info("Background task scheduler started")
     except Exception as e:
@@ -152,7 +170,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown
     logger.info("Shutting down application...")
 
-    if application_instance and settings.ENVIRONMENT == "development" and not os.environ.get("REPLIT_DEPLOYMENT", "").strip() == "1":
+    if (
+        application_instance
+        and settings.ENVIRONMENT == "development"
+        and not os.environ.get("REPLIT_DEPLOYMENT", "").strip() == "1"
+    ):
         try:
             logger.info("Stopping Telegram bot polling...")
             if application_instance.updater and application_instance.updater.running:
@@ -199,6 +221,7 @@ def get_version() -> str:
     """Return application version."""
     try:
         import tomllib
+
         with open("pyproject.toml", "rb") as f:
             data = tomllib.load(f)
             return data.get("tool", {}).get("poetry", {}).get("version", "1.0.0")
@@ -237,6 +260,7 @@ async def health_check():
     """Health check endpoint."""
     try:
         from core.monitoring.health_checks import health_checker
+
         return await health_checker.check_all()
     except Exception as e:
         return {"status": "degraded", "error": str(e)}
@@ -246,6 +270,7 @@ async def health_check():
 async def root():
     """Root endpoint — redirect to web app."""
     from fastapi.responses import RedirectResponse
+
     return RedirectResponse(url="/app/", status_code=302)
 
 
@@ -275,6 +300,7 @@ def register_routers() -> None:
     """Register all API routers."""
     try:
         from infrastructure.api.v1.router import api_router
+
         app.include_router(api_router, prefix="/api/v1")
         logger.info("API v1 router registered")
     except Exception as e:
@@ -282,6 +308,7 @@ def register_routers() -> None:
 
     try:
         from bot.webhooks import router as webhook_router
+
         app.include_router(webhook_router, prefix="/webhook")
         logger.info("Webhook router registered")
     except Exception as e:
@@ -290,6 +317,7 @@ def register_routers() -> None:
     if settings.ENABLE_WEB_APP:
         try:
             from bot.web_app.router import web_app_router
+
             app.include_router(web_app_router)
             logger.info("Web app router registered")
         except Exception as e:
@@ -301,6 +329,7 @@ register_routers()
 # Mount web app static files
 try:
     import os as _os
+
     _static_dir = _os.path.join(_os.path.dirname(__file__), "bot", "web_app", "static")
     if _os.path.isdir(_static_dir):
         app.mount("/app/static", StaticFiles(directory=_static_dir), name="web_app_static")
@@ -326,6 +355,7 @@ def main() -> None:
     """Main entry point."""
     try:
         import uvicorn
+
         preferred_port = int(getattr(settings, "PORT", 8000))
         host = settings.HOST if hasattr(settings, "HOST") else "0.0.0.0"
         try:
@@ -370,7 +400,7 @@ if __name__ == "__main__":
 # PermissionError, NotFoundError, RateLimitError, etc.) carry their own status_code.
 # This handler must be registered BEFORE the generic Exception handler so FastAPI
 # checks the more specific handler first.
-from core.exceptions import WolloyewaException
+
 
 @app.exception_handler(WolloyewaException)
 async def wolloyewa_exception_handler(request, exc: WolloyewaException):

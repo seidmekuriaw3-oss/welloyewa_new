@@ -3,13 +3,12 @@
 # ============================
 """Telegram bot deep linking handlers for referral and product links."""
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
-from urllib.parse import parse_qs, urlparse
 
-from core.logger import logger
-from apps.products.services import ProductService
 from apps.marketing.services import CouponService
+from apps.products.services import ProductService
+from core.logger import logger
 from infrastructure.database.session import get_db_session
 
 
@@ -21,7 +20,7 @@ async def deep_link_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def deep_link_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Handle deep linking URLs (start parameter).
-    
+
     Supports:
     - Product deep links: start=product_123
     - Coupon deep links: start=coupon_SAVE20
@@ -29,15 +28,16 @@ async def deep_link_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     """
     user_id = update.effective_user.id
     start_param = context.args[0] if context.args else None
-    
+
     if not start_param:
         # Regular start
         from bot.handlers.start import start_command
+
         await start_command(update, context)
         return
-    
+
     logger.info(f"Deep link from user {user_id}: {start_param}")
-    
+
     # Parse deep link
     if start_param.startswith("product_"):
         await handle_product_deep_link(update, context, start_param)
@@ -56,7 +56,7 @@ async def handle_product_deep_link(
 ) -> None:
     """
     Handle product deep link.
-    
+
     Shows product details directly.
     """
     try:
@@ -64,27 +64,27 @@ async def handle_product_deep_link(
     except (IndexError, ValueError):
         await update.message.reply_text("❌ የማይሰራ ሊንክ።")
         return
-    
+
     async for db in get_db_session():
         product_service = ProductService(db)
-        
+
         try:
             product = await product_service.get_product(product_id)
         except Exception:
             await update.message.reply_text("❌ ምርቱ አልተገኘም።")
             return
-        
+
         break
-    
+
     # Build product detail message
     from core.utils.currency import format_etb
-    
+
     price_text = format_etb(product.price)
     if product.discounted_price:
         price_text = f"~~{format_etb(product.compare_price)}~~ {format_etb(product.price)}"
-    
+
     stock_status = "✅ ክምችት አለ" if product.is_in_stock else "❌ ክምችት የለም"
-    
+
     text = f"""
 🔗 *የተጋራ ምርት*
 
@@ -95,19 +95,15 @@ async def handle_product_deep_link(
 
 {product.short_description or 'ምርቱን ለማየት ከዚህ በታች ያለውን ቁልፍ ይጫኑ።'}
     """
-    
+
     keyboard = [
         [InlineKeyboardButton("📦 ምርቱን ይመልከቱ", callback_data=f"prod_{product.id}")],
         [InlineKeyboardButton("🔙 ወደ መጀመሪያ", callback_data="menu_start")],
     ]
-    
+
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_text(
-        text,
-        parse_mode="Markdown",
-        reply_markup=reply_markup
-    )
+
+    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
 
 
 async def handle_coupon_deep_link(
@@ -117,7 +113,7 @@ async def handle_coupon_deep_link(
 ) -> None:
     """
     Handle coupon deep link.
-    
+
     Applies coupon code automatically.
     """
     try:
@@ -125,24 +121,22 @@ async def handle_coupon_deep_link(
     except IndexError:
         await update.message.reply_text("❌ የማይሰራ ሊንክ።")
         return
-    
+
     async for db in get_db_session():
         coupon_service = CouponService(db)
-        
+
         # Validate coupon
         coupon = await coupon_service.get_coupon_by_code(coupon_code)
-        
+
         if not coupon or not coupon.is_valid:
-            await update.message.reply_text(
-                f"❌ ኩፖኑ '{coupon_code}' ልክ አይደለም ወይም ጊዜው አልፎበታል።"
-            )
+            await update.message.reply_text(f"❌ ኩፖኑ '{coupon_code}' ልክ አይደለም ወይም ጊዜው አልፎበታል።")
             return
-        
+
         break
-    
+
     # Store coupon in user context
     context.user_data["pending_coupon"] = coupon_code
-    
+
     text = f"""
 🎫 *ኩፖን ተገኝቷል!*
 
@@ -153,19 +147,15 @@ async def handle_coupon_deep_link(
 
 🛒 ወደ ግዢ ቅርጫት ለመሄድ /cart ይጫኑ።
     """
-    
+
     keyboard = [
         [InlineKeyboardButton("🛒 ወደ ቅርጫት", callback_data="menu_cart")],
         [InlineKeyboardButton("🔙 ወደ መጀመሪያ", callback_data="menu_start")],
     ]
-    
+
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_text(
-        text,
-        parse_mode="Markdown",
-        reply_markup=reply_markup
-    )
+
+    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
 
 
 async def handle_referral_deep_link(
@@ -175,7 +165,7 @@ async def handle_referral_deep_link(
 ) -> None:
     """
     Handle referral deep link.
-    
+
     Tracks referral source.
     """
     try:
@@ -183,20 +173,20 @@ async def handle_referral_deep_link(
     except (IndexError, ValueError):
         await update.message.reply_text("❌ የማይሰራ ሊንክ።")
         return
-    
+
     user_id = update.effective_user.id
-    
+
     # Don't track self-referrals
     if referrer_id == user_id:
         await update.message.reply_text("👋 እንኳን ደህና መጡ!")
         return
-    
+
     # Track referral
-    async for db in get_db_session():
+    async for _db in get_db_session():
         # In production, save referral to database
         logger.info(f"User {user_id} referred by {referrer_id}")
         break
-    
+
     text = f"""
 👋 *እንኳን ደህና መጡ!*
 
@@ -206,7 +196,7 @@ async def handle_referral_deep_link(
 
 /start ይጫኑ
     """
-    
+
     await update.message.reply_text(text, parse_mode="Markdown")
 
 
@@ -218,10 +208,7 @@ async def handle_unknown_deep_link(
     """
     Handle unknown deep link type.
     """
-    await update.message.reply_text(
-        f"❌ የማይታወቅ ሊንክ: {param}\n\n"
-        f"እባክዎ ትክክለኛ ሊንክ መጠቀምዎን ያረጋግጡ።"
-    )
+    await update.message.reply_text(f"❌ የማይታወቅ ሊንክ: {param}\n\n" f"እባክዎ ትክክለኛ ሊንክ መጠቀምዎን ያረጋግጡ።")
 
 
 def discount_text(coupon) -> str:

@@ -3,12 +3,13 @@
 # ============================
 """Authentication middleware for Telegram bot handlers."""
 
-from typing import Dict, Any, Callable, Awaitable
+from typing import Any
+
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from core.logger import logger
 from apps.users.services import UserService
+from core.logger import logger
 from infrastructure.database.session import get_db_session
 
 
@@ -19,14 +20,14 @@ class AuthMiddleware:
     """
 
     def __init__(self):
-        self._user_cache: Dict[int, Dict[str, Any]] = {}
+        self._user_cache: dict[int, dict[str, Any]] = {}
 
     async def get_or_create_user(
         self,
         telegram_id: int,
         first_name: str,
-        username: str = None,
-    ) -> Dict[str, Any]:
+        username: str | None = None,
+    ) -> dict[str, Any]:
         """Get or create user in database and return a plain dict."""
         if telegram_id in self._user_cache:
             return self._user_cache[telegram_id]
@@ -46,8 +47,14 @@ class AuthMiddleware:
                         "username": user.username,
                         "first_name": user.first_name,
                         "last_name": user.last_name,
-                        "role": str(user.role.value) if hasattr(user.role, "value") else str(user.role),
-                        "status": str(user.status.value) if hasattr(user.status, "value") else str(user.status),
+                        "role": (
+                            str(user.role.value) if hasattr(user.role, "value") else str(user.role)
+                        ),
+                        "status": (
+                            str(user.status.value)
+                            if hasattr(user.status, "value")
+                            else str(user.status)
+                        ),
                         "phone_number": user.phone_number,
                         "email": user.email,
                         "language": user.language,
@@ -64,7 +71,7 @@ class AuthMiddleware:
         """Remove a single user from the cache (call after profile updates)."""
         self._user_cache.pop(telegram_id, None)
 
-    def clear_cache(self, telegram_id: int = None) -> None:
+    def clear_cache(self, telegram_id: int | None = None) -> None:
         """Clear user cache (all or single user)."""
         if telegram_id:
             self._user_cache.pop(telegram_id, None)
@@ -76,9 +83,7 @@ class AuthMiddleware:
 auth_middleware = AuthMiddleware()
 
 
-async def ensure_user_registered(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+async def ensure_user_registered(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     TypeHandler middleware — runs in group -1 (before all other handlers).
 

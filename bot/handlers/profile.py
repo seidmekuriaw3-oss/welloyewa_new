@@ -3,16 +3,15 @@
 # ============================
 """Telegram bot user profile and order history handlers — full i18n support."""
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import ContextTypes
 
-from core.logger import logger
-from core.utils.currency import format_etb
-from apps.users.services import UserService, VendorService
 from apps.orders.services import OrderService
 from apps.users.schemas import UserUpdate
+from apps.users.services import UserService, VendorService
+from core.logger import logger
+from core.utils.currency import format_etb
 from infrastructure.database.session import get_db_session
-
 
 # ---------------------------------------------------------------------------
 # Translation tables
@@ -194,9 +193,9 @@ _T = {
         "om": "📦 Meeshaalee Koo",
     },
     "btn_add_product": {
-        "am": "➕ ምርት ጨምር",
-        "en": "➕ Add Product",
-        "om": "➕ Meeshaa Ida'i",
+        "am": "+ ምርት ጨምር",
+        "en": "+ Add Product",
+        "om": "+ Meeshaa Ida'i",
     },
     "btn_vendor_orders": {
         "am": "📋 ትዕዛዞች",
@@ -296,8 +295,18 @@ def _get_lang(context: ContextTypes.DEFAULT_TYPE, user=None) -> str:
 def _role_label(role, lang: str) -> str:
     roles = {
         "am": {"customer": "ደንበኛ", "vendor": "ሻጭ", "admin": "አስተዳዳሪ", "super_admin": "ዋና አስተዳዳሪ"},
-        "en": {"customer": "Customer", "vendor": "Vendor", "admin": "Admin", "super_admin": "Super Admin"},
-        "om": {"customer": "Bitaa", "vendor": "Gurgurtaa", "admin": "Bulchaa", "super_admin": "Bulchaa Olaanaa"},
+        "en": {
+            "customer": "Customer",
+            "vendor": "Vendor",
+            "admin": "Admin",
+            "super_admin": "Super Admin",
+        },
+        "om": {
+            "customer": "Bitaa",
+            "vendor": "Gurgurtaa",
+            "admin": "Bulchaa",
+            "super_admin": "Bulchaa Olaanaa",
+        },
     }
     role_str = role.value if hasattr(role, "value") else str(role)
     return roles.get(lang, roles["am"]).get(role_str, role_str)
@@ -306,19 +315,28 @@ def _role_label(role, lang: str) -> str:
 def _order_status_label(status: str, lang: str) -> str:
     labels = {
         "am": {
-            "pending": "⏳ በጥበቃ ላይ", "confirmed": "✅ ተረጋግጧል",
-            "processing": "🔄 በሂደት ላይ", "shipped": "🚚 ተልኳል",
-            "delivered": "📦✅ ደርሷል", "cancelled": "❌ ተሰርዟል",
+            "pending": "⏳ በጥበቃ ላይ",
+            "confirmed": "✅ ተረጋግጧል",
+            "processing": "🔄 በሂደት ላይ",
+            "shipped": "🚚 ተልኳል",
+            "delivered": "📦✅ ደርሷል",
+            "cancelled": "❌ ተሰርዟል",
         },
         "en": {
-            "pending": "⏳ Pending", "confirmed": "✅ Confirmed",
-            "processing": "🔄 Processing", "shipped": "🚚 Shipped",
-            "delivered": "📦✅ Delivered", "cancelled": "❌ Cancelled",
+            "pending": "⏳ Pending",
+            "confirmed": "✅ Confirmed",
+            "processing": "🔄 Processing",
+            "shipped": "🚚 Shipped",
+            "delivered": "📦✅ Delivered",
+            "cancelled": "❌ Cancelled",
         },
         "om": {
-            "pending": "⏳ Eegamaa", "confirmed": "✅ Mirkanaayeera",
-            "processing": "🔄 Hojjetamaa", "shipped": "🚚 Ergameera",
-            "delivered": "📦✅ Geenyeera", "cancelled": "❌ Haqameera",
+            "pending": "⏳ Eegamaa",
+            "confirmed": "✅ Mirkanaayeera",
+            "processing": "🔄 Hojjetamaa",
+            "shipped": "🚚 Ergameera",
+            "delivered": "📦✅ Geenyeera",
+            "cancelled": "❌ Haqameera",
         },
     }
     return labels.get(lang, labels["am"]).get(status, status.upper())
@@ -327,6 +345,7 @@ def _order_status_label(status: str, lang: str) -> str:
 # ---------------------------------------------------------------------------
 # Profile screen
 # ---------------------------------------------------------------------------
+
 
 async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show user profile — all text and buttons in the user's saved language."""
@@ -361,12 +380,12 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
 
     keyboard = [
-        [InlineKeyboardButton(t("btn_update_phone",   lang), callback_data="profile_update_phone")],
-        [InlineKeyboardButton(t("btn_update_email",   lang), callback_data="profile_update_email")],
-        [InlineKeyboardButton(t("btn_change_lang",    lang), callback_data="profile_change_language")],
-        [InlineKeyboardButton(t("btn_my_orders",      lang), callback_data="profile_orders")],
-        [InlineKeyboardButton(t("btn_become_vendor",  lang), callback_data="profile_become_vendor")],
-        [InlineKeyboardButton(t("btn_back",           lang), callback_data="menu_back")],
+        [InlineKeyboardButton(t("btn_update_phone", lang), callback_data="profile_update_phone")],
+        [InlineKeyboardButton(t("btn_update_email", lang), callback_data="profile_update_email")],
+        [InlineKeyboardButton(t("btn_change_lang", lang), callback_data="profile_change_language")],
+        [InlineKeyboardButton(t("btn_my_orders", lang), callback_data="profile_orders")],
+        [InlineKeyboardButton(t("btn_become_vendor", lang), callback_data="profile_become_vendor")],
+        [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_back")],
     ]
 
     # Vendor panel shortcut
@@ -376,9 +395,14 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             vendor_service = VendorService(db)
             vendor = await vendor_service.get_vendor_by_user(user.id)
             if vendor:
-                keyboard.insert(0, [InlineKeyboardButton(
-                    t("btn_vendor_panel", lang), callback_data="profile_vendor_panel"
-                )])
+                keyboard.insert(
+                    0,
+                    [
+                        InlineKeyboardButton(
+                            t("btn_vendor_panel", lang), callback_data="profile_vendor_panel"
+                        )
+                    ],
+                )
             break
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -397,6 +421,7 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 # ---------------------------------------------------------------------------
 # Orders screen
 # ---------------------------------------------------------------------------
+
 
 async def orders_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show order history — all text and buttons in the user's saved language."""
@@ -424,9 +449,7 @@ async def orders_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     lang = _get_lang(context, user)
 
     if not orders:
-        await update.effective_message.reply_text(
-            t("orders_empty", lang), parse_mode="Markdown"
-        )
+        await update.effective_message.reply_text(t("orders_empty", lang), parse_mode="Markdown")
         return
 
     orders_text = t("orders_title", lang)
@@ -448,7 +471,9 @@ async def orders_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         nav.append(InlineKeyboardButton(t("btn_next", lang), callback_data=f"orders_page_{page+1}"))
     if nav:
         keyboard.append(nav)
-    keyboard.append([InlineKeyboardButton(t("btn_back_profile2", lang), callback_data="menu_profile")])
+    keyboard.append(
+        [InlineKeyboardButton(t("btn_back_profile2", lang), callback_data="menu_profile")]
+    )
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -466,6 +491,7 @@ async def orders_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 # ---------------------------------------------------------------------------
 # Profile callback router
 # ---------------------------------------------------------------------------
+
 
 async def profile_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle all profile_* callback queries."""
@@ -489,7 +515,7 @@ async def profile_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     elif action == "profile_change_language":
         keyboard = [
-            [InlineKeyboardButton("🇪🇹 አማርኛ",  callback_data="lang_am")],
+            [InlineKeyboardButton("🇪🇹 አማርኛ", callback_data="lang_am")],
             [InlineKeyboardButton("🌐 English", callback_data="lang_en")],
             [InlineKeyboardButton("🟢 Oromiffa", callback_data="lang_om")],
             [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_profile")],
@@ -535,47 +561,78 @@ async def vendor_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await query.message.edit_text(
             "📦 *ምርቶቼ*\n\nየሻጭ ምርቶችን ለማስተዳደር የአስተዳዳሪ ፓነልን ወይም የድጋፍ ቡድንን ያግኙ።",
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton(t("btn_back_profile", lang), callback_data="profile_vendor_panel")
-            ]]),
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            t("btn_back_profile", lang), callback_data="profile_vendor_panel"
+                        )
+                    ]
+                ]
+            ),
         )
     elif action == "vendor_add_product":
         await query.message.edit_text(
-            "➕ *አዲስ ምርት ለመጨመር*\n\nእባክዎ ለማስገባት የምርቱን መረጃ ለአስተዳዳሪ ይላኩ።",
+            "+ *አዲስ ምርት ለመጨመር*\n\nእባክዎ ለማስገባት የምርቱን መረጃ ለአስተዳዳሪ ይላኩ።",
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton(t("btn_back_profile", lang), callback_data="profile_vendor_panel")
-            ]]),
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            t("btn_back_profile", lang), callback_data="profile_vendor_panel"
+                        )
+                    ]
+                ]
+            ),
         )
     elif action == "vendor_orders":
         await query.message.edit_text(
             "📦 *የሻጭ ትዕዛዞች*\n\nየሻጭ ትዕዛዝ መረጃ ሲኖር እዚህ ይታያል።",
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton(t("btn_back_profile", lang), callback_data="profile_vendor_panel")
-            ]]),
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            t("btn_back_profile", lang), callback_data="profile_vendor_panel"
+                        )
+                    ]
+                ]
+            ),
         )
     elif action == "vendor_stats":
         await query.message.edit_text(
             "📊 *የሽያጭ ስታቲስቲክስ*\n\nስታቲስቲክስ ለማየት የሽያጭ እንቅስቃሴ እስኪመዘገብ ይጠብቁ።",
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton(t("btn_back_profile", lang), callback_data="profile_vendor_panel")
-            ]]),
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            t("btn_back_profile", lang), callback_data="profile_vendor_panel"
+                        )
+                    ]
+                ]
+            ),
         )
     elif action == "vendor_settings":
         await query.message.edit_text(
             "⚙️ *የሻጭ ቅንብሮች*\n\nለውጦችን ለማድረግ የድጋፍ ቡድንን ያግኙ።",
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton(t("btn_back_profile", lang), callback_data="profile_vendor_panel")
-            ]]),
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            t("btn_back_profile", lang), callback_data="profile_vendor_panel"
+                        )
+                    ]
+                ]
+            ),
         )
 
 
 # ---------------------------------------------------------------------------
 # Language change handler  (lang_am / lang_en / lang_om from Profile)
 # ---------------------------------------------------------------------------
+
 
 async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -585,7 +642,7 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     query = update.callback_query
     await query.answer()
 
-    new_lang = query.data.replace("lang_", "")   # "am" | "en" | "om"
+    new_lang = query.data.replace("lang_", "")  # "am" | "en" | "om"
     tg_id = update.effective_user.id
 
     async for db in get_db_session():
@@ -597,6 +654,7 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     # Refresh middleware cache so subsequent handlers see the new language
     from bot.middlewares.auth import auth_middleware
+
     auth_middleware.invalidate(tg_id)
 
     # Also update the in-memory user_data so this same message sees the change
@@ -604,9 +662,7 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         context.user_data["user"]["language"] = new_lang
 
     # Confirm with a short toast-style message, then reopen profile
-    await query.edit_message_text(
-        t("lang_changed", new_lang), parse_mode="Markdown"
-    )
+    await query.edit_message_text(t("lang_changed", new_lang), parse_mode="Markdown")
     # Reload the profile screen in the new language
     await profile_command(update, context)
 
@@ -615,18 +671,19 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 # Vendor panel
 # ---------------------------------------------------------------------------
 
+
 async def show_vendor_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show vendor dashboard — buttons in the user's saved language."""
     query = update.callback_query
     lang = _get_lang(context)
 
     keyboard = [
-        [InlineKeyboardButton(t("btn_my_products",    lang), callback_data="vendor_products")],
-        [InlineKeyboardButton(t("btn_add_product",    lang), callback_data="vendor_add_product")],
-        [InlineKeyboardButton(t("btn_vendor_orders",  lang), callback_data="vendor_orders")],
-        [InlineKeyboardButton(t("btn_vendor_stats",   lang), callback_data="vendor_stats")],
-        [InlineKeyboardButton(t("btn_vendor_settings",lang), callback_data="vendor_settings")],
-        [InlineKeyboardButton(t("btn_back_profile",   lang), callback_data="menu_profile")],
+        [InlineKeyboardButton(t("btn_my_products", lang), callback_data="vendor_products")],
+        [InlineKeyboardButton(t("btn_add_product", lang), callback_data="vendor_add_product")],
+        [InlineKeyboardButton(t("btn_vendor_orders", lang), callback_data="vendor_orders")],
+        [InlineKeyboardButton(t("btn_vendor_stats", lang), callback_data="vendor_stats")],
+        [InlineKeyboardButton(t("btn_vendor_settings", lang), callback_data="vendor_settings")],
+        [InlineKeyboardButton(t("btn_back_profile", lang), callback_data="menu_profile")],
     ]
 
     await query.message.edit_text(
@@ -639,6 +696,7 @@ async def show_vendor_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 # ---------------------------------------------------------------------------
 # Contact handler — phone sharing (onboarding Step 2 OR profile update)
 # ---------------------------------------------------------------------------
+
 
 async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -664,12 +722,15 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             if user:
                 await user_service.update_user(user.id, UserUpdate(phone_number=phone_number))
                 from bot.middlewares.auth import auth_middleware
+
                 auth_middleware.invalidate(tg_user.id)
                 if "user" in context.user_data:
                     context.user_data["user"]["phone_number"] = phone_number
                 saved = True
         except Exception as e:
-            logger.error(f"contact_handler: failed to save phone {phone_number} for {tg_user.id}: {e}")
+            logger.error(
+                f"contact_handler: failed to save phone {phone_number} for {tg_user.id}: {e}"
+            )
         break
 
     await update.message.reply_text(
@@ -682,8 +743,8 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     if context.user_data.pop("onboarding", False):
         # Onboarding complete — open the main menu in the user's chosen language
-        from core.config import settings
         from bot.handlers.start import _build_main_menu
+        from core.config import settings
 
         # lang may have been set during onboarding (onboarding_lang key)
         lang = context.user_data.pop("onboarding_lang", lang)
@@ -700,32 +761,25 @@ async def profile_text_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     field = context.user_data.get("updating_field")
     if context.user_data.get("vendor_application"):
         context.user_data.pop("vendor_application", None)
-        await update.effective_message.reply_text(
-            "✅ ማመልከቻዎ ተቀብሏል። አስተዳደሩ ከገመገመ በኋላ ያሳውቅዎታል።"
-        )
+        await update.effective_message.reply_text("✅ ማመልከቻዎ ተቀብሏል። አስተዳደሩ ከገመገመ በኋላ ያሳውቅዎታል።")
         return
     if field == "phone":
         value = (update.effective_message.text or "").strip()
         digits = "".join(ch for ch in value if ch.isdigit() or ch == "+")
         if len(digits.replace("+", "")) < 9:
-            await update.effective_message.reply_text(
-                t("phone_invalid", _get_lang(context))
-            )
+            await update.effective_message.reply_text(t("phone_invalid", _get_lang(context)))
             return
         tg_id = update.effective_user.id
         saved = False
         async for db in get_db_session():
             user = await UserService(db).get_user_by_telegram(tg_id)
             if user:
-                await UserService(db).update_user(
-                    user.id, UserUpdate(phone_number=value)
-                )
+                await UserService(db).update_user(user.id, UserUpdate(phone_number=value))
                 saved = True
             break
         context.user_data.pop("updating_field", None)
         await update.effective_message.reply_text(
-            t("phone_saved", _get_lang(context))
-            if saved else t("phone_failed", _get_lang(context))
+            t("phone_saved", _get_lang(context)) if saved else t("phone_failed", _get_lang(context))
         )
         return
     if field != "email":
@@ -753,19 +807,20 @@ async def profile_text_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 # Legacy helper (kept for any caller that still imports it)
 # ---------------------------------------------------------------------------
 
+
 def get_role_amharic(role) -> str:
     return _role_label(role, "am")
 
 
 __all__ = [
-    "profile_command",
-    "orders_command",
-    "profile_callback",
-    "orders_page_callback",
-    "vendor_callback",
-    "profile_text_handler",
-    "language_callback",
     "contact_handler",
-    "show_vendor_panel",
     "get_role_amharic",
+    "language_callback",
+    "orders_command",
+    "orders_page_callback",
+    "profile_callback",
+    "profile_command",
+    "profile_text_handler",
+    "show_vendor_panel",
+    "vendor_callback",
 ]

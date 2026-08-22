@@ -8,25 +8,25 @@ from enum import IntEnum
 
 class OrderStates(IntEnum):
     """Order conversation states."""
-    
+
     # Address selection states
     SELECT_ADDRESS = 1
     ADD_NEW_ADDRESS = 2
     EDIT_ADDRESS = 3
-    
+
     # Payment states
     SELECT_PAYMENT = 4
     PROCESSING_PAYMENT = 5
-    
+
     # Order confirmation states
     CONFIRM_ORDER = 6
     ORDER_PLACED = 7
     ORDER_COMPLETED = 8
-    
+
     # Tracking states
     TRACK_ORDER = 9
     VIEW_ORDER_DETAILS = 10
-    
+
     # Refund states
     REQUEST_REFUND = 11
     REFUND_REASON = 12
@@ -47,10 +47,10 @@ CART_STATES = {
 }
 
 __all__ = [
-    "OrderStates",
-    "SELECT_ADDRESS",
-    "SELECT_PAYMENT",
+    "CART_STATES",
     "CONFIRM_ORDER",
     "ORDER_COMPLETED",
-    "CART_STATES",
+    "SELECT_ADDRESS",
+    "SELECT_PAYMENT",
+    "OrderStates",
 ]

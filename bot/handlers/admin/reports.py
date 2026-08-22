@@ -3,43 +3,46 @@
 # ============================
 """Admin handlers for generating and viewing reports, including CSV export."""
 
-import io
 import csv
+import io
 from datetime import datetime, timedelta
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-from core.logger import logger
-from core.utils.currency import format_etb
 from apps.analytics.services import SalesAnalyticsService, UserAnalyticsService
 from apps.orders.services import OrderService
+from apps.products.services import CategoryService, ProductService
 from apps.users.services import UserService
-from apps.products.services import ProductService, CategoryService
+from core.logger import logger
+from core.utils.currency import format_etb
 from infrastructure.database.session import get_db_session
 
 
 def _back_keyboard(callback: str = "admin_reports") -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 ወደ ሪፖርቶች", callback_data=callback)],
-    ])
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🔙 ወደ ሪፖርቶች", callback_data=callback)],
+        ]
+    )
 
 
 # ── Panels ────────────────────────────────────────────────────────────────────
+
 
 async def reports_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show admin reports panel."""
     query = update.callback_query
 
     keyboard = [
-        [InlineKeyboardButton("💰 የሽያጭ ሪፖርት",  callback_data="admin_sales_report")],
+        [InlineKeyboardButton("💰 የሽያጭ ሪፖርት", callback_data="admin_sales_report")],
         [InlineKeyboardButton("👥 የተጠቃሚ ሪፖርት", callback_data="admin_user_report")],
-        [InlineKeyboardButton("📦 የምርት ሪፖርት",  callback_data="admin_product_report")],
-        [InlineKeyboardButton("🏪 የሻጭ ሪፖርት",   callback_data="admin_vendor_report")],
-        [InlineKeyboardButton("📊 ዕለታዊ ሪፖርት",  callback_data="admin_daily_report")],
+        [InlineKeyboardButton("📦 የምርት ሪፖርት", callback_data="admin_product_report")],
+        [InlineKeyboardButton("🏪 የሻጭ ሪፖርት", callback_data="admin_vendor_report")],
+        [InlineKeyboardButton("📊 ዕለታዊ ሪፖርት", callback_data="admin_daily_report")],
         [InlineKeyboardButton("📈 ሳምንታዊ ሪፖርት", callback_data="admin_weekly_report")],
-        [InlineKeyboardButton("📅 ወርሃዊ ሪፖርት",  callback_data="admin_monthly_report")],
-        [InlineKeyboardButton("🔙 ወደ አስተዳደር",   callback_data="admin_back")],
+        [InlineKeyboardButton("📅 ወርሃዊ ሪፖርት", callback_data="admin_monthly_report")],
+        [InlineKeyboardButton("🔙 ወደ አስተዳደር", callback_data="admin_back")],
     ]
 
     await query.message.edit_text(
@@ -51,25 +54,26 @@ async def reports_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 # ── Report generators ─────────────────────────────────────────────────────────
 
+
 async def generate_sales_report(
     update: Update, context: ContextTypes.DEFAULT_TYPE, days: int = 30
 ) -> None:
     """Generate and display a sales report."""
     query = update.callback_query
-    end_date   = datetime.utcnow()
+    end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=days)
 
     try:
         async for db in get_db_session():
             sales_service = SalesAnalyticsService(db)
-            summary      = await sales_service.get_sales_summary(start_date, end_date)
-            daily_sales  = await sales_service.get_daily_sales(days)
+            summary = await sales_service.get_sales_summary(start_date, end_date)
+            daily_sales = await sales_service.get_daily_sales(days)
             top_products = await sales_service.get_top_products(limit=5, days=days)
             break
     except Exception as exc:
         logger.error("Sales report error: %s", exc)
         summary = {}
-        daily_sales  = []
+        daily_sales = []
         top_products = []
 
     report_text = (
@@ -93,10 +97,11 @@ async def generate_sales_report(
 
     keyboard = [
         [InlineKeyboardButton("📥 CSV ሪፖርት አውርድ", callback_data="admin_export_sales")],
-        [InlineKeyboardButton("🔙 ወደ ሪፖርቶች",      callback_data="admin_reports_back")],
+        [InlineKeyboardButton("🔙 ወደ ሪፖርቶች", callback_data="admin_reports_back")],
     ]
     await query.message.edit_text(
-        report_text, parse_mode="Markdown",
+        report_text,
+        parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
@@ -107,14 +112,14 @@ async def generate_user_report(update: Update, context: ContextTypes.DEFAULT_TYP
 
     try:
         async for db in get_db_session():
-            user_service   = UserService(db)
+            user_service = UserService(db)
             user_analytics = UserAnalyticsService(db)
-            total_users        = await user_service.user_repo.count()
-            active_users       = await user_analytics.get_active_users(days=30)
+            total_users = await user_service.user_repo.count()
+            active_users = await user_analytics.get_active_users(days=30)
             new_users_last_30d = await user_service.user_repo.count(
                 {"created_at__gte": datetime.utcnow() - timedelta(days=30)}
             )
-            vendors   = await user_service.user_repo.count({"role": "vendor"})
+            vendors = await user_service.user_repo.count({"role": "vendor"})
             user_growth = await user_analytics.get_user_growth(days=30)
             break
     except Exception as exc:
@@ -135,10 +140,11 @@ async def generate_user_report(update: Update, context: ContextTypes.DEFAULT_TYP
 
     keyboard = [
         [InlineKeyboardButton("📥 CSV ሪፖርት አውርድ", callback_data="admin_export_users")],
-        [InlineKeyboardButton("🔙 ወደ ሪፖርቶች",      callback_data="admin_reports_back")],
+        [InlineKeyboardButton("🔙 ወደ ሪፖርቶች", callback_data="admin_reports_back")],
     ]
     await query.message.edit_text(
-        report_text, parse_mode="Markdown",
+        report_text,
+        parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
@@ -149,12 +155,12 @@ async def generate_product_report(update: Update, context: ContextTypes.DEFAULT_
 
     try:
         async for db in get_db_session():
-            product_service  = ProductService(db)
+            product_service = ProductService(db)
             category_service = CategoryService(db)
             total_products = await product_service.product_repo.count()
-            pending_count  = await product_service.product_repo.count({"status": "pending"})
-            active_count   = await product_service.product_repo.count({"status": "active"})
-            categories     = await category_service.get_all_categories()
+            pending_count = await product_service.product_repo.count({"status": "pending"})
+            active_count = await product_service.product_repo.count({"status": "active"})
+            categories = await category_service.get_all_categories()
             break
     except Exception as exc:
         logger.error("Product report error: %s", exc)
@@ -173,7 +179,8 @@ async def generate_product_report(update: Update, context: ContextTypes.DEFAULT_
         report_text += f"• {cat.name}: {getattr(cat, 'product_count', 0)} ምርቶች\n"
 
     await query.message.edit_text(
-        report_text, parse_mode="Markdown",
+        report_text,
+        parse_mode="Markdown",
         reply_markup=_back_keyboard("admin_reports_back"),
     )
 
@@ -184,9 +191,11 @@ async def generate_vendor_report(update: Update, context: ContextTypes.DEFAULT_T
 
     try:
         async for db in get_db_session():
-            user_service  = UserService(db)
-            total_vendors  = await user_service.user_repo.count({"role": "vendor"})
-            active_vendors = await user_service.user_repo.count({"role": "vendor", "status": "active"})
+            user_service = UserService(db)
+            total_vendors = await user_service.user_repo.count({"role": "vendor"})
+            active_vendors = await user_service.user_repo.count(
+                {"role": "vendor", "status": "active"}
+            )
             break
     except Exception as exc:
         logger.error("Vendor report error: %s", exc)
@@ -200,19 +209,21 @@ async def generate_vendor_report(update: Update, context: ContextTypes.DEFAULT_T
     )
 
     await query.message.edit_text(
-        report_text, parse_mode="Markdown",
+        report_text,
+        parse_mode="Markdown",
         reply_markup=_back_keyboard("admin_reports_back"),
     )
 
 
 # ── CSV exports ───────────────────────────────────────────────────────────────
 
+
 async def export_sales_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Generate a sales CSV and send it as a document."""
     query = update.callback_query
     await query.answer("📊 ሪፖርቱ ዝግጁ ነው...")
 
-    end_date   = datetime.utcnow()
+    end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=30)
 
     try:
@@ -231,20 +242,29 @@ async def export_sales_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow([
-        "Order ID", "Order Number", "User ID",
-        "Total (ETB)", "Status", "Payment Status", "Created At",
-    ])
+    writer.writerow(
+        [
+            "Order ID",
+            "Order Number",
+            "User ID",
+            "Total (ETB)",
+            "Status",
+            "Payment Status",
+            "Created At",
+        ]
+    )
     for o in orders:
-        writer.writerow([
-            o.id,
-            getattr(o, "order_number", o.id),
-            o.user_id,
-            float(o.total),
-            str(o.status),
-            str(getattr(o, "payment_status", "")),
-            o.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-        ])
+        writer.writerow(
+            [
+                o.id,
+                getattr(o, "order_number", o.id),
+                o.user_id,
+                float(o.total),
+                str(o.status),
+                str(getattr(o, "payment_status", "")),
+                o.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            ]
+        )
 
     filename = f"sales_report_{end_date.strftime('%Y%m%d')}.csv"
     bio = io.BytesIO(buf.getvalue().encode("utf-8-sig"))  # BOM for Excel
@@ -255,7 +275,7 @@ async def export_sales_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         document=bio,
         filename=filename,
         caption=f"📥 *የሽያጭ ሪፖርት* — {start_date.strftime('%Y-%m-%d')} → {end_date.strftime('%Y-%m-%d')}\n"
-                f"ጠቅላላ ትዕዛዞች: {len(orders)}",
+        f"ጠቅላላ ትዕዛዞች: {len(orders)}",
         parse_mode="Markdown",
     )
 
@@ -280,23 +300,33 @@ async def export_users_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow([
-        "User ID", "Username", "Full Name",
-        "Phone", "Email", "Role", "Status",
-        "Telegram ID", "Joined At",
-    ])
+    writer.writerow(
+        [
+            "User ID",
+            "Username",
+            "Full Name",
+            "Phone",
+            "Email",
+            "Role",
+            "Status",
+            "Telegram ID",
+            "Joined At",
+        ]
+    )
     for u in users:
-        writer.writerow([
-            u.id,
-            u.username or "",
-            u.full_name or "",
-            u.phone_number or "",
-            u.email or "",
-            str(u.role),
-            str(u.status),
-            getattr(u, "telegram_id", ""),
-            u.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-        ])
+        writer.writerow(
+            [
+                u.id,
+                u.username or "",
+                u.full_name or "",
+                u.phone_number or "",
+                u.email or "",
+                str(u.role),
+                str(u.status),
+                getattr(u, "telegram_id", ""),
+                u.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            ]
+        )
 
     now = datetime.utcnow()
     filename = f"users_report_{now.strftime('%Y%m%d')}.csv"
@@ -314,18 +344,19 @@ async def export_users_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 # ── legacy stub ───────────────────────────────────────────────────────────────
 
+
 async def report_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Legacy entry point — all routing now done in dashboard.admin_callback."""
     pass
 
 
 __all__ = [
-    "reports_panel",
-    "report_callback",
-    "generate_sales_report",
-    "generate_user_report",
-    "generate_product_report",
-    "generate_vendor_report",
     "export_sales_csv",
     "export_users_csv",
+    "generate_product_report",
+    "generate_sales_report",
+    "generate_user_report",
+    "generate_vendor_report",
+    "report_callback",
+    "reports_panel",
 ]

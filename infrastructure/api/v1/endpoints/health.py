@@ -3,20 +3,21 @@
 # ============================
 """Health check endpoints for monitoring and load balancers."""
 
-from fastapi import APIRouter, Depends
-from typing import Dict, Any
+from typing import Any
 
-from core.monitoring.health_checks import health_checker
+from fastapi import APIRouter
+
 from core.config import settings
+from core.monitoring.health_checks import health_checker
 
 router = APIRouter(tags=["health"])
 
 
 @router.get("/")
-async def health_check() -> Dict[str, Any]:
+async def health_check() -> dict[str, Any]:
     """
     Basic health check endpoint.
-    
+
     Returns:
         Simple health status
     """
@@ -29,10 +30,10 @@ async def health_check() -> Dict[str, Any]:
 
 
 @router.get("/detailed")
-async def detailed_health_check() -> Dict[str, Any]:
+async def detailed_health_check() -> dict[str, Any]:
     """
     Detailed health check with component status.
-    
+
     Returns:
         Detailed health status for all components
     """
@@ -40,10 +41,10 @@ async def detailed_health_check() -> Dict[str, Any]:
 
 
 @router.get("/ready")
-async def readiness_probe() -> Dict[str, Any]:
+async def readiness_probe() -> dict[str, Any]:
     """
     Kubernetes readiness probe.
-    
+
     Returns:
         Ready status
     """
@@ -55,10 +56,10 @@ async def readiness_probe() -> Dict[str, Any]:
 
 
 @router.get("/live")
-async def liveness_probe() -> Dict[str, Any]:
+async def liveness_probe() -> dict[str, Any]:
     """
     Kubernetes liveness probe.
-    
+
     Returns:
         Live status
     """
@@ -69,15 +70,14 @@ async def liveness_probe() -> Dict[str, Any]:
 
 
 @router.get("/metrics")
-async def get_metrics() -> Dict[str, Any]:
+async def get_metrics() -> dict[str, Any]:
     """
     Get basic service metrics.
-    
+
     Returns:
         Service metrics
     """
-    from core.monitoring.metrics import get_metrics
-    
+
     # In production, this would return Prometheus metrics
     return {
         "service": settings.PROJECT_NAME,

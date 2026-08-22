@@ -3,15 +3,14 @@
 # ============================
 """Telegram bot catalog browsing and product display handlers."""
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
-from telegram.ext import ContextTypes
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, Update
 from telegram.error import BadRequest
+from telegram.ext import ContextTypes
 
+from apps.products.services import CategoryService, ProductService
 from core.logger import logger
-from apps.products.services import ProductService, CategoryService
-from infrastructure.database.session import get_db_session
 from core.utils.currency import format_etb
-
+from infrastructure.database.session import get_db_session
 
 # Pagination settings
 PRODUCTS_PER_PAGE = 5
@@ -28,7 +27,7 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     keyboard = []
     row = []
-    for i, category in enumerate(categories):
+    for _i, category in enumerate(categories):
         button_text = category.name_am or category.name
         row.append(InlineKeyboardButton(button_text, callback_data=f"cat_{category.id}"))
         if len(row) == 2:
@@ -37,23 +36,31 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if row:
         keyboard.append(row)
 
-    keyboard.append([
-        InlineKeyboardButton("🔍 ፈልግ", callback_data="menu_search"),
-        InlineKeyboardButton("🛒 ቅርጫት", callback_data="menu_cart"),
-    ])
-    keyboard.append([
-        InlineKeyboardButton("⭐ ተመራጮች", callback_data="menu_wishlist"),
-        InlineKeyboardButton("👤 ፕሮፋይል", callback_data="menu_profile"),
-    ])
+    keyboard.append(
+        [
+            InlineKeyboardButton("🔍 ፈልግ", callback_data="menu_search"),
+            InlineKeyboardButton("🛒 ቅርጫት", callback_data="menu_cart"),
+        ]
+    )
+    keyboard.append(
+        [
+            InlineKeyboardButton("⭐ ተመራጮች", callback_data="menu_wishlist"),
+            InlineKeyboardButton("👤 ፕሮፋይል", callback_data="menu_profile"),
+        ]
+    )
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     message_text = "📁 *ምድቦች*\n\nእባክዎ ማየት የሚፈልጉትን ምድብ ይምረጡ።"
 
     if query:
-        await query.message.edit_text(message_text, parse_mode="Markdown", reply_markup=reply_markup)
+        await query.message.edit_text(
+            message_text, parse_mode="Markdown", reply_markup=reply_markup
+        )
         await query.answer()
     else:
-        await update.effective_message.reply_text(message_text, parse_mode="Markdown", reply_markup=reply_markup)
+        await update.effective_message.reply_text(
+            message_text, parse_mode="Markdown", reply_markup=reply_markup
+        )
 
 
 async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -98,14 +105,18 @@ async def show_category_products(
             limit=PRODUCTS_PER_PAGE,
             offset=offset,
         )
-        total = await product_service.product_repo.count({"category_id": category_id, "status": "active"})
+        total = await product_service.product_repo.count(
+            {"category_id": category_id, "status": "active"}
+        )
         total_pages = max(1, (total + PRODUCTS_PER_PAGE - 1) // PRODUCTS_PER_PAGE)
         break
 
     if not products:
         text = f"📁 *{category_name}*\n\nምንም ምርቶች አልተገኙም።"
         keyboard = [[InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="menu_back")]]
-        await query.message.edit_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.message.edit_text(
+            text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard)
+        )
         return
 
     # Build product list text
@@ -114,8 +125,7 @@ async def show_category_products(
         price_text = format_etb(product.price)
         stock_icon = "✅" if product.is_in_stock else "❌"
         product_list.append(
-            f"{stock_icon} *{product.name_am or product.name}*\n"
-            f"   💰 {price_text}"
+            f"{stock_icon} *{product.name_am or product.name}*\n" f"   💰 {price_text}"
         )
 
     text = f"📦 *{category_name}* — ገጽ {page}/{total_pages}\n\n"
@@ -127,16 +137,20 @@ async def show_category_products(
         has_img = bool(product.images)
         icon = "🖼️" if has_img else "📦"
         btn_name = (product.name_am or product.name)[:35]
-        keyboard.append([
-            InlineKeyboardButton(f"{icon} {btn_name}", callback_data=f"prod_{product.id}")
-        ])
+        keyboard.append(
+            [InlineKeyboardButton(f"{icon} {btn_name}", callback_data=f"prod_{product.id}")]
+        )
 
     # Pagination
     nav_buttons = []
     if page > 1:
-        nav_buttons.append(InlineKeyboardButton("◀️ ቀዳሚ", callback_data=f"cat_page_{category_id}_{page-1}"))
+        nav_buttons.append(
+            InlineKeyboardButton("◀️ ቀዳሚ", callback_data=f"cat_page_{category_id}_{page-1}")
+        )
     if page < total_pages:
-        nav_buttons.append(InlineKeyboardButton("ቀጣይ ▶️", callback_data=f"cat_page_{category_id}_{page+1}"))
+        nav_buttons.append(
+            InlineKeyboardButton("ቀጣይ ▶️", callback_data=f"cat_page_{category_id}_{page+1}")
+        )
     if nav_buttons:
         keyboard.append(nav_buttons)
 
@@ -179,14 +193,18 @@ async def product_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     stars = ""
     if product.rating and product.rating > 0:
         full = int(product.rating)
-        stars = "⭐" * full + ("½" if product.rating - full >= 0.5 else "") + f" ({product.reviews_count})"
+        stars = (
+            "⭐" * full
+            + ("½" if product.rating - full >= 0.5 else "")
+            + f" ({product.reviews_count})"
+        )
     else:
         stars = "⭐ ገና ግምገማ የለም"
 
     vendor_name = product.vendor.business_name if product.vendor else "ወሎየዋ ሱቅ"
 
     title = product.name_am or product.name
-    desc  = (product.description_am or product.description or "")[:300]
+    desc = (product.description_am or product.description or "")[:300]
 
     caption = (
         f"🛍️ *{title}*\n\n"
@@ -199,6 +217,7 @@ async def product_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     # ── Keyboard ────────────────────────────────────────────────────────────
     from core.config import settings
+
     is_admin = update.effective_user.id in settings.admin_ids_list
 
     keyboard = [
@@ -212,15 +231,19 @@ async def product_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     ]
 
     if is_admin:
-        keyboard.append([
-            InlineKeyboardButton("📷 ፎቶ ጨምር",  callback_data=f"admin_prompt_image_{product.id}"),
-            InlineKeyboardButton("🖼️ ምስሎቹን ይዩ", callback_data=f"admin_add_image_{product.id}"),
-        ])
+        keyboard.append(
+            [
+                InlineKeyboardButton("📷 ፎቶ ጨምር", callback_data=f"admin_prompt_image_{product.id}"),
+                InlineKeyboardButton("🖼️ ምስሎቹን ይዩ", callback_data=f"admin_add_image_{product.id}"),
+            ]
+        )
 
-    keyboard.append([
-        InlineKeyboardButton("🔙 ወደ ኋላ", callback_data="menu_back"),
-        InlineKeyboardButton("🏠 ዋና ምናሌ", callback_data="menu_main"),
-    ])
+    keyboard.append(
+        [
+            InlineKeyboardButton("🔙 ወደ ኋላ", callback_data="menu_back"),
+            InlineKeyboardButton("🏠 ዋና ምናሌ", callback_data="menu_main"),
+        ]
+    )
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     # ── Decide: photo or text ───────────────────────────────────────────────
@@ -234,7 +257,9 @@ async def product_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         try:
             await query.message.edit_text(caption, parse_mode="Markdown", reply_markup=reply_markup)
         except BadRequest:
-            await query.message.reply_text(caption, parse_mode="Markdown", reply_markup=reply_markup)
+            await query.message.reply_text(
+                caption, parse_mode="Markdown", reply_markup=reply_markup
+            )
 
 
 async def _send_product_photo(query, context, image_url: str, caption: str, reply_markup) -> None:
@@ -296,8 +321,7 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if not products:
         await update.effective_message.reply_text(
-            f"🔍 '*{text}*' የሚመለከት ምርት አልተገኘም።\n\n"
-            f"💡 ምድቦቹን ለማየት /menu ይጠቀሙ።",
+            f"🔍 '*{text}*' የሚመለከት ምርት አልተገኘም።\n\n" f"💡 ምድቦቹን ለማየት /menu ይጠቀሙ።",
             parse_mode="Markdown",
         )
         return
@@ -309,9 +333,9 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         icon = "🖼️" if has_img else "📦"
         name = (product.name_am or product.name)[:35]
         result_text += f"• {icon} *{name}* — {format_etb(product.price)}\n"
-        keyboard.append([
-            InlineKeyboardButton(f"{icon} {name}", callback_data=f"prod_{product.id}")
-        ])
+        keyboard.append(
+            [InlineKeyboardButton(f"{icon} {name}", callback_data=f"prod_{product.id}")]
+        )
 
     keyboard.append([InlineKeyboardButton("🔙 ዋና ምናሌ", callback_data="menu_main")])
 
@@ -323,9 +347,9 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 __all__ = [
-    "menu_command",
     "category_callback",
     "category_page_callback",
+    "menu_command",
     "product_callback",
     "show_category_products",
     "text_message_handler",

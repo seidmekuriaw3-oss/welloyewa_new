@@ -18,57 +18,58 @@ waiting_product_image     → waiting for a photo to attach to a product
 waiting_addphoto_pick     → admin typed /addphoto, now waiting to pick product via text search
 """
 
-import io
-import csv
 import os
-import uuid
 import time
+import uuid
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
-from telegram.error import BadRequest
 
-from core.logger import logger
+from apps.products.schemas import CategoryCreate, CategoryUpdate
+from apps.products.services import CategoryService, ProductService
 from core.config import settings
-from apps.products.services import ProductService, CategoryService
-from apps.products.schemas import ProductCreate, CategoryCreate, CategoryUpdate
+from core.logger import logger
 from infrastructure.database.session import get_db_session
 
 # Directory served at /app/static/uploads/
-_UPLOADS_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "web_app", "static", "uploads"
-)
+_UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "web_app", "static", "uploads")
 os.makedirs(_UPLOADS_DIR, exist_ok=True)
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
+
 
 def _is_admin(update: Update) -> bool:
     return update.effective_user.id in settings.admin_ids_list
 
 
 def _cancel_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("❌ ሰርዝ", callback_data="admin_products")]
-    ])
+    return InlineKeyboardMarkup([[InlineKeyboardButton("❌ ሰርዝ", callback_data="admin_products")]])
 
 
 def _img_done_keyboard(product_id: int, total: int) -> InlineKeyboardMarkup:
     """Keyboard shown after a successful image upload."""
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(
-            "📷 ሌላ ፎቶ ጨምር",
-            callback_data=f"admin_prompt_image_{product_id}",
-        )],
-        [InlineKeyboardButton(
-            f"🖼️ ሁሉንም ምስሎች ({total}) ይዩ",
-            callback_data=f"admin_add_image_{product_id}",
-        )],
-        [InlineKeyboardButton("🔙 ምስሎች ማስተዳደር", callback_data="admin_product_images")],
-    ])
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "📷 ሌላ ፎቶ ጨምር",
+                    callback_data=f"admin_prompt_image_{product_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    f"🖼️ ሁሉንም ምስሎች ({total}) ይዩ",
+                    callback_data=f"admin_add_image_{product_id}",
+                )
+            ],
+            [InlineKeyboardButton("🔙 ምስሎች ማስተዳደር", callback_data="admin_product_images")],
+        ]
+    )
 
 
 # ── /addphoto command ─────────────────────────────────────────────────────────
+
 
 async def addphoto_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -80,6 +81,7 @@ async def addphoto_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         # This handler is the first text handler in group 0. Delegate profile
         # text prompts for regular users so the catch-all cannot swallow them.
         from bot.handlers.profile import profile_text_handler
+
         await profile_text_handler(update, context)
         return
 
@@ -115,9 +117,9 @@ async def addphoto_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             "አሁን ፎቶ/ፎቶዎቹን ላኩ ⬇️\n"
             "_(ሰርዝ ለማድረግ ❌ ይጫኑ)_",
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("❌ ሰርዝ", callback_data=f"admin_add_image_{product_id}")]
-            ]),
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("❌ ሰርዝ", callback_data=f"admin_add_image_{product_id}")]]
+            ),
         )
         return
 
@@ -164,10 +166,14 @@ async def _show_addphoto_picker(
         img_n = len(p.images or [])
         icon = "🖼️" if img_n else "📦"
         label = (p.name_am or p.name)[:30]
-        keyboard.append([InlineKeyboardButton(
-            f"{icon} {label}  [{img_n}📷]",
-            callback_data=f"admin_prompt_image_{p.id}",
-        )])
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    f"{icon} {label}  [{img_n}📷]",
+                    callback_data=f"admin_prompt_image_{p.id}",
+                )
+            ]
+        )
 
     nav = []
     if page > 1:
@@ -190,6 +196,7 @@ async def _show_addphoto_picker(
 
 # ── main text-input entry point ───────────────────────────────────────────────
 
+
 async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Called by the admin MessageHandler registered in dispatcher.py.
@@ -201,6 +208,7 @@ async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_
         from bot.handlers.location import city_text_handler
         from bot.handlers.profile import profile_text_handler
         from bot.handlers.vendor import vendor_text_handler
+
         await city_text_handler(update, context)
         await profile_text_handler(update, context)
         await vendor_text_handler(update, context)
@@ -210,6 +218,7 @@ async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_
     if not state:
         # Broadcast input also uses group 0 and must not be swallowed here.
         from bot.handlers.broadcaster import broadcast_message_handler
+
         await broadcast_message_handler(update, context)
         return
 
@@ -234,7 +243,9 @@ async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_
             if price <= 0:
                 raise ValueError
         except ValueError:
-            await update.message.reply_text("⚠️ ዋጋው ልክ አይደለም (ምሳሌ: `150.50`):", parse_mode="Markdown")
+            await update.message.reply_text(
+                "⚠️ ዋጋው ልክ አይደለም (ምሳሌ: `150.50`):", parse_mode="Markdown"
+            )
             return
         context.user_data["new_product_price"] = price
         context.user_data["admin_state"] = "add_product_stock"
@@ -267,16 +278,20 @@ async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_
         if not categories:
             await update.message.reply_text(
                 "⚠️ ምድቦች አልተገኙም። ምድብ ሳይሆን ፍጠር:",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📦 ምድብ ሳይሆን ፍጠር", callback_data="admin_cat_pick_0")],
-                    [InlineKeyboardButton("❌ ሰርዝ", callback_data="admin_products")],
-                ]),
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [InlineKeyboardButton("📦 ምድብ ሳይሆን ፍጠር", callback_data="admin_cat_pick_0")],
+                        [InlineKeyboardButton("❌ ሰርዝ", callback_data="admin_products")],
+                    ]
+                ),
             )
             return
 
         keyboard = []
         for cat in categories[:20]:
-            keyboard.append([InlineKeyboardButton(cat.name, callback_data=f"admin_cat_pick_{cat.id}")])
+            keyboard.append(
+                [InlineKeyboardButton(cat.name, callback_data=f"admin_cat_pick_{cat.id}")]
+            )
         keyboard.append([InlineKeyboardButton("❌ ሰርዝ", callback_data="admin_products")])
         await update.message.reply_text(
             f"✅ ክምችት: *{stock}*\n\n📁 ምድቡን ይምረጡ:",
@@ -298,17 +313,17 @@ async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_
             await update.message.reply_text(
                 f"✅ ምድቡ ተፈጠረ!\n• ስም: *{cat.name}*\n• ID: {cat.id}",
                 parse_mode="Markdown",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]
-                ]),
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]]
+                ),
             )
         except Exception as exc:
             logger.error("Create category error: %s", exc)
             await update.message.reply_text(
                 "❌ ምድቡን ለመፍጠር ስህተት ተፈጥሯል።",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]
-                ]),
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]]
+                ),
             )
 
     # ── Edit Category flow ────────────────────────────────────────────────────
@@ -330,17 +345,17 @@ async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_
             await update.message.reply_text(
                 f"✅ ምድቡ ተዘምኗል!\n• አዲስ ስም: *{cat.name}*\n• ID: {cat.id}",
                 parse_mode="Markdown",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]
-                ]),
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]]
+                ),
             )
         except Exception as exc:
             logger.error("Update category error: %s", exc)
             await update.message.reply_text(
                 "❌ ምድቡን ለማዘምን ስህተት ተፈጥሯል።",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]
-                ]),
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]]
+                ),
             )
 
     # ── /addphoto search ──────────────────────────────────────────────────────
@@ -355,6 +370,7 @@ async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_
 
 
 # ── Photo handler ─────────────────────────────────────────────────────────────
+
 
 async def handle_admin_photo_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -379,9 +395,7 @@ async def handle_admin_photo_input(update: Update, context: ContextTypes.DEFAULT
 
         context.user_data["admin_state"] = "waiting_addphoto_pick"
         await update.message.reply_text(
-            "📷 *ፎቶ ተቀበለ!*\n\n"
-            "ምን ምርት ላይ ያስቀምጡት?\n"
-            "_(ስሙን ይፈልጉ ወይም ከዚህ ይምረጡ)_",
+            "📷 *ፎቶ ተቀበለ!*\n\n" "ምን ምርት ላይ ያስቀምጡት?\n" "_(ስሙን ይፈልጉ ወይም ከዚህ ይምረጡ)_",
             parse_mode="Markdown",
         )
         await _show_addphoto_picker(update, context, page=1)
@@ -439,9 +453,9 @@ async def handle_admin_photo_input(update: Update, context: ContextTypes.DEFAULT
         logger.error("Photo upload product=%s error=%s", product_id, exc)
         await update.message.reply_text(
             "❌ ምስሉን ለማስቀመጥ ስህተት ተፈጥሯል።\nዳግም ፎቶ ይሞክሩ ወይም ሰርዝ:",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("❌ ሰርዝ", callback_data="admin_product_images")]
-            ]),
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("❌ ሰርዝ", callback_data="admin_product_images")]]
+            ),
         )
 
 
@@ -463,8 +477,8 @@ async def addphoto_page_callback(update: Update, context: ContextTypes.DEFAULT_T
 
 
 __all__ = [
-    "handle_admin_text_input",
-    "handle_admin_photo_input",
     "addphoto_command",
     "addphoto_page_callback",
+    "handle_admin_photo_input",
+    "handle_admin_text_input",
 ]

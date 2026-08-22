@@ -3,24 +3,23 @@
 # ============================
 """REST API endpoints for payment processing."""
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from typing import Optional, Dict, Any
 from decimal import Decimal
+from typing import Any
 
-from core.dependencies import get_current_user, get_current_admin, get_db_session
-from core.exceptions import NotFoundError, ValidationError, PaymentError
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from apps.orders.services import OrderService
-from infrastructure.payments.factory import get_payment_provider, process_payment
-from infrastructure.payments.base import PaymentRequest, PaymentResponse
 from apps.payments.schemas import (
     PaymentInitiateRequest,
     PaymentInitiateResponse,
-    PaymentVerifyResponse,
     PaymentRefundRequest,
     PaymentRefundResponse,
+    PaymentVerifyResponse,
 )
-from apps.common.schemas import MessageResponse
-from sqlalchemy.ext.asyncio import AsyncSession
+from core.dependencies import get_current_admin, get_current_user, get_db_session
+from core.exceptions import NotFoundError, PaymentError, ValidationError
+from infrastructure.payments.factory import get_payment_provider, process_payment
 
 router = APIRouter()
 
@@ -28,6 +27,7 @@ router = APIRouter()
 # ============================
 # Payment Processing Endpoints
 # ============================
+
 
 @router.post("/initiate", response_model=PaymentInitiateResponse)
 async def initiate_payment(
@@ -37,26 +37,23 @@ async def initiate_payment(
 ) -> PaymentInitiateResponse:
     """
     Initiate a payment for an order.
-    
+
     Creates a payment request and returns checkout URL or payment link.
     """
     order_service = OrderService(db)
-    
+
     # Get order details
     try:
         order = await order_service.get_order(data.order_id, current_user["id"])
     except NotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except PermissionError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
-    
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
+
     # Check if payment is already processed
     if order.payment_status == "paid":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Order already paid"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Order already paid")
+
     # Process payment
     try:
         response = await process_payment(
@@ -70,7 +67,7 @@ async def initiate_payment(
             callback_url=data.callback_url,
             webhook_url=data.webhook_url,
         )
-        
+
         return PaymentInitiateResponse(
             success=response.success,
             transaction_id=response.transaction_id,
@@ -78,11 +75,11 @@ async def initiate_payment(
             redirect_url=response.redirect_url,
             message=response.message,
         )
-        
+
     except PaymentError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 
 @router.get("/verify/{transaction_id}", response_model=PaymentVerifyResponse)
@@ -94,13 +91,13 @@ async def verify_payment(
 ) -> PaymentVerifyResponse:
     """
     Verify payment status.
-    
+
     Checks the status of a payment transaction.
     """
     try:
         provider = await get_payment_provider(method)
         verification = await provider.verify_payment(transaction_id)
-        
+
         # Update order payment status if verified
         if verification.verified and verification.order_id:
             order_service = OrderService(db)
@@ -109,7 +106,7 @@ async def verify_payment(
                 payment_status="paid",
                 transaction_id=transaction_id,
             )
-        
+
         return PaymentVerifyResponse(
             verified=verification.verified,
             status=verification.status.value if verification.status else "unknown",
@@ -117,16 +114,17 @@ async def verify_payment(
             transaction_id=verification.transaction_id,
             message="Payment verified" if verification.verified else "Payment not verified",
         )
-        
+
     except PaymentError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 
 # ============================
 # Refund Endpoints
 # ============================
+
 
 @router.post("/refund", response_model=PaymentRefundResponse)
 async def process_refund(
@@ -136,21 +134,21 @@ async def process_refund(
 ) -> PaymentRefundResponse:
     """
     Process a refund (admin only).
-    
+
     Refunds a payment for an order.
     """
     order_service = OrderService(db)
     from apps.orders.refunds import RefundManager
-    
+
     try:
         order = await order_service.get_order(data.order_id)
-        
+
         if not order.payment_transaction_id:
             raise ValidationError("No payment transaction found for this order")
-        
+
         if order.payment_status != "paid":
             raise ValidationError("Order is not in paid status")
-        
+
         # Process refund
         refund_manager = RefundManager(db)
         refund = await refund_manager.request_refund(
@@ -159,7 +157,7 @@ async def process_refund(
             reason=data.reason,
             notes=data.notes,
         )
-        
+
         # Process through payment gateway
         provider = await get_payment_provider(order.payment_method)
         success = await provider.refund_payment(
@@ -167,7 +165,7 @@ async def process_refund(
             amount=Decimal(str(data.amount)) if data.amount else None,
             reason=data.reason,
         )
-        
+
         if success:
             return PaymentRefundResponse(
                 success=True,
@@ -180,26 +178,27 @@ async def process_refund(
                 success=False,
                 message="Refund failed",
             )
-            
+
     except (NotFoundError, ValidationError) as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except PaymentError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 
 # ============================
 # Payment Method Endpoints
 # ============================
 
-@router.get("/methods", response_model=Dict[str, Any])
+
+@router.get("/methods", response_model=dict[str, Any])
 async def get_payment_methods(
     current_user: dict = Depends(get_current_user),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get available payment methods.
-    
+
     Returns list of supported payment methods and their configuration.
     """
     return {

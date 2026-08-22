@@ -4,35 +4,34 @@
 """Email notification service using SMTP."""
 
 import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
+from datetime import datetime
 from email import encoders
-from typing import Optional, Dict, Any, List
-from pathlib import Path
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Any
 
+from core.config import settings
+from core.logger import logger
 from infrastructure.notifications.base import (
     NotificationProvider,
     NotificationRequest,
     NotificationResponse,
     NotificationType,
-    NotificationError,
 )
-from core.config import settings
-from core.logger import logger
 
 
 class EmailService(NotificationProvider):
     """
     Email notification service using SMTP.
-    
+
     Features:
     - HTML email support
     - Template rendering
     - Attachment support
     - Batch sending
     """
-    
+
     def __init__(self):
         self.smtp_host = settings.SMTP_HOST
         self.smtp_port = settings.SMTP_PORT
@@ -40,16 +39,16 @@ class EmailService(NotificationProvider):
         self.smtp_password = settings.SMTP_PASSWORD
         self.from_email = settings.EMAIL_FROM
         self._templates = self._load_templates()
-    
+
     @property
     def name(self) -> str:
         return "smtp"
-    
+
     @property
     def notification_type(self) -> NotificationType:
         return NotificationType.EMAIL
-    
-    def _load_templates(self) -> Dict[str, str]:
+
+    def _load_templates(self) -> dict[str, str]:
         """Load email templates."""
         templates = {
             "welcome": """
@@ -59,7 +58,6 @@ class EmailService(NotificationProvider):
             <br>
             <p>Best regards,<br>The Wolloyewa Team</p>
             """,
-            
             "order_confirmation": """
             <h1>Order Confirmation</h1>
             <p>Dear {{name}},</p>
@@ -69,7 +67,6 @@ class EmailService(NotificationProvider):
             <br>
             <p>Thank you for shopping with Wolloyewa!</p>
             """,
-            
             "password_reset": """
             <h1>Password Reset Request</h1>
             <p>Dear {{name}},</p>
@@ -78,14 +75,12 @@ class EmailService(NotificationProvider):
             <p>This code will expire in 10 minutes.</p>
             <p>If you didn't request this, please ignore this email.</p>
             """,
-            
             "payment_received": """
             <h1>Payment Received</h1>
             <p>Dear {{name}},</p>
             <p>We have received your payment of <strong>{{amount}} ETB</strong> for order <strong>#{{order_number}}</strong>.</p>
             <p>Your order is now being processed.</p>
             """,
-            
             "order_shipped": """
             <h1>Your Order Has Been Shipped!</h1>
             <p>Dear {{name}},</p>
@@ -95,25 +90,26 @@ class EmailService(NotificationProvider):
             """,
         }
         return templates
-    
-    def _render_template(self, template_name: str, data: Dict[str, Any]) -> str:
+
+    def _render_template(self, template_name: str, data: dict[str, Any]) -> str:
         """Render email template with data."""
         template = self._templates.get(template_name, "")
         if not template:
             return data.get("content", "")
-        
+
         import jinja2
+
         env = jinja2.Environment()
         tmpl = env.from_string(template)
         return tmpl.render(**data)
-    
+
     async def send(self, request: NotificationRequest) -> NotificationResponse:
         """
         Send an email.
-        
+
         Args:
             request: Notification request
-            
+
         Returns:
             Notification response
         """
@@ -123,16 +119,16 @@ class EmailService(NotificationProvider):
                 content = self._render_template(request.template, request.template_data)
             else:
                 content = request.content or ""
-            
+
             # Create message
             msg = MIMEMultipart()
             msg["From"] = self.from_email
             msg["To"] = request.to
             msg["Subject"] = request.subject or "Notification from Wolloyewa"
-            
+
             # Attach HTML content
             msg.attach(MIMEText(content, "html"))
-            
+
             # Add attachments
             for attachment in request.attachments:
                 part = MIMEBase("application", "octet-stream")
@@ -140,25 +136,25 @@ class EmailService(NotificationProvider):
                 encoders.encode_base64(part)
                 part.add_header(
                     "Content-Disposition",
-                    f"attachment; filename={attachment.get('filename', 'attachment')}"
+                    f"attachment; filename={attachment.get('filename', 'attachment')}",
                 )
                 msg.attach(part)
-            
+
             # Send email
             with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
                 server.starttls()
                 if self.smtp_user and self.smtp_password:
                     server.login(self.smtp_user, self.smtp_password)
                 server.send_message(msg)
-            
+
             logger.info(f"Email sent to {request.to}")
-            
+
             return NotificationResponse(
                 success=True,
                 status="sent",
                 sent_at=datetime.utcnow(),
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to send email to {request.to}: {e}")
             return NotificationResponse(
@@ -179,20 +175,20 @@ _email_service = EmailService()
 async def send_email(
     to: str,
     subject: str,
-    content: Optional[str] = None,
-    template: Optional[str] = None,
-    template_data: Optional[Dict[str, Any]] = None,
+    content: str | None = None,
+    template: str | None = None,
+    template_data: dict[str, Any] | None = None,
 ) -> bool:
     """
     Send an email.
-    
+
     Args:
         to: Recipient email address
         subject: Email subject
         content: Plain content (if no template)
         template: Template name
         template_data: Data for template
-        
+
     Returns:
         True if sent successfully
     """
@@ -204,7 +200,7 @@ async def send_email(
         template=template,
         template_data=template_data or {},
     )
-    
+
     response = await _email_service.send(request)
     return response.success
 

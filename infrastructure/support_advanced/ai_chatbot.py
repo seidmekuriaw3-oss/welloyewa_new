@@ -4,16 +4,17 @@
 """AI-powered chatbot for automated customer support."""
 
 import uuid
-from enum import Enum
-from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import StrEnum
+from typing import Any
 
 from core.logger import logger
 
 
-class IntentType(str, Enum):
+class IntentType(StrEnum):
     """Chatbot intent types."""
+
     GREETING = "greeting"
     ORDER_STATUS = "order_status"
     TRACKING = "tracking"
@@ -30,23 +31,23 @@ class IntentType(str, Enum):
 @dataclass
 class ChatMessage:
     """Chat message."""
-    
+
     message_id: str
     user_id: int
     content: str
     is_bot: bool
-    intent: Optional[IntentType] = None
+    intent: IntentType | None = None
     timestamp: datetime = field(default_factory=datetime.utcnow)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class ChatSession:
     """Chat session."""
-    
+
     session_id: str
     user_id: int
-    messages: List[ChatMessage] = field(default_factory=list)
+    messages: list[ChatMessage] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.utcnow)
     last_active: datetime = field(default_factory=datetime.utcnow)
     resolved: bool = False
@@ -55,30 +56,30 @@ class ChatSession:
 @dataclass
 class ChatResponse:
     """Chatbot response."""
-    
+
     content: str
     intent: IntentType
     confidence: float
-    suggested_actions: List[str] = field(default_factory=list)
+    suggested_actions: list[str] = field(default_factory=list)
     requires_human: bool = False
 
 
 class AIChatbot:
     """
     AI-powered chatbot for customer support.
-    
+
     Features:
     - Intent recognition
     - Context-aware responses
     - Multi-language support (English, Amharic)
     - Escalation to human agents
     """
-    
+
     def __init__(self):
-        self._sessions: Dict[str, ChatSession] = {}
+        self._sessions: dict[str, ChatSession] = {}
         self._intent_responses = self._init_intent_responses()
-    
-    def _init_intent_responses(self) -> Dict[IntentType, Dict[str, str]]:
+
+    def _init_intent_responses(self) -> dict[IntentType, dict[str, str]]:
         """Initialize intent responses."""
         return {
             IntentType.GREETING: {
@@ -126,19 +127,19 @@ class AIChatbot:
                 "am": "ለመርዳት እዚህ አለሁ። እባክዎ ስለጥያቄዎ ተጨማሪ መረጃ ይስጡን።",
             },
         }
-    
+
     def _detect_intent(self, message: str) -> tuple[IntentType, float]:
         """
         Detect intent from user message.
-        
+
         Args:
             message: User message
-            
+
         Returns:
             Tuple of (intent, confidence)
         """
         message_lower = message.lower()
-        
+
         intent_keywords = {
             IntentType.GREETING: ["hello", "hi", "hey", "ሰላም", "ታዲያስ"],
             IntentType.ORDER_STATUS: ["order", "status", "ትዕዛዝ", "ሁኔታ"],
@@ -151,49 +152,49 @@ class AIChatbot:
             IntentType.COMPLAINT: ["complaint", "issue", "problem", "ቅሬታ", "ችግር", "አልወደድኩትም"],
             IntentType.FAREWELL: ["bye", "goodbye", "ቻው", "ደህና ሁን"],
         }
-        
+
         best_intent = IntentType.GENERAL
         best_score = 0
-        
+
         for intent, keywords in intent_keywords.items():
             score = sum(1 for kw in keywords if kw in message_lower)
             if score > best_score:
                 best_score = score
                 best_intent = intent
-        
+
         confidence = min(best_score / 3, 0.95) if best_score > 0 else 0.3
-        
+
         return best_intent, confidence
-    
+
     async def get_response(
         self,
         user_id: int,
         message: str,
         language: str = "en",
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
     ) -> ChatResponse:
         """
         Get chatbot response.
-        
+
         Args:
             user_id: User ID
             message: User message
             language: Language code (en, am)
             session_id: Existing session ID
-        
+
         Returns:
             ChatResponse
         """
         # Detect intent
         intent, confidence = self._detect_intent(message)
-        
+
         # Get response content
         responses = self._intent_responses.get(intent, self._intent_responses[IntentType.GENERAL])
         content = responses.get(language, responses["en"])
-        
+
         # Check if human intervention needed
         requires_human = intent == IntentType.COMPLAINT or confidence < 0.4
-        
+
         # Get or create session
         if not session_id:
             session_id = str(uuid.uuid4())
@@ -204,7 +205,7 @@ class AIChatbot:
             if not session:
                 session = ChatSession(session_id=session_id, user_id=user_id)
                 self._sessions[session_id] = session
-        
+
         # Add messages to session
         user_message = ChatMessage(
             message_id=str(uuid.uuid4()),
@@ -214,7 +215,7 @@ class AIChatbot:
             intent=intent,
         )
         session.messages.append(user_message)
-        
+
         bot_message = ChatMessage(
             message_id=str(uuid.uuid4()),
             user_id=user_id,
@@ -224,7 +225,7 @@ class AIChatbot:
         )
         session.messages.append(bot_message)
         session.last_active = datetime.utcnow()
-        
+
         # Determine suggested actions
         suggested_actions = []
         if intent == IntentType.ORDER_STATUS:
@@ -233,7 +234,7 @@ class AIChatbot:
             suggested_actions = ["Start return process", "View policy details"]
         elif intent == IntentType.PAYMENT_ISSUE:
             suggested_actions = ["Contact payment support", "Try alternative payment"]
-        
+
         return ChatResponse(
             content=content,
             intent=intent,
@@ -241,11 +242,11 @@ class AIChatbot:
             suggested_actions=suggested_actions,
             requires_human=requires_human,
         )
-    
-    async def get_session(self, session_id: str) -> Optional[ChatSession]:
+
+    async def get_session(self, session_id: str) -> ChatSession | None:
         """Get chat session by ID."""
         return self._sessions.get(session_id)
-    
+
     async def resolve_session(self, session_id: str) -> bool:
         """Mark a session as resolved."""
         session = self._sessions.get(session_id)
@@ -264,7 +265,7 @@ async def get_chatbot_response(
     user_id: int,
     message: str,
     language: str = "en",
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
 ) -> ChatResponse:
     """Get chatbot response."""
     return await ai_chatbot.get_response(user_id, message, language, session_id)
@@ -278,7 +279,7 @@ async def create_chat_session(user_id: int) -> str:
     return session_id
 
 
-async def get_chat_history(session_id: str) -> List[ChatMessage]:
+async def get_chat_history(session_id: str) -> list[ChatMessage]:
     """Get chat history for a session."""
     session = await ai_chatbot.get_session(session_id)
     return session.messages if session else []
@@ -287,11 +288,11 @@ async def get_chat_history(session_id: str) -> List[ChatMessage]:
 __all__ = [
     "AIChatbot",
     "ChatMessage",
-    "ChatSession",
     "ChatResponse",
+    "ChatSession",
     "IntentType",
     "ai_chatbot",
-    "get_chatbot_response",
     "create_chat_session",
     "get_chat_history",
+    "get_chatbot_response",
 ]

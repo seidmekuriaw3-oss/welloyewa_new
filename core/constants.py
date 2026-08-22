@@ -3,32 +3,34 @@
 # ============================
 """Application-wide constants and enums."""
 
-from enum import Enum, IntEnum
-from typing import Dict, List, Tuple
-
+from enum import StrEnum
 
 # ============================
 # User Related Constants
 # ============================
 
-class UserRole(str, Enum):
+
+class UserRole(StrEnum):
     """User role enumeration."""
+
     CUSTOMER = "customer"
     VENDOR = "vendor"
     ADMIN = "admin"
     SUPER_ADMIN = "super_admin"
 
 
-class UserStatus(str, Enum):
+class UserStatus(StrEnum):
     """User account status."""
+
     ACTIVE = "active"
     INACTIVE = "inactive"
     SUSPENDED = "suspended"
     BANNED = "banned"
 
 
-class Gender(str, Enum):
+class Gender(StrEnum):
     """User gender."""
+
     MALE = "male"
     FEMALE = "female"
     OTHER = "other"
@@ -38,16 +40,19 @@ class Gender(str, Enum):
 # Product Related Constants
 # ============================
 
-class ProductStatus(str, Enum):
+
+class ProductStatus(StrEnum):
     """Product status."""
+
     DRAFT = "draft"
     ACTIVE = "active"
     OUT_OF_STOCK = "out_of_stock"
     DISCONTINUED = "discontinued"
 
 
-class ProductCategory(str, Enum):
+class ProductCategory(StrEnum):
     """Product categories."""
+
     ELECTRONICS = "electronics"
     CLOTHING = "clothing"
     FOOD = "food"
@@ -61,7 +66,7 @@ class ProductCategory(str, Enum):
 
 
 # Category display names in Amharic
-CATEGORY_NAMES_AMHARIC: Dict[ProductCategory, str] = {
+CATEGORY_NAMES_AMHARIC: dict[ProductCategory, str] = {
     ProductCategory.ELECTRONICS: "ኤሌክትሮኒክስ",
     ProductCategory.CLOTHING: "አልባሳት",
     ProductCategory.FOOD: "ምግብ",
@@ -79,8 +84,10 @@ CATEGORY_NAMES_AMHARIC: Dict[ProductCategory, str] = {
 # Order Related Constants
 # ============================
 
-class OrderStatus(str, Enum):
+
+class OrderStatus(StrEnum):
     """Order status."""
+
     PENDING = "pending"
     CONFIRMED = "confirmed"
     PROCESSING = "processing"
@@ -90,8 +97,9 @@ class OrderStatus(str, Enum):
     REFUNDED = "refunded"
 
 
-class PaymentStatus(str, Enum):
+class PaymentStatus(StrEnum):
     """Payment status."""
+
     PENDING = "pending"
     PAID = "paid"
     FAILED = "failed"
@@ -99,23 +107,25 @@ class PaymentStatus(str, Enum):
     PARTIAL = "partial"
 
 
-class PaymentMethod(str, Enum):
+class PaymentMethod(StrEnum):
     """Payment methods."""
+
     CHAPA = "chapa"
     TELEBIRR = "telebirr"
     CBE_BIRR = "cbe_birr"
     CASH_ON_DELIVERY = "cash_on_delivery"
 
 
-class ShippingMethod(str, Enum):
+class ShippingMethod(StrEnum):
     """Shipping methods."""
+
     STANDARD = "standard"
     EXPRESS = "express"
     PICKUP = "pickup"
 
 
 # Order status flow (valid transitions)
-ORDER_STATUS_FLOW: Dict[OrderStatus, List[OrderStatus]] = {
+ORDER_STATUS_FLOW: dict[OrderStatus, list[OrderStatus]] = {
     OrderStatus.PENDING: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
     OrderStatus.CONFIRMED: [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
     OrderStatus.PROCESSING: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
@@ -130,16 +140,19 @@ ORDER_STATUS_FLOW: Dict[OrderStatus, List[OrderStatus]] = {
 # Notification Types
 # ============================
 
-class NotificationType(str, Enum):
+
+class NotificationType(StrEnum):
     """Notification types."""
+
     EMAIL = "email"
     SMS = "sms"
     TELEGRAM = "telegram"
     PUSH = "push"
 
 
-class NotificationEvent(str, Enum):
+class NotificationEvent(StrEnum):
     """Notification events."""
+
     ORDER_CREATED = "order_created"
     ORDER_CONFIRMED = "order_confirmed"
     ORDER_SHIPPED = "order_shipped"
@@ -159,40 +172,41 @@ class NotificationEvent(str, Enum):
 # Cache Keys
 # ============================
 
+
 class CacheKey:
     """Redis cache key constants."""
-    
+
     USER_PREFIX = "user:"
     PRODUCT_PREFIX = "product:"
     ORDER_PREFIX = "order:"
     VENDOR_PREFIX = "vendor:"
     SESSION_PREFIX = "session:"
     RATE_LIMIT_PREFIX = "rate_limit:"
-    
+
     @classmethod
     def user(cls, user_id: int) -> str:
         return f"{cls.USER_PREFIX}{user_id}"
-    
+
     @classmethod
     def user_by_telegram(cls, telegram_id: int) -> str:
         return f"{cls.USER_PREFIX}telegram:{telegram_id}"
-    
+
     @classmethod
     def product(cls, product_id: int) -> str:
         return f"{cls.PRODUCT_PREFIX}{product_id}"
-    
+
     @classmethod
     def order(cls, order_id: int) -> str:
         return f"{cls.ORDER_PREFIX}{order_id}"
-    
+
     @classmethod
     def vendor(cls, vendor_id: int) -> str:
         return f"{cls.VENDOR_PREFIX}{vendor_id}"
-    
+
     @classmethod
     def session(cls, session_id: str) -> str:
         return f"{cls.SESSION_PREFIX}{session_id}"
-    
+
     @classmethod
     def rate_limit(cls, key: str) -> str:
         return f"{cls.RATE_LIMIT_PREFIX}{key}"
@@ -211,14 +225,23 @@ DEFAULT_PAGE: int = 1
 # Ethiopian Calendar
 # ============================
 
-ETHIOPIAN_MONTHS: List[str] = [
-    "መስከረም", "ጥቅምት", "ህዳር", "ታህሳስ", "ጥር", "የካቲት",
-    "መጋቢት", "ሚያዝያ", "ግንቦት", "ሰኔ", "ሐምሌ", "ነሐሴ", "ጳጉሜ"
+ETHIOPIAN_MONTHS: list[str] = [
+    "መስከረም",
+    "ጥቅምት",
+    "ህዳር",
+    "ታህሳስ",
+    "ጥር",
+    "የካቲት",
+    "መጋቢት",
+    "ሚያዝያ",
+    "ግንቦት",
+    "ሰኔ",
+    "ሐምሌ",
+    "ነሐሴ",
+    "ጳጉሜ",
 ]
 
-ETHIOPIAN_WEEKDAYS: List[str] = [
-    "እሑድ", "ሰኞ", "ማክሰኞ", "ረቡዕ", "ሐሙስ", "አርብ", "ቅዳሜ"
-]
+ETHIOPIAN_WEEKDAYS: list[str] = ["እሑድ", "ሰኞ", "ማክሰኞ", "ረቡዕ", "ሐሙስ", "አርብ", "ቅዳሜ"]
 
 
 # ============================
@@ -249,7 +272,7 @@ LOGIN_LOCKOUT_MINUTES: int = 15
 
 MAX_IMAGE_SIZE_MB: int = 5
 MAX_IMAGE_SIZE_BYTES: int = MAX_IMAGE_SIZE_MB * 1024 * 1024
-ALLOWED_IMAGE_TYPES: List[str] = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+ALLOWED_IMAGE_TYPES: list[str] = ["image/jpeg", "image/png", "image/gif", "image/webp"]
 MAX_PRODUCT_IMAGES: int = 10
 MAX_REVIEW_IMAGES: int = 5
 
@@ -289,7 +312,7 @@ RATE_LIMIT_PAYMENT: str = "3/minute"
 # Ethiopia Specific
 # ============================
 
-ETHIOPIAN_REGIONS: List[str] = [
+ETHIOPIAN_REGIONS: list[str] = [
     "Addis Ababa",
     "Afar",
     "Amhara",
@@ -306,7 +329,7 @@ ETHIOPIAN_REGIONS: List[str] = [
     "Tigray",
 ]
 
-ETHIOPIAN_REGIONS_AMHARIC: Dict[str, str] = {
+ETHIOPIAN_REGIONS_AMHARIC: dict[str, str] = {
     "Addis Ababa": "አዲስ አበባ",
     "Afar": "አፋር",
     "Amhara": "አማራ",
@@ -325,9 +348,10 @@ ETHIOPIAN_REGIONS_AMHARIC: Dict[str, str] = {
 # Message Templates
 # ============================
 
+
 class MessageTemplate:
     """Telegram message templates."""
-    
+
     WELCOME = """
 🌟 እንኳን ደህና መጡ ወደ *Wolloyewa Store*! 🌟
 
@@ -341,7 +365,7 @@ class MessageTemplate:
 
 ለመጀመር /menu ይጫኑ
     """
-    
+
     PRODUCT_LIST = """
 📦 *{category}* - {page}/{total_pages}
 
@@ -350,7 +374,7 @@ class MessageTemplate:
 🔍 ለመፈለግ /search ይጫኑ
 📖 ተጨማሪ ለማየት የታችኛውን ቁልፍ ይጫኑ
     """
-    
+
     CART = """
 🛒 *የግዢ ቅርጫትዎ*
 
@@ -362,7 +386,7 @@ class MessageTemplate:
 /checkout - ግዢውን ለማጠናቀቅ
 /clear_cart - ቅርጫቱን ለማጥፋት
     """
-    
+
     ORDER_CONFIRMATION = """
 ✅ *ትዕዛዝ ተረጋግጧል!*
 

@@ -3,9 +3,7 @@
 # ============================
 """Terms of service acceptance tracking and compliance."""
 
-from enum import Enum
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 
 from core.logger import logger
@@ -14,47 +12,47 @@ from core.logger import logger
 @dataclass
 class TermsVersion:
     """Terms of service version."""
-    
+
     version: str
     effective_date: datetime
     content: str
-    content_am: Optional[str] = None
-    changes: Optional[List[str]] = None
+    content_am: str | None = None
+    changes: list[str] | None = None
     is_current: bool = False
 
 
 @dataclass
 class TermsAcceptance:
     """User terms acceptance record."""
-    
+
     user_id: int
     version: str
     accepted_at: datetime
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
+    ip_address: str | None = None
+    user_agent: str | None = None
     is_withdrawn: bool = False
-    withdrawn_at: Optional[datetime] = None
+    withdrawn_at: datetime | None = None
 
 
 class TermsChecker:
     """
     Terms of service compliance checker.
-    
+
     Features:
     - Version management
     - User acceptance tracking
     - Forced acceptance for new versions
     - Audit trail for acceptances
     """
-    
+
     def __init__(self):
-        self._versions: Dict[str, TermsVersion] = {}
-        self._acceptances: Dict[int, List[TermsAcceptance]] = {}
+        self._versions: dict[str, TermsVersion] = {}
+        self._acceptances: dict[int, list[TermsAcceptance]] = {}
         self._current_version = "1.0"
-        
+
         # Initialize default terms
         self._init_default_terms()
-    
+
     def _init_default_terms(self) -> None:
         """Initialize default terms of service."""
         default_terms = TermsVersion(
@@ -65,11 +63,10 @@ class TermsChecker:
             is_current=True,
         )
         self._versions["1.0"] = default_terms
-    
+
     def _generate_terms_content(self, language: str = "en") -> str:
         """Generate terms of service content."""
-        company_name = "Wolloyewa Technologies PLC"
-        
+
         if language == "am":
             return f"""
 # የአገልግሎት ውሎች
@@ -166,32 +163,32 @@ Wolloyewa is an Ethiopian e-commerce platform connecting buyers with sellers.
 Email: legal@wolloyewa.com
 Address: Addis Ababa, Ethiopia
 """
-    
+
     async def get_current_terms(self) -> TermsVersion:
         """Get current terms of service."""
         return self._versions.get(self._current_version)
-    
+
     async def update_terms(
         self,
         new_version: str,
-        changes: List[str],
-        effective_date: Optional[datetime] = None,
+        changes: list[str],
+        effective_date: datetime | None = None,
     ) -> TermsVersion:
         """
         Update terms of service to new version.
-        
+
         Args:
             new_version: New version number
             changes: List of changes
             effective_date: Effective date (defaults to now)
-            
+
         Returns:
             New TermsVersion
         """
         # Update current version to not current
         if self._current_version in self._versions:
             self._versions[self._current_version].is_current = False
-        
+
         new_terms = TermsVersion(
             version=new_version,
             effective_date=effective_date or datetime.utcnow(),
@@ -200,36 +197,36 @@ Address: Addis Ababa, Ethiopia
             changes=changes,
             is_current=True,
         )
-        
+
         self._versions[new_version] = new_terms
         self._current_version = new_version
-        
+
         logger.info(f"Terms of service updated to version {new_version}")
         return new_terms
-    
+
     async def record_acceptance(
         self,
         user_id: int,
         version: str,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> TermsAcceptance:
         """
         Record user acceptance of terms.
-        
+
         Args:
             user_id: User ID
             version: Terms version accepted
             ip_address: User's IP address
             user_agent: User's browser agent
-            
+
         Returns:
             TermsAcceptance record
         """
         # Check if user already accepted this version
         if await self.has_accepted_version(user_id, version):
             logger.warning(f"User {user_id} already accepted version {version}")
-        
+
         acceptance = TermsAcceptance(
             user_id=user_id,
             version=version,
@@ -237,14 +234,14 @@ Address: Addis Ababa, Ethiopia
             ip_address=ip_address,
             user_agent=user_agent,
         )
-        
+
         if user_id not in self._acceptances:
             self._acceptances[user_id] = []
         self._acceptances[user_id].append(acceptance)
-        
+
         logger.info(f"User {user_id} accepted terms version {version}")
         return acceptance
-    
+
     async def has_accepted_version(
         self,
         user_id: int,
@@ -253,56 +250,58 @@ Address: Addis Ababa, Ethiopia
         """Check if user has accepted a specific version."""
         if user_id not in self._acceptances:
             return False
-        
+
         for acceptance in self._acceptances[user_id]:
             if acceptance.version == version and not acceptance.is_withdrawn:
                 return True
-        
+
         return False
-    
+
     async def needs_new_acceptance(self, user_id: int) -> bool:
         """Check if user needs to accept new terms version."""
         current_version = await self.get_current_terms()
-        
+
         if not current_version:
             return True
-        
+
         return not await self.has_accepted_version(user_id, current_version.version)
-    
+
     async def withdraw_acceptance(
         self,
         user_id: int,
-        version: Optional[str] = None,
+        version: str | None = None,
     ) -> bool:
         """
         Withdraw acceptance of terms.
-        
+
         Args:
             user_id: User ID
             version: Specific version to withdraw (defaults to all)
-            
+
         Returns:
             True if withdrawn
         """
         if user_id not in self._acceptances:
             return False
-        
+
         withdrawn = False
         for acceptance in self._acceptances[user_id]:
             if (version is None or acceptance.version == version) and not acceptance.is_withdrawn:
                 acceptance.is_withdrawn = True
                 acceptance.withdrawn_at = datetime.utcnow()
                 withdrawn = True
-        
+
         if withdrawn:
-            logger.info(f"User {user_id} withdrew acceptance of terms{ ' version ' + version if version else ''}")
-        
+            logger.info(
+                f"User {user_id} withdrew acceptance of terms{ ' version ' + version if version else ''}"
+            )
+
         return withdrawn
-    
+
     async def get_user_acceptance_history(
         self,
         user_id: int,
-    ) -> List[TermsAcceptance]:
+    ) -> list[TermsAcceptance]:
         """Get user's terms acceptance history."""
         return self._acceptances.get(user_id, [])
 
@@ -318,8 +317,8 @@ async def check_terms_acceptance(user_id: int) -> bool:
 
 async def record_terms_acceptance(
     user_id: int,
-    ip_address: Optional[str] = None,
-    user_agent: Optional[str] = None,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
 ) -> TermsAcceptance:
     """Record user acceptance of current terms."""
     current = await terms_checker.get_current_terms()
@@ -334,9 +333,9 @@ async def get_current_terms(language: str = "en") -> str:
 
 class TermsCompliance:
     """Singleton terms compliance manager."""
-    
-    _instance: Optional[TermsChecker] = None
-    
+
+    _instance: TermsChecker | None = None
+
     @classmethod
     def get_instance(cls) -> TermsChecker:
         if cls._instance is None:
@@ -345,12 +344,12 @@ class TermsCompliance:
 
 
 __all__ = [
-    "TermsChecker",
-    "TermsVersion",
     "TermsAcceptance",
-    "terms_checker",
-    "check_terms_acceptance",
-    "record_terms_acceptance",
-    "get_current_terms",
+    "TermsChecker",
     "TermsCompliance",
+    "TermsVersion",
+    "check_terms_acceptance",
+    "get_current_terms",
+    "record_terms_acceptance",
+    "terms_checker",
 ]

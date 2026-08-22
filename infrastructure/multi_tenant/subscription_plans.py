@@ -3,16 +3,16 @@
 # ============================
 """Subscription plan management for multi-tenant billing."""
 
-from enum import Enum
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
+from enum import StrEnum
 
 from core.logger import logger
 
 
-class SubscriptionTier(str, Enum):
+class SubscriptionTier(StrEnum):
     """Subscription tier levels."""
+
     FREE = "free"
     BASIC = "basic"
     PROFESSIONAL = "professional"
@@ -22,33 +22,33 @@ class SubscriptionTier(str, Enum):
 @dataclass
 class Feature:
     """Feature in a subscription plan."""
-    
+
     name: str
     description: str
-    limit: Optional[int] = None  # None means unlimited
+    limit: int | None = None  # None means unlimited
     included: bool = True
 
 
 @dataclass
 class SubscriptionPlan:
     """Subscription plan definition."""
-    
+
     tier: SubscriptionTier
     name: str
     price_monthly: float
     price_yearly: float
-    features: Dict[str, Feature] = field(default_factory=dict)
-    limits: Dict[str, int] = field(default_factory=dict)
+    features: dict[str, Feature] = field(default_factory=dict)
+    limits: dict[str, int] = field(default_factory=dict)
     is_active: bool = True
-    description: Optional[str] = None
-    
+    description: str | None = None
+
     def has_feature(self, feature_name: str) -> bool:
         """Check if plan includes a feature."""
         if feature_name in self.features:
             return self.features[feature_name].included
         return False
-    
-    def get_limit(self, limit_name: str) -> Optional[int]:
+
+    def get_limit(self, limit_name: str) -> int | None:
         """Get a limit value."""
         return self.limits.get(limit_name)
 
@@ -56,7 +56,7 @@ class SubscriptionPlan:
 @dataclass
 class Subscription:
     """Customer subscription record."""
-    
+
     id: str
     tenant_id: str
     plan_tier: SubscriptionTier
@@ -64,28 +64,28 @@ class Subscription:
     current_period_start: datetime
     current_period_end: datetime
     cancel_at_period_end: bool = False
-    trial_end: Optional[datetime] = None
+    trial_end: datetime | None = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
-    payment_method_id: Optional[str] = None
+    payment_method_id: str | None = None
 
 
 class SubscriptionManager:
     """
     Subscription plan manager for multi-tenant billing.
-    
+
     Features:
     - Multiple subscription tiers
     - Feature-based access control
     - Usage limits
     - Trial periods
     """
-    
+
     def __init__(self):
-        self._plans: Dict[SubscriptionTier, SubscriptionPlan] = {}
-        self._subscriptions: Dict[str, Subscription] = {}
+        self._plans: dict[SubscriptionTier, SubscriptionPlan] = {}
+        self._subscriptions: dict[str, Subscription] = {}
         self._init_default_plans()
-    
+
     def _init_default_plans(self) -> None:
         """Initialize default subscription plans."""
         # Free plan
@@ -112,7 +112,7 @@ class SubscriptionManager:
             "team_members": 1,
             "storage_gb": 1,
         }
-        
+
         # Basic plan
         basic_plan = SubscriptionPlan(
             tier=SubscriptionTier.BASIC,
@@ -137,7 +137,7 @@ class SubscriptionManager:
             "team_members": 5,
             "storage_gb": 10,
         }
-        
+
         # Professional plan
         pro_plan = SubscriptionPlan(
             tier=SubscriptionTier.PROFESSIONAL,
@@ -163,7 +163,7 @@ class SubscriptionManager:
             "team_members": 20,
             "storage_gb": 50,
         }
-        
+
         # Enterprise plan
         enterprise_plan = SubscriptionPlan(
             tier=SubscriptionTier.ENTERPRISE,
@@ -176,7 +176,9 @@ class SubscriptionManager:
             "products": Feature("products", "Unlimited products", limit=None),
             "orders": Feature("orders", "Unlimited orders", limit=None),
             "vendors": Feature("vendors", "Unlimited vendors", limit=None),
-            "analytics": Feature("analytics", "Enterprise analytics + custom reports", included=True),
+            "analytics": Feature(
+                "analytics", "Enterprise analytics + custom reports", included=True
+            ),
             "support": Feature("support", "24/7 dedicated support", included=True),
             "api_access": Feature("api_access", "Full API access + webhooks", included=True),
             "custom_domain": Feature("custom_domain", "Custom domain + SSL", included=True),
@@ -191,27 +193,27 @@ class SubscriptionManager:
             "team_members": -1,
             "storage_gb": 500,
         }
-        
+
         self._plans = {
             SubscriptionTier.FREE: free_plan,
             SubscriptionTier.BASIC: basic_plan,
             SubscriptionTier.PROFESSIONAL: pro_plan,
             SubscriptionTier.ENTERPRISE: enterprise_plan,
         }
-    
-    def get_plan(self, tier: SubscriptionTier) -> Optional[SubscriptionPlan]:
+
+    def get_plan(self, tier: SubscriptionTier) -> SubscriptionPlan | None:
         """Get plan by tier."""
         return self._plans.get(tier)
-    
-    def get_all_plans(self) -> List[SubscriptionPlan]:
+
+    def get_all_plans(self) -> list[SubscriptionPlan]:
         """Get all active plans."""
         return [p for p in self._plans.values() if p.is_active]
-    
-    def get_plan_features(self, tier: SubscriptionTier) -> Dict[str, Feature]:
+
+    def get_plan_features(self, tier: SubscriptionTier) -> dict[str, Feature]:
         """Get features for a plan."""
         plan = self.get_plan(tier)
         return plan.features if plan else {}
-    
+
     def check_feature_access(
         self,
         tier: SubscriptionTier,
@@ -222,18 +224,18 @@ class SubscriptionManager:
         if not plan:
             return False
         return plan.has_feature(feature_name)
-    
+
     def get_limit(
         self,
         tier: SubscriptionTier,
         limit_name: str,
-    ) -> Optional[int]:
+    ) -> int | None:
         """Get a limit value for a plan."""
         plan = self.get_plan(tier)
         if not plan:
             return 0
         return plan.get_limit(limit_name)
-    
+
     async def create_subscription(
         self,
         tenant_id: str,
@@ -242,10 +244,10 @@ class SubscriptionManager:
     ) -> Subscription:
         """Create a new subscription for a tenant."""
         import uuid
-        
+
         now = datetime.utcnow()
         period_end = now.replace(month=now.month + 1)  # Add 1 month
-        
+
         subscription = Subscription(
             id=str(uuid.uuid4()),
             tenant_id=tenant_id,
@@ -255,52 +257,54 @@ class SubscriptionManager:
             current_period_end=period_end,
             trial_end=now + timedelta(days=trial_days) if trial_days > 0 else None,
         )
-        
+
         self._subscriptions[subscription.id] = subscription
-        logger.info(f"Created subscription {subscription.id} for tenant {tenant_id} with plan {plan_tier.value}")
-        
+        logger.info(
+            f"Created subscription {subscription.id} for tenant {tenant_id} with plan {plan_tier.value}"
+        )
+
         return subscription
-    
-    async def get_subscription(self, tenant_id: str) -> Optional[Subscription]:
+
+    async def get_subscription(self, tenant_id: str) -> Subscription | None:
         """Get subscription for a tenant."""
         for sub in self._subscriptions.values():
             if sub.tenant_id == tenant_id and sub.status == "active":
                 return sub
         return None
-    
+
     async def update_subscription_plan(
         self,
         tenant_id: str,
         new_plan_tier: SubscriptionTier,
-    ) -> Optional[Subscription]:
+    ) -> Subscription | None:
         """Update a tenant's subscription plan."""
         subscription = await self.get_subscription(tenant_id)
         if not subscription:
             return None
-        
+
         subscription.plan_tier = new_plan_tier
         subscription.updated_at = datetime.utcnow()
-        
+
         logger.info(f"Updated subscription for tenant {tenant_id} to {new_plan_tier.value}")
         return subscription
-    
+
     async def cancel_subscription(
         self,
         tenant_id: str,
         at_period_end: bool = True,
-    ) -> Optional[Subscription]:
+    ) -> Subscription | None:
         """Cancel a subscription."""
         subscription = await self.get_subscription(tenant_id)
         if not subscription:
             return None
-        
+
         if at_period_end:
             subscription.cancel_at_period_end = True
             logger.info(f"Subscription for tenant {tenant_id} will cancel at period end")
         else:
             subscription.status = "cancelled"
             logger.info(f"Subscription for tenant {tenant_id} cancelled immediately")
-        
+
         subscription.updated_at = datetime.utcnow()
         return subscription
 
@@ -309,7 +313,7 @@ class SubscriptionManager:
 subscription_manager = SubscriptionManager()
 
 
-def get_plan_features(tier: SubscriptionTier) -> Dict[str, Feature]:
+def get_plan_features(tier: SubscriptionTier) -> dict[str, Feature]:
     """Get features for a plan."""
     return subscription_manager.get_plan_features(tier)
 
@@ -319,25 +323,25 @@ def check_feature_access(tier: SubscriptionTier, feature_name: str) -> bool:
     return subscription_manager.check_feature_access(tier, feature_name)
 
 
-async def upgrade_plan(tenant_id: str, new_tier: SubscriptionTier) -> Optional[Subscription]:
+async def upgrade_plan(tenant_id: str, new_tier: SubscriptionTier) -> Subscription | None:
     """Upgrade a tenant's subscription plan."""
     return await subscription_manager.update_subscription_plan(tenant_id, new_tier)
 
 
-async def downgrade_plan(tenant_id: str, new_tier: SubscriptionTier) -> Optional[Subscription]:
+async def downgrade_plan(tenant_id: str, new_tier: SubscriptionTier) -> Subscription | None:
     """Downgrade a tenant's subscription plan."""
     return await subscription_manager.update_subscription_plan(tenant_id, new_tier)
 
 
 __all__ = [
+    "Feature",
+    "Subscription",
     "SubscriptionManager",
     "SubscriptionPlan",
     "SubscriptionTier",
-    "Feature",
-    "Subscription",
-    "subscription_manager",
-    "get_plan_features",
     "check_feature_access",
-    "upgrade_plan",
     "downgrade_plan",
+    "get_plan_features",
+    "subscription_manager",
+    "upgrade_plan",
 ]

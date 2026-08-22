@@ -4,17 +4,18 @@
 """Offline sync support for mobile apps."""
 
 import json
-from enum import Enum
-from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import StrEnum
+from typing import Any
 
-from infrastructure.redis.client import get_redis_client
 from core.logger import logger
+from infrastructure.redis.client import get_redis_client
 
 
-class SyncStatus(str, Enum):
+class SyncStatus(StrEnum):
     """Sync operation status."""
+
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -22,8 +23,9 @@ class SyncStatus(str, Enum):
     CONFLICT = "conflict"
 
 
-class SyncOperation(str, Enum):
+class SyncOperation(StrEnum):
     """Sync operation types."""
+
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"
@@ -32,17 +34,17 @@ class SyncOperation(str, Enum):
 @dataclass
 class SyncQueue:
     """Sync queue item."""
-    
+
     queue_id: str
     user_id: int
     entity_type: str
     entity_id: str
     operation: SyncOperation
-    data: Dict[str, Any]
+    data: dict[str, Any]
     status: SyncStatus = SyncStatus.PENDING
     created_at: datetime = field(default_factory=datetime.utcnow)
-    processed_at: Optional[datetime] = None
-    error: Optional[str] = None
+    processed_at: datetime | None = None
+    error: str | None = None
     retry_count: int = 0
     max_retries: int = 3
 
@@ -50,33 +52,33 @@ class SyncQueue:
 class SyncConflictResolver:
     """
     Conflict resolver for offline sync.
-    
+
     Strategies:
     - Server wins: Server version always takes precedence
     - Client wins: Client version always takes precedence
     - Last write wins: Most recent timestamp wins
     - Merge: Attempt to merge changes
     """
-    
+
     def __init__(self, strategy: str = "server_wins"):
         self.strategy = strategy
-    
+
     def resolve(
         self,
-        server_data: Dict[str, Any],
-        client_data: Dict[str, Any],
+        server_data: dict[str, Any],
+        client_data: dict[str, Any],
         server_version: datetime,
         client_version: datetime,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Resolve conflict between server and client data.
-        
+
         Args:
             server_data: Current server data
             client_data: Client's pending changes
             server_version: Server last modified timestamp
             client_version: Client last modified timestamp
-            
+
         Returns:
             Resolved data
         """
@@ -98,48 +100,49 @@ class SyncConflictResolver:
 class OfflineSyncManager:
     """
     Offline sync manager for mobile apps.
-    
+
     Features:
     - Queue offline operations
     - Sync when online
     - Conflict resolution
     - Retry failed operations
     """
-    
+
     def __init__(self):
         self._redis = None
         self._conflict_resolver = SyncConflictResolver()
-    
+
     async def _get_redis(self):
         """Get Redis client lazily."""
         if self._redis is None:
             self._redis = await get_redis_client()
         return self._redis
-    
+
     async def queue_operation(
         self,
         user_id: int,
         entity_type: str,
         entity_id: str,
         operation: SyncOperation,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> str:
         """
         Queue an offline operation.
-        
+
         Args:
             user_id: User ID
             entity_type: Type of entity (order, product, etc.)
             entity_id: Entity ID
             operation: Operation type
             data: Operation data
-            
+
         Returns:
             Queue ID
         """
         import uuid
+
         redis = await self._get_redis()
-        
+
         queue_id = str(uuid.uuid4())
         queue_item = SyncQueue(
             queue_id=queue_id,
@@ -149,45 +152,48 @@ class OfflineSyncManager:
             operation=operation,
             data=data,
         )
-        
+
         key = f"offline_sync:{user_id}:{queue_id}"
         await redis.setex(
             key,
             86400 * 7,  # 7 days TTL
-            json.dumps({
-                "queue_id": queue_item.queue_id,
-                "user_id": queue_item.user_id,
-                "entity_type": queue_item.entity_type,
-                "entity_id": queue_item.entity_id,
-                "operation": queue_item.operation.value,
-                "data": queue_item.data,
-                "status": queue_item.status.value,
-                "created_at": queue_item.created_at.isoformat(),
-                "retry_count": queue_item.retry_count,
-                "max_retries": queue_item.max_retries,
-            }, default=str),
+            json.dumps(
+                {
+                    "queue_id": queue_item.queue_id,
+                    "user_id": queue_item.user_id,
+                    "entity_type": queue_item.entity_type,
+                    "entity_id": queue_item.entity_id,
+                    "operation": queue_item.operation.value,
+                    "data": queue_item.data,
+                    "status": queue_item.status.value,
+                    "created_at": queue_item.created_at.isoformat(),
+                    "retry_count": queue_item.retry_count,
+                    "max_retries": queue_item.max_retries,
+                },
+                default=str,
+            ),
         )
-        
+
         # Add to user's sync list
         await redis.sadd(f"offline_sync:{user_id}:list", queue_id)
-        
+
         logger.info(f"Queued offline operation {queue_id} for user {user_id}")
         return queue_id
-    
-    async def process_sync_queue(self, user_id: int) -> Dict[str, Any]:
+
+    async def process_sync_queue(self, user_id: int) -> dict[str, Any]:
         """
         Process all pending sync operations for a user.
-        
+
         Args:
             user_id: User ID
-            
+
         Returns:
             Sync results
         """
         redis = await self._get_redis()
-        
+
         queue_ids = await redis.smembers(f"offline_sync:{user_id}:list")
-        
+
         results = {
             "processed": 0,
             "success": 0,
@@ -195,11 +201,11 @@ class OfflineSyncManager:
             "conflicts": 0,
             "details": [],
         }
-        
+
         for queue_id in queue_ids:
             queue_id = queue_id.decode() if isinstance(queue_id, bytes) else queue_id
             result = await self._process_operation(user_id, queue_id)
-            
+
             results["processed"] += 1
             if result["status"] == "success":
                 results["success"] += 1
@@ -207,32 +213,32 @@ class OfflineSyncManager:
                 results["conflicts"] += 1
             else:
                 results["failed"] += 1
-            
+
             results["details"].append(result)
-        
+
         return results
-    
-    async def _process_operation(self, user_id: int, queue_id: str) -> Dict[str, Any]:
+
+    async def _process_operation(self, user_id: int, queue_id: str) -> dict[str, Any]:
         """
         Process a single sync operation.
-        
+
         Args:
             user_id: User ID
             queue_id: Queue ID
-            
+
         Returns:
             Operation result
         """
         redis = await self._get_redis()
-        
+
         key = f"offline_sync:{user_id}:{queue_id}"
         item_json = await redis.get(key)
-        
+
         if not item_json:
             return {"queue_id": queue_id, "status": "not_found"}
-        
+
         item_data = json.loads(item_json)
-        
+
         queue_item = SyncQueue(
             queue_id=item_data["queue_id"],
             user_id=item_data["user_id"],
@@ -245,18 +251,18 @@ class OfflineSyncManager:
             retry_count=item_data.get("retry_count", 0),
             max_retries=item_data.get("max_retries", 3),
         )
-        
+
         if queue_item.status != SyncStatus.PENDING:
             return {"queue_id": queue_id, "status": queue_item.status.value}
-        
+
         # Update status to processing
         await self._update_queue_item_status(redis, user_id, queue_id, SyncStatus.PROCESSING)
-        
+
         try:
             # Process based on entity type and operation
             # This would call the appropriate service
             success = await self._apply_operation(queue_item)
-            
+
             if success:
                 await self._update_queue_item_status(redis, user_id, queue_id, SyncStatus.COMPLETED)
                 await redis.srem(f"offline_sync:{user_id}:list", queue_id)
@@ -265,41 +271,47 @@ class OfflineSyncManager:
             else:
                 queue_item.retry_count += 1
                 if queue_item.retry_count >= queue_item.max_retries:
-                    await self._update_queue_item_status(redis, user_id, queue_id, SyncStatus.FAILED)
+                    await self._update_queue_item_status(
+                        redis, user_id, queue_id, SyncStatus.FAILED
+                    )
                 else:
-                    await self._update_queue_item_status(redis, user_id, queue_id, SyncStatus.PENDING)
-                
+                    await self._update_queue_item_status(
+                        redis, user_id, queue_id, SyncStatus.PENDING
+                    )
+
                 return {
                     "queue_id": queue_id,
                     "status": "failed",
                     "retry_count": queue_item.retry_count,
                 }
-                
+
         except Exception as e:
             logger.error(f"Failed to process sync operation {queue_id}: {e}")
-            
+
             queue_item.retry_count += 1
             if queue_item.retry_count >= queue_item.max_retries:
                 await self._update_queue_item_status(redis, user_id, queue_id, SyncStatus.FAILED)
             else:
                 await self._update_queue_item_status(redis, user_id, queue_id, SyncStatus.PENDING)
-            
+
             return {
                 "queue_id": queue_id,
                 "status": "failed",
                 "error": str(e),
                 "retry_count": queue_item.retry_count,
             }
-    
+
     async def _apply_operation(self, queue_item: SyncQueue) -> bool:
         """Apply the operation to the server."""
         # In production, this would call the appropriate service
         # based on entity_type and operation
-        logger.info(f"Applying {queue_item.operation.value} on {queue_item.entity_type} {queue_item.entity_id}")
-        
+        logger.info(
+            f"Applying {queue_item.operation.value} on {queue_item.entity_type} {queue_item.entity_id}"
+        )
+
         # Mock implementation - always success
         return True
-    
+
     async def _update_queue_item_status(
         self,
         redis,
@@ -310,31 +322,31 @@ class OfflineSyncManager:
         """Update queue item status."""
         key = f"offline_sync:{user_id}:{queue_id}"
         item_json = await redis.get(key)
-        
+
         if item_json:
             item_data = json.loads(item_json)
             item_data["status"] = status.value
             item_data["processed_at"] = datetime.utcnow().isoformat()
             await redis.setex(key, 86400 * 7, json.dumps(item_data))
-    
+
     async def get_pending_sync_count(self, user_id: int) -> int:
         """Get number of pending sync operations for a user."""
         redis = await self._get_redis()
         return await redis.scard(f"offline_sync:{user_id}:list")
-    
+
     async def clear_user_sync_queue(self, user_id: int) -> int:
         """Clear all pending sync operations for a user."""
         redis = await self._get_redis()
-        
+
         queue_ids = await redis.smembers(f"offline_sync:{user_id}:list")
-        
+
         for queue_id in queue_ids:
             queue_id = queue_id.decode() if isinstance(queue_id, bytes) else queue_id
             key = f"offline_sync:{user_id}:{queue_id}"
             await redis.delete(key)
-        
+
         await redis.delete(f"offline_sync:{user_id}:list")
-        
+
         logger.info(f"Cleared sync queue for user {user_id}")
         return len(queue_ids)
 
@@ -348,7 +360,7 @@ async def queue_offline_operation(
     entity_type: str,
     entity_id: str,
     operation: str,
-    data: Dict[str, Any],
+    data: dict[str, Any],
 ) -> str:
     """Queue an offline operation."""
     return await offline_sync_manager.queue_operation(
@@ -356,7 +368,7 @@ async def queue_offline_operation(
     )
 
 
-async def process_sync_queue(user_id: int) -> Dict[str, Any]:
+async def process_sync_queue(user_id: int) -> dict[str, Any]:
     """Process pending sync operations."""
     return await offline_sync_manager.process_sync_queue(user_id)
 
@@ -368,12 +380,12 @@ async def get_pending_sync_count(user_id: int) -> int:
 
 __all__ = [
     "OfflineSyncManager",
-    "SyncQueue",
-    "SyncOperation",
-    "SyncStatus",
     "SyncConflictResolver",
-    "offline_sync_manager",
-    "queue_offline_operation",
-    "process_sync_queue",
+    "SyncOperation",
+    "SyncQueue",
+    "SyncStatus",
     "get_pending_sync_count",
+    "offline_sync_manager",
+    "process_sync_queue",
+    "queue_offline_operation",
 ]

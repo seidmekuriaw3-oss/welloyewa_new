@@ -4,8 +4,9 @@
 """Audit logging for tracking changes across all applications."""
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
-from sqlalchemy import Column, Integer, String, DateTime, JSON, BigInteger, Index, select
+from typing import Any
+
+from sqlalchemy import JSON, BigInteger, Index, String, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,33 +17,37 @@ from core.logger import logger
 class AuditLog(BaseModel, TimestampMixin):
     """
     Audit log entry model.
-    
+
     Tracks all changes to database records for compliance and debugging.
     """
-    
+
     __tablename__ = "audit_logs"
-    
+
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    user_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
-    username: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    action: Mapped[str] = mapped_column(String(50), nullable=False)  # CREATE, UPDATE, DELETE, READ, LOGIN, LOGOUT
+    user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    username: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    action: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # CREATE, UPDATE, DELETE, READ, LOGIN, LOGOUT
     entity_type: Mapped[str] = mapped_column(String(100), nullable=False)  # Table/model name
-    entity_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
-    old_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
-    new_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
-    changes: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)  # Diff between old and new
-    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
-    user_agent: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    request_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
-    correlation_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    
+    entity_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    old_data: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    new_data: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    changes: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True
+    )  # Diff between old and new
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    request_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    correlation_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     __table_args__ = (
-        Index('idx_audit_logs_entity', 'entity_type', 'entity_id'),
-        Index('idx_audit_logs_action_time', 'action', 'created_at'),
-        Index('idx_audit_logs_user_time', 'user_id', 'created_at'),
+        Index("idx_audit_logs_entity", "entity_type", "entity_id"),
+        Index("idx_audit_logs_action_time", "action", "created_at"),
+        Index("idx_audit_logs_user_time", "user_id", "created_at"),
     )
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for API responses."""
         return {
             "id": self.id,
@@ -61,28 +66,28 @@ class AuditLog(BaseModel, TimestampMixin):
 
 class AuditLogEntry:
     """Helper class for creating audit log entries."""
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
-    
+
     async def log(
         self,
         action: str,
         entity_type: str,
-        entity_id: Optional[str] = None,
-        user_id: Optional[int] = None,
-        username: Optional[str] = None,
-        old_data: Optional[Dict[str, Any]] = None,
-        new_data: Optional[Dict[str, Any]] = None,
-        changes: Optional[Dict[str, Any]] = None,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        request_id: Optional[str] = None,
-        correlation_id: Optional[str] = None,
+        entity_id: str | None = None,
+        user_id: int | None = None,
+        username: str | None = None,
+        old_data: dict[str, Any] | None = None,
+        new_data: dict[str, Any] | None = None,
+        changes: dict[str, Any] | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+        request_id: str | None = None,
+        correlation_id: str | None = None,
     ) -> AuditLog:
         """
         Create an audit log entry.
-        
+
         Args:
             action: Action performed (CREATE, UPDATE, DELETE, READ, LOGIN, LOGOUT)
             entity_type: Type of entity (table/model name)
@@ -96,14 +101,14 @@ class AuditLogEntry:
             user_agent: User agent string
             request_id: Request ID for tracing
             correlation_id: Correlation ID for tracing
-            
+
         Returns:
             Created AuditLog entry
         """
         # Calculate changes if not provided but both old and new data exist
         if changes is None and old_data is not None and new_data is not None:
             changes = self._calculate_changes(old_data, new_data)
-        
+
         log_entry = AuditLog(
             action=action,
             entity_type=entity_type,
@@ -118,50 +123,50 @@ class AuditLogEntry:
             request_id=request_id,
             correlation_id=correlation_id,
         )
-        
+
         self.db.add(log_entry)
         await self.db.flush()
-        
+
         logger.debug(f"Audit log created: {action} on {entity_type} by user {user_id}")
         return log_entry
-    
+
     def _calculate_changes(
         self,
-        old_data: Dict[str, Any],
-        new_data: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        old_data: dict[str, Any],
+        new_data: dict[str, Any],
+    ) -> dict[str, Any]:
         """
         Calculate differences between old and new data.
-        
+
         Args:
             old_data: Original data dictionary
             new_data: Updated data dictionary
-            
+
         Returns:
             Dictionary of changed fields with old and new values
         """
         changes = {}
-        
+
         # Skip common fields that shouldn't be audited
-        skip_fields = {'updated_at', 'created_at', 'id'}
-        
+        skip_fields = {"updated_at", "created_at", "id"}
+
         all_keys = set(old_data.keys()) | set(new_data.keys())
-        
+
         for key in all_keys:
             if key in skip_fields:
                 continue
-            
+
             old_value = old_data.get(key)
             new_value = new_data.get(key)
-            
+
             if old_value != new_value:
                 changes[key] = {
                     "old": self._serialize_value(old_value),
                     "new": self._serialize_value(new_value),
                 }
-        
+
         return changes if changes else None
-    
+
     def _serialize_value(self, value: Any) -> Any:
         """Serialize value for JSON storage."""
         if value is None:
@@ -170,7 +175,7 @@ class AuditLogEntry:
             return value.isoformat()
         if isinstance(value, (dict, list)):
             return value
-        if hasattr(value, 'value'):  # Enum
+        if hasattr(value, "value"):  # Enum
             return value.value
         return str(value)
 
@@ -179,20 +184,20 @@ async def audit_log(
     db: AsyncSession,
     action: str,
     entity_type: str,
-    entity_id: Optional[str] = None,
-    user_id: Optional[int] = None,
-    username: Optional[str] = None,
-    old_data: Optional[Dict[str, Any]] = None,
-    new_data: Optional[Dict[str, Any]] = None,
-    changes: Optional[Dict[str, Any]] = None,
-    ip_address: Optional[str] = None,
-    user_agent: Optional[str] = None,
-    request_id: Optional[str] = None,
-    correlation_id: Optional[str] = None,
+    entity_id: str | None = None,
+    user_id: int | None = None,
+    username: str | None = None,
+    old_data: dict[str, Any] | None = None,
+    new_data: dict[str, Any] | None = None,
+    changes: dict[str, Any] | None = None,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+    request_id: str | None = None,
+    correlation_id: str | None = None,
 ) -> AuditLog:
     """
     Convenience function to create an audit log entry.
-    
+
     Args:
         db: Database session
         action: Action performed
@@ -207,7 +212,7 @@ async def audit_log(
         user_agent: User agent
         request_id: Request ID
         correlation_id: Correlation ID
-        
+
     Returns:
         Created AuditLog entry
     """
@@ -230,16 +235,16 @@ async def audit_log(
 
 async def get_audit_logs(
     db: AsyncSession,
-    entity_type: Optional[str] = None,
-    entity_id: Optional[str] = None,
-    user_id: Optional[int] = None,
-    action: Optional[str] = None,
+    entity_type: str | None = None,
+    entity_id: str | None = None,
+    user_id: int | None = None,
+    action: str | None = None,
     limit: int = 100,
     offset: int = 0,
-) -> List[AuditLog]:
+) -> list[AuditLog]:
     """
     Retrieve audit logs with filters.
-    
+
     Args:
         db: Database session
         entity_type: Filter by entity type
@@ -248,12 +253,12 @@ async def get_audit_logs(
         action: Filter by action
         limit: Maximum number of records
         offset: Number of records to skip
-        
+
     Returns:
         List of audit log entries
     """
     query = select(AuditLog).order_by(AuditLog.created_at.desc())
-    
+
     if entity_type:
         query = query.where(AuditLog.entity_type == entity_type)
     if entity_id:
@@ -262,9 +267,9 @@ async def get_audit_logs(
         query = query.where(AuditLog.user_id == user_id)
     if action:
         query = query.where(AuditLog.action == action)
-    
+
     query = query.offset(offset).limit(limit)
-    
+
     result = await db.execute(query)
     return result.scalars().all()
 

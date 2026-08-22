@@ -8,30 +8,30 @@ from enum import IntEnum
 
 class SupportStates(IntEnum):
     """Support conversation states."""
-    
+
     # Ticket creation states
     AWAITING_TICKET_SUBJECT = 1
     AWAITING_TICKET_CATEGORY = 2
     AWAITING_TICKET_MESSAGE = 3
     AWAITING_TICKET_ATTACHMENT = 4
-    
+
     # Ticket viewing states
     VIEWING_TICKET = 5
     VIEWING_TICKET_LIST = 6
-    
+
     # Ticket reply states
     AWAITING_REPLY_MESSAGE = 7
     AWAITING_REPLY_ATTACHMENT = 8
-    
+
     # FAQ states
     VIEWING_FAQ = 9
     SEARCHING_FAQ = 10
     FAQ_CATEGORY = 11
-    
+
     # Feedback states
     AWAITING_FEEDBACK_RATING = 12
     AWAITING_FEEDBACK_MESSAGE = 13
-    
+
     # Chatbot states
     CHATBOT_SESSION = 14
 
@@ -76,20 +76,20 @@ SUPPORT_STATES = {
 }
 
 __all__ = [
-    "SupportStates",
-    "AWAITING_TICKET_SUBJECT",
+    "AWAITING_FEEDBACK_MESSAGE",
+    "AWAITING_FEEDBACK_RATING",
+    "AWAITING_REPLY_ATTACHMENT",
+    "AWAITING_REPLY_MESSAGE",
+    "AWAITING_TICKET_ATTACHMENT",
     "AWAITING_TICKET_CATEGORY",
     "AWAITING_TICKET_MESSAGE",
-    "AWAITING_TICKET_ATTACHMENT",
+    "AWAITING_TICKET_SUBJECT",
+    "CHATBOT_SESSION",
+    "FAQ_CATEGORY",
+    "SEARCHING_FAQ",
+    "SUPPORT_STATES",
+    "VIEWING_FAQ",
     "VIEWING_TICKET",
     "VIEWING_TICKET_LIST",
-    "AWAITING_REPLY_MESSAGE",
-    "AWAITING_REPLY_ATTACHMENT",
-    "VIEWING_FAQ",
-    "SEARCHING_FAQ",
-    "FAQ_CATEGORY",
-    "AWAITING_FEEDBACK_RATING",
-    "AWAITING_FEEDBACK_MESSAGE",
-    "CHATBOT_SESSION",
-    "SUPPORT_STATES",
+    "SupportStates",
 ]

@@ -4,8 +4,7 @@
 """Celery application configuration for background task processing."""
 
 from celery import Celery
-from celery.schedules import crontab
-from kombu import Queue, Exchange
+from kombu import Exchange, Queue
 
 from core.config import settings
 from core.logger import logger
@@ -14,7 +13,7 @@ from core.logger import logger
 def create_celery_app() -> Celery:
     """
     Create and configure Celery application.
-    
+
     Returns:
         Configured Celery app instance
     """
@@ -27,7 +26,7 @@ def create_celery_app() -> Celery:
             "infrastructure.workers.tasks",
         ],
     )
-    
+
     # Configure Celery
     app.conf.update(
         # Task settings
@@ -38,19 +37,16 @@ def create_celery_app() -> Celery:
         task_track_started=True,
         task_time_limit=30 * 60,  # 30 minutes
         task_soft_time_limit=25 * 60,  # 25 minutes
-        
         # Result settings
         result_expires=3600,  # 1 hour
         result_backend_transport_options={
             "visibility_timeout": 3600,
         },
-        
         # Worker settings
         worker_concurrency=settings.CELERY_WORKER_CONCURRENCY,
         worker_prefetch_multiplier=1,
         worker_max_tasks_per_child=200,
         worker_max_memory_per_child=200 * 1024 * 1024,  # 200 MB
-        
         # Task queues
         task_queues=(
             Queue("default", Exchange("default"), routing_key="default"),
@@ -62,50 +58,45 @@ def create_celery_app() -> Celery:
             Queue("analytics", Exchange("analytics"), routing_key="analytics"),
             Queue("maintenance", Exchange("maintenance"), routing_key="maintenance"),
         ),
-        
         # Task routes
         task_routes={
             "infrastructure.workers.tasks.send_email_task": {"queue": "email"},
             "infrastructure.workers.tasks.send_sms_task": {"queue": "sms"},
             "infrastructure.workers.tasks.process_payment_task": {"queue": "payment"},
             "infrastructure.workers.tasks.update_analytics_task": {"queue": "analytics"},
-            "infrastructure.workers.tasks.cleanup_expired_reservations_task": {"queue": "maintenance"},
+            "infrastructure.workers.tasks.cleanup_expired_reservations_task": {
+                "queue": "maintenance"
+            },
             "infrastructure.workers.tasks.backup_database_task": {"queue": "maintenance"},
         },
-        
         # Task rate limits
         task_annotations={
             "infrastructure.workers.tasks.send_email_task": {"rate_limit": "10/m"},
             "infrastructure.workers.tasks.send_sms_task": {"rate_limit": "5/m"},
         },
-        
         # Beat schedule (will be defined in beat_schedule.py)
         beat_schedule={},
-        
         # Timezone
         timezone=settings.TIMEZONE,
         enable_utc=True,
-        
         # Error handling
         task_reject_on_worker_lost=True,
         task_acks_late=True,
         task_default_priority=5,
         task_queue_max_priority=10,
-        
         # Logging
         worker_redirect_stdouts=False,
         worker_hijack_root_logger=False,
-        
         # Security
         task_protocol=2,
     )
-    
+
     # Set up custom error handling
     @app.task(bind=True, max_retries=3)
     def debug_task(self):
         """Debug task for testing."""
         logger.debug(f"Request: {self.request!r}")
-    
+
     logger.info("Celery app configured successfully")
     return app
 

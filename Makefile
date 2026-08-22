@@ -64,6 +64,18 @@ install-dev:
 	pre-commit install
 	@echo "$(GREEN)Installation complete!$(NC)"
 
+lint:
+	@echo "$(GREEN)Running Ruff lint checks...$(NC)"
+	ruff check .
+	@echo "$(GREEN)Linting complete!$(NC)"
+
+format:
+	@echo "$(GREEN)Formatting Python code...$(NC)"
+	ruff format .
+	isort .
+	black .
+	@echo "$(GREEN)Formatting complete!$(NC)"
+
 clean:
 	@echo "$(YELLOW)Cleaning Python cache files...$(NC)"
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

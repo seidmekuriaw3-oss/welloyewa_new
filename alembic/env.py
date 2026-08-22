@@ -29,7 +29,7 @@ def get_async_database_url() -> str:
     url = os.environ.get("DATABASE_URL", "")
     # Ensure asyncpg driver
     url = re.sub(r"^postgresql://", "postgresql+asyncpg://", url)
-    url = re.sub(r"^postgres://",   "postgresql+asyncpg://", url)
+    url = re.sub(r"^postgres://", "postgresql+asyncpg://", url)
     # Strip sslmode — asyncpg doesn't accept it as a query param
     url = re.sub(r"[?&]sslmode=[^&]*", "", url)
     url = re.sub(r"\?$", "", url)

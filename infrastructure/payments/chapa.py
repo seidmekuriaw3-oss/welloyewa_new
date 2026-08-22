@@ -7,80 +7,81 @@ import hashlib
 import hmac
 import json
 from decimal import Decimal
-from typing import Dict, Any, Optional
+from typing import Any
+
 import httpx
 
+from core.config import settings
+from core.logger import logger
 from infrastructure.payments.base import (
+    PaymentError,
     PaymentProvider,
     PaymentRequest,
     PaymentResponse,
-    PaymentVerification,
     PaymentStatus,
-    PaymentError,
+    PaymentVerification,
 )
-from core.config import settings
-from core.logger import logger
 
 
 class ChapaProvider(PaymentProvider):
     """
     Chapa payment gateway provider.
-    
+
     Chapa is an Ethiopian payment gateway supporting:
     - Telebirr
     - CBE Birr
     - Card payments
     - Bank transfers
-    
+
     Documentation: https://docs.chapa.co/
     """
-    
+
     def __init__(self):
         self.api_url = settings.CHAPA_API_URL
         self.secret_key = settings.CHAPA_SECRET_KEY
         self.webhook_secret = settings.CHAPA_WEBHOOK_SECRET
-    
+
     @property
     def name(self) -> str:
         return "chapa"
-    
+
     async def _make_request(
         self,
         endpoint: str,
         method: str = "POST",
-        data: Optional[Dict] = None,
-    ) -> Dict:
+        data: dict | None = None,
+    ) -> dict:
         """Make HTTP request to Chapa API."""
         url = f"{self.api_url}/{endpoint}"
         headers = {
             "Authorization": f"Bearer {self.secret_key}",
             "Content-Type": "application/json",
         }
-        
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 if method.upper() == "GET":
                     response = await client.get(url, headers=headers)
                 else:
                     response = await client.post(url, json=data, headers=headers)
-                
+
                 response.raise_for_status()
                 return response.json()
-                
+
             except httpx.HTTPStatusError as e:
                 logger.error(f"Chapa API error: {e.response.text}")
-                raise PaymentError(f"Payment gateway error: {e.response.status_code}")
+                raise PaymentError(f"Payment gateway error: {e.response.status_code}") from e
             except Exception as e:
                 logger.error(f"Chapa request failed: {e}")
-                raise PaymentError(f"Failed to connect to payment gateway: {e}")
-    
+                raise PaymentError(f"Failed to connect to payment gateway: {e}") from e
+
     async def initialize_payment(self, request: PaymentRequest) -> PaymentResponse:
         """
         Initialize payment with Chapa.
-        
+
         Args:
             request: Payment request data
-            
+
         Returns:
             Payment response with checkout URL
         """
@@ -91,24 +92,27 @@ class ChapaProvider(PaymentProvider):
                 "currency": request.currency,
                 "email": request.customer_email,
                 "first_name": request.customer_name.split()[0] if request.customer_name else "",
-                "last_name": " ".join(request.customer_name.split()[1:]) if request.customer_name else "",
+                "last_name": (
+                    " ".join(request.customer_name.split()[1:]) if request.customer_name else ""
+                ),
                 "phone_number": request.customer_phone,
                 "tx_ref": f"ORDER_{request.order_number}",
                 "callback_url": request.callback_url,
                 "return_url": request.callback_url,
                 "customization": {
                     "title": f"Order {request.order_number}",
-                    "description": request.description or f"Payment for order {request.order_number}",
+                    "description": request.description
+                    or f"Payment for order {request.order_number}",
                 },
             }
-            
+
             # Add metadata
             if request.metadata:
                 payload["meta"] = request.metadata
-            
+
             # Make API call
             result = await self._make_request("transaction/initialize", data=payload)
-            
+
             if result.get("status") == "success":
                 return PaymentResponse(
                     success=True,
@@ -125,7 +129,7 @@ class ChapaProvider(PaymentProvider):
                     message=result.get("message", "Payment initialization failed"),
                     raw_response=result,
                 )
-                
+
         except Exception as e:
             logger.error(f"Chapa payment initialization failed: {e}")
             return PaymentResponse(
@@ -133,24 +137,24 @@ class ChapaProvider(PaymentProvider):
                 message=str(e),
                 status=PaymentStatus.FAILED,
             )
-    
+
     async def verify_payment(self, transaction_id: str) -> PaymentVerification:
         """
         Verify payment status with Chapa.
-        
+
         Args:
             transaction_id: Transaction reference
-            
+
         Returns:
             Payment verification result
         """
         try:
             result = await self._make_request(f"transaction/verify/{transaction_id}", method="GET")
-            
+
             if result.get("status") == "success":
                 data = result.get("data", {})
                 status = self._map_status(data.get("status"))
-                
+
                 return PaymentVerification(
                     verified=status == PaymentStatus.COMPLETED,
                     transaction_id=transaction_id,
@@ -170,7 +174,7 @@ class ChapaProvider(PaymentProvider):
                     message=result.get("message", "Verification failed"),
                     raw_response=result,
                 )
-                
+
         except Exception as e:
             logger.error(f"Chapa payment verification failed: {e}")
             return PaymentVerification(
@@ -179,14 +183,14 @@ class ChapaProvider(PaymentProvider):
                 status=PaymentStatus.FAILED,
                 message=str(e),
             )
-    
-    async def process_webhook(self, payload: Dict[str, Any]) -> PaymentVerification:
+
+    async def process_webhook(self, payload: dict[str, Any]) -> PaymentVerification:
         """
         Process Chapa webhook notification.
-        
+
         Args:
             payload: Webhook payload
-            
+
         Returns:
             Payment verification result
         """
@@ -200,12 +204,12 @@ class ChapaProvider(PaymentProvider):
                     status=PaymentStatus.FAILED,
                     message="Invalid signature",
                 )
-        
+
         # Extract data
         data = payload.get("data", {})
         transaction_id = data.get("tx_ref")
         status = self._map_status(data.get("status"))
-        
+
         return PaymentVerification(
             verified=status == PaymentStatus.COMPLETED,
             transaction_id=transaction_id,
@@ -217,21 +221,21 @@ class ChapaProvider(PaymentProvider):
             metadata=data.get("meta", {}),
             raw_response=payload,
         )
-    
+
     async def refund_payment(
         self,
         transaction_id: str,
-        amount: Optional[Decimal] = None,
-        reason: Optional[str] = None,
+        amount: Decimal | None = None,
+        reason: str | None = None,
     ) -> bool:
         """
         Refund a payment through Chapa.
-        
+
         Args:
             transaction_id: Transaction reference
             amount: Amount to refund (None for full)
             reason: Refund reason
-            
+
         Returns:
             True if refund successful
         """
@@ -240,19 +244,19 @@ class ChapaProvider(PaymentProvider):
                 "tx_ref": transaction_id,
                 "reason": reason or "Customer request",
             }
-            
+
             if amount:
                 payload["amount"] = float(amount)
-            
+
             result = await self._make_request("transaction/refund", data=payload)
-            
+
             return result.get("status") == "success"
-            
+
         except Exception as e:
             logger.error(f"Chapa refund failed: {e}")
             return False
-    
-    def _map_status(self, chapa_status: Optional[str]) -> PaymentStatus:
+
+    def _map_status(self, chapa_status: str | None) -> PaymentStatus:
         """Map Chapa status to internal status."""
         status_map = {
             "success": PaymentStatus.COMPLETED,
@@ -262,22 +266,22 @@ class ChapaProvider(PaymentProvider):
             "cancelled": PaymentStatus.CANCELLED,
         }
         return status_map.get(chapa_status, PaymentStatus.PENDING)
-    
-    def _verify_signature(self, payload: Dict, signature: str) -> bool:
+
+    def _verify_signature(self, payload: dict, signature: str) -> bool:
         """Verify webhook signature."""
         if not self.webhook_secret:
             return True
-        
+
         # Remove signature from payload for verification
         payload_copy = {k: v for k, v in payload.items() if k != "signature"}
         payload_json = json.dumps(payload_copy, sort_keys=True)
-        
+
         expected = hmac.new(
             self.webhook_secret.encode(),
             payload_json.encode(),
             hashlib.sha256,
         ).hexdigest()
-        
+
         return hmac.compare_digest(expected, signature)
 
 

@@ -3,67 +3,67 @@
 # ============================
 """Admin handlers for order management."""
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
+from apps.orders.schemas import OrderStatusUpdate
+from apps.orders.services import OrderService
 from core.logger import logger
 from core.utils.currency import format_etb
-from apps.orders.services import OrderService
-from apps.orders.schemas import OrderStatusUpdate
 from infrastructure.database.session import get_db_session
-from core.constants import OrderStatus
-
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
+
 def _orders_back_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 ወደ ትዕዛዝ አስተዳደር", callback_data="admin_orders_back")]
-    ])
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🔙 ወደ ትዕዛዝ አስተዳደር", callback_data="admin_orders_back")]]
+    )
 
 
 STATUS_EMOJI = {
-    "pending":    "⏳",
-    "confirmed":  "✅",
+    "pending": "⏳",
+    "confirmed": "✅",
     "processing": "🔄",
-    "shipped":    "🚚",
-    "delivered":  "📦✅",
-    "cancelled":  "❌",
-    "refunded":   "↩️",
+    "shipped": "🚚",
+    "delivered": "📦✅",
+    "cancelled": "❌",
+    "refunded": "↩️",
 }
 
 STATUS_TRANSITIONS = {
-    "pending":    ["confirmed", "cancelled"],
-    "confirmed":  ["processing", "cancelled"],
+    "pending": ["confirmed", "cancelled"],
+    "confirmed": ["processing", "cancelled"],
     "processing": ["shipped", "cancelled"],
-    "shipped":    ["delivered", "cancelled"],
-    "delivered":  [],
-    "cancelled":  [],
-    "refunded":   [],
+    "shipped": ["delivered", "cancelled"],
+    "delivered": [],
+    "cancelled": [],
+    "refunded": [],
 }
 
 STATUS_LABELS = {
-    "confirmed":  "✅ ያረጋገጠ",
+    "confirmed": "✅ ያረጋገጠ",
     "processing": "🔄 በማቀናበር",
-    "shipped":    "🚚 ተላከ",
-    "delivered":  "📦 ደረሰ",
-    "cancelled":  "❌ ተሰረዘ",
+    "shipped": "🚚 ተላከ",
+    "delivered": "📦 ደረሰ",
+    "cancelled": "❌ ተሰረዘ",
 }
 
 
 # ── Panels ────────────────────────────────────────────────────────────────────
+
 
 async def orders_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show admin orders management panel."""
     query = update.callback_query
 
     keyboard = [
-        [InlineKeyboardButton("📋 ሁሉንም ትዕዛዞች",  callback_data="admin_list_orders")],
-        [InlineKeyboardButton("⏳ በመጠባበቅ ላይ",   callback_data="admin_pending_orders")],
-        [InlineKeyboardButton("🔄 በማቀናበር ላይ",   callback_data="admin_processing_orders")],
-        [InlineKeyboardButton("🚚 የተላኩ",         callback_data="admin_shipped_orders")],
-        [InlineKeyboardButton("✅ የደረሱ",          callback_data="admin_delivered_orders")],
-        [InlineKeyboardButton("🔙 ወደ አስተዳደር",    callback_data="admin_back")],
+        [InlineKeyboardButton("📋 ሁሉንም ትዕዛዞች", callback_data="admin_list_orders")],
+        [InlineKeyboardButton("⏳ በመጠባበቅ ላይ", callback_data="admin_pending_orders")],
+        [InlineKeyboardButton("🔄 በማቀናበር ላይ", callback_data="admin_processing_orders")],
+        [InlineKeyboardButton("🚚 የተላኩ", callback_data="admin_shipped_orders")],
+        [InlineKeyboardButton("✅ የደረሱ", callback_data="admin_delivered_orders")],
+        [InlineKeyboardButton("🔙 ወደ አስተዳደር", callback_data="admin_back")],
     ]
 
     await query.message.edit_text(
@@ -76,7 +76,7 @@ async def orders_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def list_orders(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
-    status: str = None,
+    status: str | None = None,
 ) -> None:
     """List orders with per-row 'View Details' buttons."""
     query = update.callback_query
@@ -100,7 +100,9 @@ async def list_orders(
             break
     except Exception as exc:
         logger.error("list_orders error: %s", exc)
-        await query.message.edit_text("❌ ትዕዛዞችን ለማምጣት ስህተት ተፈጥሯል።", reply_markup=_orders_back_keyboard())
+        await query.message.edit_text(
+            "❌ ትዕዛዞችን ለማምጣት ስህተት ተፈጥሯል።", reply_markup=_orders_back_keyboard()
+        )
         return
 
     if not orders:
@@ -123,11 +125,9 @@ async def list_orders(
             f"   👤 ተጠቃሚ: {order.user_id} | 💰 {format_etb(order.total)}\n"
             f"   📅 {order.created_at.strftime('%Y-%m-%d %H:%M')}\n\n"
         )
-        keyboard.append([
-            InlineKeyboardButton(
-                f"🔍 #{order_num}", callback_data=f"admin_view_order_{order.id}"
-            )
-        ])
+        keyboard.append(
+            [InlineKeyboardButton(f"🔍 #{order_num}", callback_data=f"admin_view_order_{order.id}")]
+        )
 
     nav = []
     if page > 1:
@@ -145,6 +145,7 @@ async def list_orders(
 
 
 # ── Action functions (called by dashboard router) ─────────────────────────────
+
 
 async def show_order_detail(
     update: Update, context: ContextTypes.DEFAULT_TYPE, order_id: int
@@ -192,9 +193,9 @@ async def show_order_detail(
         row = []
         for ns in next_statuses:
             label = STATUS_LABELS.get(ns, ns)
-            row.append(InlineKeyboardButton(
-                label, callback_data=f"admin_set_status_{order_id}_{ns}"
-            ))
+            row.append(
+                InlineKeyboardButton(label, callback_data=f"admin_set_status_{order_id}_{ns}")
+            )
         keyboard.append(row)
 
     keyboard.append([InlineKeyboardButton("🔙 ወደ ትዕዛዞች", callback_data="admin_list_orders")])
@@ -223,10 +224,16 @@ async def do_change_order_status(
         await query.message.edit_text(
             f"✅ ትዕዛዝ (ID: {order_id}) ሁኔታ ወደ *{status_label}* ተቀይሯል!",
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔍 ዝርዝር ይዩ", callback_data=f"admin_view_order_{order_id}")],
-                [InlineKeyboardButton("🔙 ወደ ትዕዛዞች", callback_data="admin_list_orders")],
-            ]),
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "🔍 ዝርዝር ይዩ", callback_data=f"admin_view_order_{order_id}"
+                        )
+                    ],
+                    [InlineKeyboardButton("🔙 ወደ ትዕዛዞች", callback_data="admin_list_orders")],
+                ]
+            ),
         )
     except Exception as exc:
         logger.error("Change order %s status to %s error: %s", order_id, new_status, exc)
@@ -237,6 +244,7 @@ async def do_change_order_status(
 
 
 # ── legacy stub ───────────────────────────────────────────────────────────────
+
 
 async def order_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Legacy entry point — all routing now done in dashboard.admin_callback."""
@@ -251,10 +259,10 @@ async def update_order_status(
 
 
 __all__ = [
-    "orders_admin_panel",
-    "list_orders",
-    "show_order_detail",
     "do_change_order_status",
+    "list_orders",
     "order_admin_callback",
+    "orders_admin_panel",
+    "show_order_detail",
     "update_order_status",
 ]

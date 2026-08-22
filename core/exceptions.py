@@ -3,26 +3,26 @@
 # ============================
 """Custom exception classes for the application."""
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class WolloyewaException(Exception):
     """Base exception for all application-specific exceptions."""
-    
+
     def __init__(
         self,
         message: str,
         code: str = "ERROR",
         status_code: int = 500,
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         self.message = message
         self.code = code
         self.status_code = status_code
         self.details = details or {}
         super().__init__(self.message)
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert exception to dictionary for API responses."""
         return {
             "error": self.code,
@@ -36,9 +36,10 @@ class WolloyewaException(Exception):
 # Database Exceptions
 # ============================
 
+
 class DatabaseError(WolloyewaException):
     """Base exception for database-related errors."""
-    
+
     def __init__(self, message: str = "Database error occurred", **kwargs):
         super().__init__(
             message=message,
@@ -50,7 +51,7 @@ class DatabaseError(WolloyewaException):
 
 class RecordNotFoundError(DatabaseError):
     """Exception raised when a database record is not found."""
-    
+
     def __init__(self, model: str, identifier: Any):
         super().__init__(
             message=f"{model} with identifier '{identifier}' not found",
@@ -62,7 +63,7 @@ class RecordNotFoundError(DatabaseError):
 
 class DuplicateRecordError(DatabaseError):
     """Exception raised when attempting to create a duplicate record."""
-    
+
     def __init__(self, model: str, field: str, value: Any):
         super().__init__(
             message=f"{model} with {field} '{value}' already exists",
@@ -76,10 +77,11 @@ class DuplicateRecordError(DatabaseError):
 # Validation Exceptions
 # ============================
 
+
 class ValidationError(WolloyewaException):
     """Exception raised when data validation fails."""
-    
-    def __init__(self, message: str = "Validation failed", errors: Optional[Dict[str, Any]] = None):
+
+    def __init__(self, message: str = "Validation failed", errors: dict[str, Any] | None = None):
         super().__init__(
             message=message,
             code="VALIDATION_ERROR",
@@ -90,7 +92,7 @@ class ValidationError(WolloyewaException):
 
 class PhoneNumberError(ValidationError):
     """Exception raised for invalid phone numbers."""
-    
+
     def __init__(self, phone: str):
         super().__init__(
             message=f"Invalid phone number: {phone}. Must be an Ethiopian phone number (09XXXXXXXX or 07XXXXXXXX)",
@@ -100,7 +102,7 @@ class PhoneNumberError(ValidationError):
 
 class EmailError(ValidationError):
     """Exception raised for invalid email addresses."""
-    
+
     def __init__(self, email: str):
         super().__init__(
             message=f"Invalid email address: {email}",
@@ -110,7 +112,7 @@ class EmailError(ValidationError):
 
 class PasswordError(ValidationError):
     """Exception raised for invalid passwords."""
-    
+
     def __init__(self, message: str = "Password must be at least 8 characters"):
         super().__init__(
             message=message,
@@ -122,9 +124,10 @@ class PasswordError(ValidationError):
 # Authentication & Authorization
 # ============================
 
+
 class AuthenticationError(WolloyewaException):
     """Exception raised for authentication failures."""
-    
+
     def __init__(self, message: str = "Authentication failed"):
         super().__init__(
             message=message,
@@ -135,14 +138,14 @@ class AuthenticationError(WolloyewaException):
 
 class InvalidTokenError(AuthenticationError):
     """Exception raised for invalid or expired tokens."""
-    
+
     def __init__(self, message: str = "Invalid or expired token"):
         super().__init__(message)
 
 
 class PermissionError(WolloyewaException):
     """Exception raised for permission/authorization failures."""
-    
+
     def __init__(self, message: str = "You don't have permission to perform this action"):
         super().__init__(
             message=message,
@@ -153,7 +156,7 @@ class PermissionError(WolloyewaException):
 
 class RoleRequiredError(PermissionError):
     """Exception raised when a specific role is required."""
-    
+
     def __init__(self, required_role: str):
         super().__init__(
             message=f"Role '{required_role}' is required to perform this action",
@@ -165,9 +168,10 @@ class RoleRequiredError(PermissionError):
 # Business Logic Exceptions
 # ============================
 
+
 class NotFoundError(WolloyewaException):
     """Exception raised when a resource is not found."""
-    
+
     def __init__(self, resource: str, resource_id: Any = None):
         message = f"{resource} not found"
         if resource_id:
@@ -181,7 +185,7 @@ class NotFoundError(WolloyewaException):
 
 class InsufficientStockError(WolloyewaException):
     """Exception raised when product stock is insufficient."""
-    
+
     def __init__(self, product_name: str, requested: int, available: int):
         super().__init__(
             message=f"Insufficient stock for '{product_name}'. Requested: {requested}, Available: {available}",
@@ -197,7 +201,7 @@ class InsufficientStockError(WolloyewaException):
 
 class PaymentError(WolloyewaException):
     """Exception raised for payment-related errors."""
-    
+
     def __init__(self, message: str = "Payment processing failed"):
         super().__init__(
             message=message,
@@ -208,7 +212,7 @@ class PaymentError(WolloyewaException):
 
 class PaymentVerificationError(PaymentError):
     """Exception raised when payment verification fails."""
-    
+
     def __init__(self, transaction_id: str):
         super().__init__(
             message=f"Payment verification failed for transaction: {transaction_id}",
@@ -218,7 +222,7 @@ class PaymentVerificationError(PaymentError):
 
 class OrderError(WolloyewaException):
     """Exception raised for order-related errors."""
-    
+
     def __init__(self, message: str = "Order operation failed"):
         super().__init__(
             message=message,
@@ -229,7 +233,7 @@ class OrderError(WolloyewaException):
 
 class OrderStatusError(OrderError):
     """Exception raised for invalid order status transitions."""
-    
+
     def __init__(self, current_status: str, requested_status: str):
         super().__init__(
             message=f"Cannot change order status from '{current_status}' to '{requested_status}'",
@@ -244,9 +248,10 @@ class OrderStatusError(OrderError):
 # Rate Limiting Exceptions
 # ============================
 
+
 class RateLimitError(WolloyewaException):
     """Exception raised when rate limit is exceeded."""
-    
+
     def __init__(self, retry_after: int = 60):
         super().__init__(
             message=f"Rate limit exceeded. Please try again in {retry_after} seconds.",
@@ -260,9 +265,10 @@ class RateLimitError(WolloyewaException):
 # File & Storage Exceptions
 # ============================
 
+
 class FileUploadError(WolloyewaException):
     """Exception raised for file upload errors."""
-    
+
     def __init__(self, message: str = "File upload failed"):
         super().__init__(
             message=message,
@@ -273,7 +279,7 @@ class FileUploadError(WolloyewaException):
 
 class FileSizeExceededError(FileUploadError):
     """Exception raised when file size exceeds limit."""
-    
+
     def __init__(self, max_size_mb: int):
         super().__init__(
             message=f"File size exceeds maximum allowed size of {max_size_mb}MB",
@@ -283,7 +289,7 @@ class FileSizeExceededError(FileUploadError):
 
 class UnsupportedFileTypeError(FileUploadError):
     """Exception raised for unsupported file types."""
-    
+
     def __init__(self, file_type: str, allowed_types: list):
         super().__init__(
             message=f"Unsupported file type: {file_type}. Allowed: {', '.join(allowed_types)}",
@@ -295,9 +301,10 @@ class UnsupportedFileTypeError(FileUploadError):
 # Cache Exceptions
 # ============================
 
+
 class CacheError(WolloyewaException):
     """Exception raised for cache-related errors."""
-    
+
     def __init__(self, message: str = "Cache operation failed"):
         super().__init__(
             message=message,
@@ -310,9 +317,10 @@ class CacheError(WolloyewaException):
 # External Service Exceptions
 # ============================
 
+
 class ExternalServiceError(WolloyewaException):
     """Exception raised when an external service fails."""
-    
+
     def __init__(self, service: str, message: str = "External service error"):
         super().__init__(
             message=f"{service}: {message}",
@@ -324,7 +332,7 @@ class ExternalServiceError(WolloyewaException):
 
 class TelegramAPIError(ExternalServiceError):
     """Exception raised for Telegram API errors."""
-    
+
     def __init__(self, message: str = "Telegram API error"):
         super().__init__(service="Telegram", message=message)
 
@@ -333,9 +341,10 @@ class TelegramAPIError(ExternalServiceError):
 # Configuration Exceptions
 # ============================
 
+
 class ConfigurationError(WolloyewaException):
     """Exception raised for configuration errors."""
-    
+
     def __init__(self, message: str = "Configuration error"):
         super().__init__(
             message=message,
@@ -348,9 +357,10 @@ class ConfigurationError(WolloyewaException):
 # Webhook Exceptions
 # ============================
 
+
 class WebhookError(WolloyewaException):
     """Exception raised for webhook processing errors."""
-    
+
     def __init__(self, message: str = "Webhook processing failed"):
         super().__init__(
             message=message,
@@ -361,6 +371,6 @@ class WebhookError(WolloyewaException):
 
 class WebhookVerificationError(WebhookError):
     """Exception raised when webhook verification fails."""
-    
+
     def __init__(self):
         super().__init__(message="Webhook signature verification failed")

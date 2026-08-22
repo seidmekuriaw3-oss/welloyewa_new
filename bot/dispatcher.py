@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Telegram bot dispatcher - registers all handlers and middlewares."""
 
 from telegram import Update
 from telegram.ext import (
     Application,
-    CommandHandler,
     CallbackQueryHandler,
-    MessageHandler,
+    CommandHandler,
     ConversationHandler,
+    MessageHandler,
     TypeHandler,
     filters,
 )
 
-from core.config import settings
-from core.logger import logger
 from bot.middlewares.auth import ensure_user_registered
+from core.logger import logger
 
 
 def setup_dispatcher(application: Application) -> Application:
@@ -24,19 +22,31 @@ def setup_dispatcher(application: Application) -> Application:
 
     # ── Import all handler modules ──────────────────────────────────────────
     from bot.handlers import (
-        start, catalog, cart, checkout,
-        profile, feedback, search, wishlist, vendor,
-        location, deep_linking, broadcaster, errors,
+        broadcaster,
+        cart,
+        catalog,
+        checkout,
+        deep_linking,
+        errors,
+        feedback,
+        location,
+        profile,
+        search,
+        start,
+        vendor,
+        wishlist,
     )
 
     # Admin handlers (optional)
-    dashboard = products_admin = orders_admin = users_admin = reports = None
+    dashboard = products_admin = orders_admin = None
     admin_input = None
     try:
         from bot.handlers.admin import (
-            dashboard, products_admin, orders_admin, users_admin, reports,
+            admin_input,
+            dashboard,
+            orders_admin,
+            products_admin,
         )
-        from bot.handlers.admin import admin_input
     except Exception as e:
         logger.warning(f"Admin handlers disabled: {e}")
 
@@ -48,67 +58,91 @@ def setup_dispatcher(application: Application) -> Application:
 
     # ── Onboarding callbacks (highest priority — before menu and catalog) ────
     # Handles language selection during new-user onboarding (Step 1)
-    application.add_handler(CallbackQueryHandler(start.onboard_language_callback, pattern="^onboard_lang_"))
+    application.add_handler(
+        CallbackQueryHandler(start.onboard_language_callback, pattern="^onboard_lang_")
+    )
 
     # ── Command handlers ─────────────────────────────────────────────────────
-    application.add_handler(CommandHandler("start",     start.start_command))
-    application.add_handler(CommandHandler("help",      start.help_command))
-    application.add_handler(CommandHandler("menu",      catalog.menu_command))
+    application.add_handler(CommandHandler("start", start.start_command))
+    application.add_handler(CommandHandler("help", start.help_command))
+    application.add_handler(CommandHandler("menu", catalog.menu_command))
     # NOTE: /search and /checkout are entry-points of ConversationHandlers below;
     # registering them again here would shadow the conversation — omitted.
-    application.add_handler(CommandHandler("cart",      cart.cart_command))
-    application.add_handler(CommandHandler("profile",   profile.profile_command))
-    application.add_handler(CommandHandler("orders",    profile.orders_command))
-    application.add_handler(CommandHandler("wishlist",  wishlist.wishlist_command))
-    application.add_handler(CommandHandler("location",  location.location_command))
+    application.add_handler(CommandHandler("cart", cart.cart_command))
+    application.add_handler(CommandHandler("profile", profile.profile_command))
+    application.add_handler(CommandHandler("orders", profile.orders_command))
+    application.add_handler(CommandHandler("wishlist", wishlist.wishlist_command))
+    application.add_handler(CommandHandler("location", location.location_command))
     application.add_handler(CommandHandler("deep_link", deep_linking.deep_link_command))
     application.add_handler(CommandHandler("broadcast", broadcaster.broadcast_command))
-    application.add_handler(CommandHandler("shop",      start.shop_command))
+    application.add_handler(CommandHandler("shop", start.shop_command))
 
     if dashboard is not None:
-        application.add_handler(CommandHandler("admin",     dashboard.admin_command))
-        application.add_handler(CommandHandler("stats",     dashboard.stats_command))
+        application.add_handler(CommandHandler("admin", dashboard.admin_command))
+        application.add_handler(CommandHandler("stats", dashboard.stats_command))
     if admin_input is not None:
-        application.add_handler(CommandHandler("addphoto",  admin_input.addphoto_command))
+        application.add_handler(CommandHandler("addphoto", admin_input.addphoto_command))
 
     logger.info("Command handlers registered")
 
     # ── Callback query handlers ───────────────────────────────────────────────
     # Category pagination (must come before generic cat_ so it matches first)
-    application.add_handler(CallbackQueryHandler(catalog.category_page_callback, pattern="^cat_page_"))
-    application.add_handler(CallbackQueryHandler(catalog.category_callback,      pattern="^cat_"))
+    application.add_handler(
+        CallbackQueryHandler(catalog.category_page_callback, pattern="^cat_page_")
+    )
+    application.add_handler(CallbackQueryHandler(catalog.category_callback, pattern="^cat_"))
     # Product detail & add-to-cart / add-to-wishlist from product view
-    application.add_handler(CallbackQueryHandler(catalog.product_callback,       pattern="^prod_(?!admin_)"))
-    application.add_handler(CallbackQueryHandler(cart.cart_callback,             pattern="^cart_"))
-    application.add_handler(CallbackQueryHandler(cart.cart_callback,             pattern="^add_to_cart_"))
-    application.add_handler(CallbackQueryHandler(profile.profile_callback,       pattern="^profile_"))
-    application.add_handler(CallbackQueryHandler(profile.orders_page_callback,   pattern="^orders_page_"))
-    application.add_handler(CallbackQueryHandler(vendor.vendor_callback,         pattern="^vendor_"))
+    application.add_handler(
+        CallbackQueryHandler(catalog.product_callback, pattern="^prod_(?!admin_)")
+    )
+    application.add_handler(CallbackQueryHandler(cart.cart_callback, pattern="^cart_"))
+    application.add_handler(CallbackQueryHandler(cart.cart_callback, pattern="^add_to_cart_"))
+    application.add_handler(CallbackQueryHandler(profile.profile_callback, pattern="^profile_"))
+    application.add_handler(
+        CallbackQueryHandler(profile.orders_page_callback, pattern="^orders_page_")
+    )
+    application.add_handler(CallbackQueryHandler(vendor.vendor_callback, pattern="^vendor_"))
     # Language change from Profile screen (lang_am / lang_en / lang_om)
-    application.add_handler(CallbackQueryHandler(profile.language_callback,      pattern="^lang_"))
-    application.add_handler(CallbackQueryHandler(location.location_callback,    pattern="^(share_location|enter_city)$"))
-    application.add_handler(CallbackQueryHandler(broadcaster.broadcast_callback, pattern="^broadcast_(all|active|new|vendors|cancel)$"))
-    application.add_handler(CallbackQueryHandler(broadcaster.broadcast_send_callback, pattern="^broadcast_send$"))
-    application.add_handler(CallbackQueryHandler(start.noop_callback,           pattern="^(noop|out_of_stock)$"))
+    application.add_handler(CallbackQueryHandler(profile.language_callback, pattern="^lang_"))
+    application.add_handler(
+        CallbackQueryHandler(location.location_callback, pattern="^(share_location|enter_city)$")
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            broadcaster.broadcast_callback, pattern="^broadcast_(all|active|new|vendors|cancel)$"
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(broadcaster.broadcast_send_callback, pattern="^broadcast_send$")
+    )
+    application.add_handler(
+        CallbackQueryHandler(start.noop_callback, pattern="^(noop|out_of_stock)$")
+    )
     # Wishlist: both wish_ (legacy) and wishlist_ / add_to_wishlist_
-    application.add_handler(CallbackQueryHandler(wishlist.wishlist_callback,     pattern="^wish_"))
-    application.add_handler(CallbackQueryHandler(wishlist.wishlist_callback,     pattern="^wishlist_"))
-    application.add_handler(CallbackQueryHandler(wishlist.wishlist_callback,     pattern="^add_to_wishlist_"))
+    application.add_handler(CallbackQueryHandler(wishlist.wishlist_callback, pattern="^wish_"))
+    application.add_handler(CallbackQueryHandler(wishlist.wishlist_callback, pattern="^wishlist_"))
+    application.add_handler(
+        CallbackQueryHandler(wishlist.wishlist_callback, pattern="^add_to_wishlist_")
+    )
     # Search callbacks generated by search results (outside the conversation state)
-    application.add_handler(CallbackQueryHandler(search.filter_callback,         pattern="^search_"))
-    application.add_handler(CallbackQueryHandler(search.filter_callback,         pattern="^sort_"))
-    application.add_handler(CallbackQueryHandler(search.filter_callback,         pattern="^filter_"))
+    application.add_handler(CallbackQueryHandler(search.filter_callback, pattern="^search_"))
+    application.add_handler(CallbackQueryHandler(search.filter_callback, pattern="^sort_"))
+    application.add_handler(CallbackQueryHandler(search.filter_callback, pattern="^filter_"))
 
     if dashboard is not None:
         application.add_handler(CallbackQueryHandler(dashboard.admin_callback, pattern="^admin_"))
     if admin_input is not None:
-        application.add_handler(CallbackQueryHandler(
-            admin_input.addphoto_page_callback, pattern="^addphoto_page_"
-        ))
+        application.add_handler(
+            CallbackQueryHandler(admin_input.addphoto_page_callback, pattern="^addphoto_page_")
+        )
     if products_admin is not None:
-        application.add_handler(CallbackQueryHandler(products_admin.product_admin_callback, pattern="^prod_admin_"))
+        application.add_handler(
+            CallbackQueryHandler(products_admin.product_admin_callback, pattern="^prod_admin_")
+        )
     if orders_admin is not None:
-        application.add_handler(CallbackQueryHandler(orders_admin.order_admin_callback, pattern="^order_admin_"))
+        application.add_handler(
+            CallbackQueryHandler(orders_admin.order_admin_callback, pattern="^order_admin_")
+        )
 
     logger.info("Callback handlers registered")
 
@@ -117,7 +151,7 @@ def setup_dispatcher(application: Application) -> Application:
     # Entry: /checkout command OR "cart_checkout" inline button
     checkout_conv = ConversationHandler(
         entry_points=[
-            CommandHandler("checkout",              checkout.start_checkout),
+            CommandHandler("checkout", checkout.start_checkout),
             CallbackQueryHandler(checkout.start_checkout, pattern="^cart_checkout$"),
         ],
         states={
@@ -234,4 +268,4 @@ async def process_update(application: Application, update) -> None:
     await application.process_update(update)
 
 
-__all__ = ["setup_dispatcher", "process_update"]
+__all__ = ["process_update", "setup_dispatcher"]

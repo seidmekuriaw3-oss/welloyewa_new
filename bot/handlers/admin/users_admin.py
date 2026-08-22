@@ -3,21 +3,20 @@
 # ============================
 """Admin handlers for user management."""
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-from core.logger import logger
 from apps.users.services import UserService, VendorService
-from apps.users.schemas import UserUpdate
+from core.logger import logger
 from infrastructure.database.session import get_db_session
-
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
+
 def _users_back_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 ወደ ተጠቃሚ አስተዳደር", callback_data="admin_users_back")]
-    ])
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🔙 ወደ ተጠቃሚ አስተዳደር", callback_data="admin_users_back")]]
+    )
 
 
 STATUS_EMOJI = {"active": "✅", "suspended": "🚫", "banned": "⛔", "inactive": "⚪"}
@@ -25,17 +24,18 @@ STATUS_EMOJI = {"active": "✅", "suspended": "🚫", "banned": "⛔", "inactive
 
 # ── Panels ────────────────────────────────────────────────────────────────────
 
+
 async def users_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show admin users management panel."""
     query = update.callback_query
 
     keyboard = [
-        [InlineKeyboardButton("👥 ሁሉንም ተጠቃሚዎች",    callback_data="admin_list_users")],
-        [InlineKeyboardButton("🏪 ሻጮች",              callback_data="admin_list_vendors")],
+        [InlineKeyboardButton("👥 ሁሉንም ተጠቃሚዎች", callback_data="admin_list_users")],
+        [InlineKeyboardButton("🏪 ሻጮች", callback_data="admin_list_vendors")],
         [InlineKeyboardButton("⏳ በመጠባበቅ ላይ ያሉ ሻጮች", callback_data="admin_pending_vendors")],
-        [InlineKeyboardButton("🚫 የታገዱ",             callback_data="admin_suspended_users")],
-        [InlineKeyboardButton("🔍 ፈልግ",              callback_data="admin_search_users")],
-        [InlineKeyboardButton("🔙 ወደ አስተዳደር",        callback_data="admin_back")],
+        [InlineKeyboardButton("🚫 የታገዱ", callback_data="admin_suspended_users")],
+        [InlineKeyboardButton("🔍 ፈልግ", callback_data="admin_search_users")],
+        [InlineKeyboardButton("🔙 ወደ አስተዳደር", callback_data="admin_back")],
     ]
 
     await query.message.edit_text(
@@ -48,8 +48,8 @@ async def users_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def list_users(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
-    role: str = None,
-    status_filter: str = None,
+    role: str | None = None,
+    status_filter: str | None = None,
 ) -> None:
     """List users with optional role/status filter and per-user action buttons."""
     query = update.callback_query
@@ -73,11 +73,13 @@ async def list_users(
             break
     except Exception as exc:
         logger.error("list_users error: %s", exc)
-        await query.message.edit_text("❌ ተጠቃሚዎችን ለማምጣት ስህተት ተፈጥሯል።", reply_markup=_users_back_keyboard())
+        await query.message.edit_text(
+            "❌ ተጠቃሚዎችን ለማምጣት ስህተት ተፈጥሯል።", reply_markup=_users_back_keyboard()
+        )
         return
 
     if not users:
-        label = ("(የታገዱ)" if status_filter == "suspended" else f"({role})" if role else "(ሁሉም)")
+        label = "(የታገዱ)" if status_filter == "suspended" else f"({role})" if role else "(ሁሉም)"
         await query.message.edit_text(
             f"👥 ምንም ተጠቃሚዎች {label} አልተገኙም።",
             reply_markup=_users_back_keyboard(),
@@ -85,7 +87,9 @@ async def list_users(
         return
 
     total_pages = max(1, (total + page_size - 1) // page_size)
-    role_text = ("(የታገዱ)" if status_filter == "suspended" else f"({role.upper()})" if role else "(ሁሉም)")
+    role_text = (
+        "(የታገዱ)" if status_filter == "suspended" else f"({role.upper()})" if role else "(ሁሉም)"
+    )
     text = f"👥 *ተጠቃሚዎች* {role_text} — ገጽ {page}/{total_pages}\n\n"
 
     keyboard = []
@@ -98,13 +102,17 @@ async def list_users(
         )
         row = []
         if str(user.status) != "suspended":
-            row.append(InlineKeyboardButton(
-                f"🚫 አግድ ({user.id})", callback_data=f"admin_suspend_user_{user.id}"
-            ))
+            row.append(
+                InlineKeyboardButton(
+                    f"🚫 አግድ ({user.id})", callback_data=f"admin_suspend_user_{user.id}"
+                )
+            )
         else:
-            row.append(InlineKeyboardButton(
-                f"✅ ፍቅ ({user.id})", callback_data=f"admin_unsuspend_user_{user.id}"
-            ))
+            row.append(
+                InlineKeyboardButton(
+                    f"✅ ፍቅ ({user.id})", callback_data=f"admin_unsuspend_user_{user.id}"
+                )
+            )
         keyboard.append(row)
 
     # Pagination
@@ -133,9 +141,7 @@ async def prompt_search_users(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Ask admin to type a search query."""
     query = update.callback_query
     context.user_data["admin_awaiting_user_search"] = True
-    await query.message.reply_text(
-        "🔍 ለመፈለግ ስም፣ ስልክ ወይም @username ይላኩ።"
-    )
+    await query.message.reply_text("🔍 ለመፈለግ ስም፣ ስልክ ወይም @username ይላኩ።")
 
 
 async def list_vendors(
@@ -162,7 +168,9 @@ async def list_vendors(
             break
     except Exception as exc:
         logger.error("list_vendors error: %s", exc)
-        await query.message.edit_text("❌ ሻጮችን ለማምጣት ስህተት ተፈጥሯል።", reply_markup=_users_back_keyboard())
+        await query.message.edit_text(
+            "❌ ሻጮችን ለማምጣት ስህተት ተፈጥሯል።", reply_markup=_users_back_keyboard()
+        )
         return
 
     if not vendors:
@@ -186,10 +194,16 @@ async def list_vendors(
             f"   📞 {vendor.business_phone or 'N/A'}\n\n"
         )
         if not vendor.is_approved:
-            keyboard.append([
-                InlineKeyboardButton(f"✅ አጽድቅ ({vendor.id})", callback_data=f"admin_approve_vendor_{vendor.id}"),
-                InlineKeyboardButton(f"❌ ውድቅ ({vendor.id})", callback_data=f"admin_reject_vendor_{vendor.id}"),
-            ])
+            keyboard.append(
+                [
+                    InlineKeyboardButton(
+                        f"✅ አጽድቅ ({vendor.id})", callback_data=f"admin_approve_vendor_{vendor.id}"
+                    ),
+                    InlineKeyboardButton(
+                        f"❌ ውድቅ ({vendor.id})", callback_data=f"admin_reject_vendor_{vendor.id}"
+                    ),
+                ]
+            )
 
     nav = []
     if page > 1:
@@ -208,27 +222,29 @@ async def list_vendors(
 
 # ── Action functions (called by dashboard router) ─────────────────────────────
 
+
 async def confirm_suspend_user(
     update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int
 ) -> None:
     """Show suspend-user confirmation panel."""
     query = update.callback_query
     await query.message.edit_text(
-        f"🚫 *ተጠቃሚውን (ID: {user_id}) ማገድ ይፈልጋሉ?*\n\n"
-        "ተጠቃሚው ሱቁን ሊጠቀም አይችልም።",
+        f"🚫 *ተጠቃሚውን (ID: {user_id}) ማገድ ይፈልጋሉ?*\n\n" "ተጠቃሚው ሱቁን ሊጠቀም አይችልም።",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([
+        reply_markup=InlineKeyboardMarkup(
             [
-                InlineKeyboardButton("✅ አዎ፣ አግድ",  callback_data=f"admin_confirm_suspend_{user_id}"),
-                InlineKeyboardButton("❌ አይ",         callback_data="admin_users"),
+                [
+                    InlineKeyboardButton(
+                        "✅ አዎ፣ አግድ", callback_data=f"admin_confirm_suspend_{user_id}"
+                    ),
+                    InlineKeyboardButton("❌ አይ", callback_data="admin_users"),
+                ]
             ]
-        ]),
+        ),
     )
 
 
-async def do_suspend_user(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int
-) -> None:
+async def do_suspend_user(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int) -> None:
     """Suspend a user."""
     query = update.callback_query
     try:
@@ -242,7 +258,9 @@ async def do_suspend_user(
         )
     except Exception as exc:
         logger.error("Suspend user %s error: %s", user_id, exc)
-        await query.message.edit_text("❌ ተጠቃሚውን ለማገድ ስህተት ተፈጥሯል።", reply_markup=_users_back_keyboard())
+        await query.message.edit_text(
+            "❌ ተጠቃሚውን ለማገድ ስህተት ተፈጥሯል።", reply_markup=_users_back_keyboard()
+        )
 
 
 async def do_unsuspend_user(
@@ -261,7 +279,9 @@ async def do_unsuspend_user(
         )
     except Exception as exc:
         logger.error("Unsuspend user %s error: %s", user_id, exc)
-        await query.message.edit_text("❌ ተጠቃሚውን ለማፈታት ስህተት ተፈጥሯል።", reply_markup=_users_back_keyboard())
+        await query.message.edit_text(
+            "❌ ተጠቃሚውን ለማፈታት ስህተት ተፈጥሯል።", reply_markup=_users_back_keyboard()
+        )
 
 
 async def do_approve_vendor(
@@ -281,7 +301,9 @@ async def do_approve_vendor(
         )
     except Exception as exc:
         logger.error("Approve vendor %s error: %s", vendor_id, exc)
-        await query.message.edit_text("❌ ሻጩን ለማጽደቅ ስህተት ተፈጥሯል።", reply_markup=_users_back_keyboard())
+        await query.message.edit_text(
+            "❌ ሻጩን ለማጽደቅ ስህተት ተፈጥሯል።", reply_markup=_users_back_keyboard()
+        )
 
 
 async def do_reject_vendor(
@@ -300,10 +322,13 @@ async def do_reject_vendor(
         )
     except Exception as exc:
         logger.error("Reject vendor %s error: %s", vendor_id, exc)
-        await query.message.edit_text("❌ ሻጩን ውድቅ ለማድረግ ስህተት ተፈጥሯል።", reply_markup=_users_back_keyboard())
+        await query.message.edit_text(
+            "❌ ሻጩን ውድቅ ለማድረግ ስህተት ተፈጥሯል።", reply_markup=_users_back_keyboard()
+        )
 
 
 # ── legacy stub ───────────────────────────────────────────────────────────────
+
 
 async def user_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Legacy entry point — all routing now done in dashboard.admin_callback."""
@@ -311,15 +336,15 @@ async def user_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 __all__ = [
-    "users_admin_panel",
-    "list_users",
-    "list_vendors",
-    "list_suspended_users",
-    "prompt_search_users",
     "confirm_suspend_user",
-    "do_suspend_user",
-    "do_unsuspend_user",
     "do_approve_vendor",
     "do_reject_vendor",
+    "do_suspend_user",
+    "do_unsuspend_user",
+    "list_suspended_users",
+    "list_users",
+    "list_vendors",
+    "prompt_search_users",
     "user_admin_callback",
+    "users_admin_panel",
 ]

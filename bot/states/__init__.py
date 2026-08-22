@@ -3,47 +3,47 @@
 # ============================
 """Conversation state definitions for bot handlers."""
 
+from bot.states.auth_states import (
+    AUTH_STATES,
+    AWAITING_EMAIL,
+    AWAITING_OTP,
+    AWAITING_PHONE,
+    AuthStates,
+)
 from bot.states.order_states import (
-    OrderStates,
-    SELECT_ADDRESS,
-    SELECT_PAYMENT,
+    CART_STATES,
     CONFIRM_ORDER,
     ORDER_COMPLETED,
-    CART_STATES,
-)
-from bot.states.auth_states import (
-    AuthStates,
-    AWAITING_PHONE,
-    AWAITING_OTP,
-    AWAITING_EMAIL,
-    AUTH_STATES,
+    SELECT_ADDRESS,
+    SELECT_PAYMENT,
+    OrderStates,
 )
 from bot.states.support_states import (
-    SupportStates,
-    AWAITING_TICKET_SUBJECT,
-    AWAITING_TICKET_MESSAGE,
     AWAITING_TICKET_CATEGORY,
+    AWAITING_TICKET_MESSAGE,
+    AWAITING_TICKET_SUBJECT,
     SUPPORT_STATES,
+    SupportStates,
 )
 
 __all__ = [
-    # Order states
-    "OrderStates",
-    "SELECT_ADDRESS",
-    "SELECT_PAYMENT",
+    "AUTH_STATES",
+    "AWAITING_EMAIL",
+    "AWAITING_OTP",
+    "AWAITING_PHONE",
+    "AWAITING_TICKET_CATEGORY",
+    "AWAITING_TICKET_MESSAGE",
+    "AWAITING_TICKET_SUBJECT",
+    "CART_STATES",
     "CONFIRM_ORDER",
     "ORDER_COMPLETED",
-    "CART_STATES",
+    "SELECT_ADDRESS",
+    "SELECT_PAYMENT",
+    "SUPPORT_STATES",
     # Auth states
     "AuthStates",
-    "AWAITING_PHONE",
-    "AWAITING_OTP",
-    "AWAITING_EMAIL",
-    "AUTH_STATES",
+    # Order states
+    "OrderStates",
     # Support states
     "SupportStates",
-    "AWAITING_TICKET_SUBJECT",
-    "AWAITING_TICKET_MESSAGE",
-    "AWAITING_TICKET_CATEGORY",
-    "SUPPORT_STATES",
 ]

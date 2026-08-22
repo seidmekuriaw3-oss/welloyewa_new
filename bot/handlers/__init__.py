@@ -8,27 +8,27 @@ from telegram.ext import Application
 from core.logger import logger
 
 from . import (
-    start,
-    catalog,
-    cart,
-    checkout,
-    profile,
-    feedback,
-    search,
-    wishlist,
-    location,
-    deep_linking,
     broadcaster,
+    cart,
+    catalog,
+    checkout,
+    deep_linking,
     errors,
+    feedback,
+    location,
+    profile,
+    search,
+    start,
+    wishlist,
 )
 
 try:
     from .admin import (
         dashboard,
-        products_admin,
         orders_admin,
-        users_admin,
+        products_admin,
         reports,
+        users_admin,
     )
 except Exception as e:
     logger.warning(f"Failed to import admin handlers; admin commands disabled: {e}")
@@ -37,6 +37,7 @@ except Exception as e:
     orders_admin = None
     users_admin = None
     reports = None
+
 
 async def register_handlers(application: Application) -> None:
     """
@@ -48,24 +49,25 @@ async def register_handlers(application: Application) -> None:
     setup_dispatcher(application)
     return None
 
+
 __all__ = [
-    "register_handlers",
-    "start",
-    "catalog",
-    "cart",
-    "checkout",
-    "profile",
-    "feedback",
-    "search",
-    "wishlist",
-    "location",
-    "deep_linking",
     "broadcaster",
-    "errors",
+    "cart",
+    "catalog",
+    "checkout",
     # Admin
     "dashboard",
-    "products_admin",
+    "deep_linking",
+    "errors",
+    "feedback",
+    "location",
     "orders_admin",
-    "users_admin",
+    "products_admin",
+    "profile",
+    "register_handlers",
     "reports",
+    "search",
+    "start",
+    "users_admin",
+    "wishlist",
 ]

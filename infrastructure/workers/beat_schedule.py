@@ -3,8 +3,12 @@
 # ============================
 """Periodic task schedule for Celery Beat."""
 
-from celery.schedules import crontab
+import logging
 from datetime import timedelta
+
+from celery.schedules import crontab
+
+logger = logging.getLogger(__name__)
 
 # Beat schedule configuration
 beat_schedule = {
@@ -32,7 +36,6 @@ beat_schedule = {
         "args": ("monthly_sales",),
         "options": {"queue": "analytics"},
     },
-    
     # Inventory tasks
     "check-low-stock": {
         "task": "check_low_stock",
@@ -44,7 +47,6 @@ beat_schedule = {
         "schedule": crontab(minute=30, hour=2),  # Daily at 2:30 AM
         "options": {"queue": "maintenance"},
     },
-    
     # Maintenance tasks
     "cleanup-expired-reservations": {
         "task": "cleanup_expired_reservations",
@@ -66,14 +68,12 @@ beat_schedule = {
         "schedule": crontab(minute=0, hour=5, day_of_month=1),  # Monthly on 1st day
         "options": {"queue": "maintenance"},
     },
-    
     # Health checks
     "send-health-report": {
         "task": "send_health_report",
         "schedule": crontab(minute=0, hour=8, day_of_week="mon"),  # Monday at 8:00 AM
         "options": {"queue": "maintenance"},
     },
-    
     # Payment tasks
     "verify-pending-payments": {
         "task": "verify_pending_payments",
@@ -85,14 +85,12 @@ beat_schedule = {
         "schedule": crontab(minute=0, hour=6),  # Daily at 6:00 AM
         "options": {"queue": "payment"},
     },
-    
     # Email tasks
     "send-pending-newsletters": {
         "task": "send_pending_newsletters",
         "schedule": crontab(minute=0, hour=10),  # Daily at 10:00 AM
         "options": {"queue": "email"},
     },
-    
     # Cart cleanup
     "cleanup-abandoned-carts": {
         "task": "cleanup_abandoned_carts",
@@ -110,13 +108,13 @@ beat_schedule = {
 def setup_periodic_tasks(app):
     """
     Set up periodic tasks for the Celery app.
-    
+
     Args:
         app: Celery app instance
     """
     app.conf.beat_schedule = beat_schedule
     logger.info("Periodic tasks configured")
-    
+
     # Optional: Add dynamic tasks from database
     # This could be extended to support admin-configurable schedules
 

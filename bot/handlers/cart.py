@@ -2,12 +2,12 @@
 
 from decimal import Decimal
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
+from apps.products.services import ProductService
 from core.logger import logger
 from core.utils.currency import format_etb
-from apps.products.services import ProductService
 from infrastructure.database.session import get_db_session
 
 CART_KEY = "cart"
@@ -83,15 +83,14 @@ async def cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     elif action == "cart_clear":
         _save_cart(context, [])
         try:
-            await query.message.edit_text(
-                "🛒 *የግዢ ቅርጫትዎ ባዶ ነው!*", parse_mode="Markdown"
-            )
+            await query.message.edit_text("🛒 *የግዢ ቅርጫትዎ ባዶ ነው!*", parse_mode="Markdown")
         except Exception:
             pass
         return
 
     elif action == "cart_checkout":
         from bot.handlers.checkout import start_checkout
+
         await start_checkout(update, context)
         return
 
@@ -102,17 +101,13 @@ async def cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     cart = _get_cart(context)
     if not cart:
         try:
-            await query.message.edit_text(
-                "🛒 *የግዢ ቅርጫትዎ ባዶ ነው!*", parse_mode="Markdown"
-            )
+            await query.message.edit_text("🛒 *የግዢ ቅርጫትዎ ባዶ ነው!*", parse_mode="Markdown")
         except Exception:
             pass
         return
     cart_text, reply_markup = await _build_cart_view(cart)
     try:
-        await query.message.edit_text(
-            cart_text, parse_mode="Markdown", reply_markup=reply_markup
-        )
+        await query.message.edit_text(cart_text, parse_mode="Markdown", reply_markup=reply_markup)
     except Exception:
         pass
 
@@ -148,7 +143,7 @@ async def _build_cart_view(cart: list):
             InlineKeyboardButton("🔄 አድስ", callback_data="cart_refresh"),
         ],
         [
-            InlineKeyboardButton("➕ ቀጥል", callback_data="menu_products"),
+            InlineKeyboardButton("+ ቀጥል", callback_data="menu_products"),
             InlineKeyboardButton("✅ ግዢ አጠናቅቅ", callback_data="cart_checkout"),
         ],
     ]
@@ -181,20 +176,14 @@ async def clear_cart(user_id: int, context: ContextTypes.DEFAULT_TYPE = None) ->
         _save_cart(context, [])
 
 
-async def refresh_cart_display(
-    query, user_id: int, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+async def refresh_cart_display(query, user_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Refresh the cart display message."""
     cart = _get_cart(context)
     if not cart:
-        await query.message.edit_text(
-            "🛒 *የግዢ ቅርጫትዎ ባዶ ነው!*", parse_mode="Markdown"
-        )
+        await query.message.edit_text("🛒 *የግዢ ቅርጫትዎ ባዶ ነው!*", parse_mode="Markdown")
         return
     cart_text, reply_markup = await _build_cart_view(cart)
-    await query.message.edit_text(
-        cart_text, parse_mode="Markdown", reply_markup=reply_markup
-    )
+    await query.message.edit_text(cart_text, parse_mode="Markdown", reply_markup=reply_markup)
 
 
-__all__ = ["cart_command", "cart_callback", "add_to_cart", "get_user_cart", "clear_cart"]
+__all__ = ["add_to_cart", "cart_callback", "cart_command", "clear_cart", "get_user_cart"]

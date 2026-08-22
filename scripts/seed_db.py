@@ -11,12 +11,18 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
-from core.config import settings
-from infrastructure.database.session import init_db, get_db_session
-from apps.users.models import User, Vendor
-from apps.products.models import Product, Category
 from apps.orders.models import Order, OrderItem
-from core.constants import UserRole, ProductStatus, ProductCategory, OrderStatus, PaymentStatus, PaymentMethod
+from apps.products.models import Category, Product
+from apps.users.models import User, Vendor
+from core.constants import (
+    OrderStatus,
+    PaymentMethod,
+    PaymentStatus,
+    ProductCategory,
+    ProductStatus,
+    UserRole,
+)
+from infrastructure.database.session import get_db_session, init_db
 
 
 async def seed_database() -> None:
@@ -32,14 +38,14 @@ async def seed_database() -> None:
         print("📁 Seeding categories...")
 
         categories_data = [
-            {"name": "Electronics",  "name_am": "ኤሌክትሮኒክስ", "slug": "electronics"},
-            {"name": "Clothing",     "name_am": "አልባሳት",       "slug": "clothing"},
-            {"name": "Food",         "name_am": "ምግብ",          "slug": "food"},
-            {"name": "Books",        "name_am": "መጽሐፍት",       "slug": "books"},
-            {"name": "Beauty",       "name_am": "ውበት",          "slug": "beauty"},
-            {"name": "Health",       "name_am": "ጤና",           "slug": "health"},
-            {"name": "Home",         "name_am": "ቤት",           "slug": "home"},
-            {"name": "Sports",       "name_am": "ስፖርት",         "slug": "sports"},
+            {"name": "Electronics", "name_am": "ኤሌክትሮኒክስ", "slug": "electronics"},
+            {"name": "Clothing", "name_am": "አልባሳት", "slug": "clothing"},
+            {"name": "Food", "name_am": "ምግብ", "slug": "food"},
+            {"name": "Books", "name_am": "መጽሐፍት", "slug": "books"},
+            {"name": "Beauty", "name_am": "ውበት", "slug": "beauty"},
+            {"name": "Health", "name_am": "ጤና", "slug": "health"},
+            {"name": "Home", "name_am": "ቤት", "slug": "home"},
+            {"name": "Sports", "name_am": "ስፖርት", "slug": "sports"},
         ]
 
         category_map = {}
@@ -146,16 +152,76 @@ async def seed_database() -> None:
         print("📦 Seeding products...")
 
         products_data = [
-            {"name": "Smartphone X100",      "price": 15000, "stock": 50,  "slug": "electronics",  "cat": ProductCategory.ELECTRONICS},
-            {"name": "Laptop Pro",           "price": 45000, "stock": 30,  "slug": "electronics",  "cat": ProductCategory.ELECTRONICS},
-            {"name": "Wireless Headphones",  "price": 2500,  "stock": 100, "slug": "electronics",  "cat": ProductCategory.ELECTRONICS},
-            {"name": "Men's T-Shirt",        "price": 500,   "stock": 200, "slug": "clothing",     "cat": ProductCategory.CLOTHING},
-            {"name": "Women's Dress",        "price": 1200,  "stock": 150, "slug": "clothing",     "cat": ProductCategory.CLOTHING},
-            {"name": "Running Shoes",        "price": 3000,  "stock": 80,  "slug": "sports",       "cat": ProductCategory.SPORTS},
-            {"name": "Coffee Beans (1kg)",   "price": 400,   "stock": 300, "slug": "food",         "cat": ProductCategory.FOOD},
-            {"name": "Python Programming Book", "price": 800, "stock": 50, "slug": "books",        "cat": ProductCategory.BOOKS},
-            {"name": "Face Cream",           "price": 350,   "stock": 120, "slug": "beauty",       "cat": ProductCategory.BEAUTY},
-            {"name": "Bed Sheet Set",        "price": 1500,  "stock": 60,  "slug": "home",         "cat": ProductCategory.HOME},
+            {
+                "name": "Smartphone X100",
+                "price": 15000,
+                "stock": 50,
+                "slug": "electronics",
+                "cat": ProductCategory.ELECTRONICS,
+            },
+            {
+                "name": "Laptop Pro",
+                "price": 45000,
+                "stock": 30,
+                "slug": "electronics",
+                "cat": ProductCategory.ELECTRONICS,
+            },
+            {
+                "name": "Wireless Headphones",
+                "price": 2500,
+                "stock": 100,
+                "slug": "electronics",
+                "cat": ProductCategory.ELECTRONICS,
+            },
+            {
+                "name": "Men's T-Shirt",
+                "price": 500,
+                "stock": 200,
+                "slug": "clothing",
+                "cat": ProductCategory.CLOTHING,
+            },
+            {
+                "name": "Women's Dress",
+                "price": 1200,
+                "stock": 150,
+                "slug": "clothing",
+                "cat": ProductCategory.CLOTHING,
+            },
+            {
+                "name": "Running Shoes",
+                "price": 3000,
+                "stock": 80,
+                "slug": "sports",
+                "cat": ProductCategory.SPORTS,
+            },
+            {
+                "name": "Coffee Beans (1kg)",
+                "price": 400,
+                "stock": 300,
+                "slug": "food",
+                "cat": ProductCategory.FOOD,
+            },
+            {
+                "name": "Python Programming Book",
+                "price": 800,
+                "stock": 50,
+                "slug": "books",
+                "cat": ProductCategory.BOOKS,
+            },
+            {
+                "name": "Face Cream",
+                "price": 350,
+                "stock": 120,
+                "slug": "beauty",
+                "cat": ProductCategory.BEAUTY,
+            },
+            {
+                "name": "Bed Sheet Set",
+                "price": 1500,
+                "stock": 60,
+                "slug": "home",
+                "cat": ProductCategory.HOME,
+            },
         ]
 
         seeded_products = []
@@ -217,20 +283,26 @@ async def seed_database() -> None:
                     order_number=order_num,
                     user_id=user.id,
                     vendor_id=vendor_profile.id,
-                    status=random.choice([
-                        OrderStatus.DELIVERED.value,
-                        OrderStatus.SHIPPED.value,
-                        OrderStatus.PENDING.value,
-                    ]),
+                    status=random.choice(
+                        [
+                            OrderStatus.DELIVERED.value,
+                            OrderStatus.SHIPPED.value,
+                            OrderStatus.PENDING.value,
+                        ]
+                    ),
                     subtotal=subtotal,
                     shipping_fee=shipping_fee,
                     tax=tax,
                     total=total,
-                    payment_method=random.choice([
-                        PaymentMethod.CHAPA.value,
-                        PaymentMethod.TELEBIRR.value,
-                    ]),
-                    payment_status=PaymentStatus.PAID.value if j % 2 == 0 else PaymentStatus.PENDING.value,
+                    payment_method=random.choice(
+                        [
+                            PaymentMethod.CHAPA.value,
+                            PaymentMethod.TELEBIRR.value,
+                        ]
+                    ),
+                    payment_status=(
+                        PaymentStatus.PAID.value if j % 2 == 0 else PaymentStatus.PENDING.value
+                    ),
                     shipping_address=f"Address {i}-{j}, Addis Ababa",
                     shipping_city="Addis Ababa",
                     shipping_phone=f"09{i:08d}",
@@ -254,7 +326,9 @@ async def seed_database() -> None:
                 order_count += 1
 
         await db.commit()
-        print(f"✅ Database seeding completed! Categories: {len(categories_data)}, Products: {len(seeded_products)}, Orders: {order_count}")
+        print(
+            f"✅ Database seeding completed! Categories: {len(categories_data)}, Products: {len(seeded_products)}, Orders: {order_count}"
+        )
 
 
 async def main():
@@ -263,6 +337,7 @@ async def main():
         await seed_database()
     except Exception as e:
         import traceback
+
         print(f"❌ Error seeding database: {e}")
         traceback.print_exc()
         raise

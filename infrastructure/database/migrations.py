@@ -5,20 +5,18 @@
 
 import os
 import subprocess
-from typing import Optional, List, Dict, Any
-from datetime import datetime
+from typing import Any
 
-from core.config import settings
 from core.logger import logger
 
 
 async def run_migrations(target: str = "head") -> bool:
     """
     Run database migrations to target revision.
-    
+
     Args:
         target: Target revision (head, base, or revision ID)
-        
+
     Returns:
         True if successful, False otherwise
     """
@@ -30,7 +28,7 @@ async def run_migrations(target: str = "head") -> bool:
             capture_output=True,
             text=True,
         )
-        
+
         if result.returncode == 0:
             logger.info(f"Database migrations completed successfully to {target}")
             logger.debug(result.stdout)
@@ -38,20 +36,20 @@ async def run_migrations(target: str = "head") -> bool:
         else:
             logger.error(f"Migration failed: {result.stderr}")
             return False
-            
+
     except Exception as e:
         logger.error(f"Failed to run migrations: {e}")
         return False
 
 
-async def create_migration(message: str, autogenerate: bool = True) -> Optional[str]:
+async def create_migration(message: str, autogenerate: bool = True) -> str | None:
     """
     Create a new migration.
-    
+
     Args:
         message: Migration message
         autogenerate: Whether to autogenerate from model changes
-        
+
     Returns:
         Migration file path if successful
     """
@@ -60,20 +58,20 @@ async def create_migration(message: str, autogenerate: bool = True) -> Optional[
         if autogenerate:
             cmd.append("--autogenerate")
         cmd.extend(["-m", message])
-        
+
         result = subprocess.run(
             cmd,
             cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
             capture_output=True,
             text=True,
         )
-        
+
         if result.returncode == 0:
             # Extract migration file path from output
             output = result.stdout
             logger.info(f"Migration created: {message}")
             logger.debug(output)
-            
+
             # Try to extract the file path
             for line in output.split("\n"):
                 if "Generating" in line or "Creating" in line:
@@ -85,7 +83,7 @@ async def create_migration(message: str, autogenerate: bool = True) -> Optional[
         else:
             logger.error(f"Failed to create migration: {result.stderr}")
             return None
-            
+
     except Exception as e:
         logger.error(f"Failed to create migration: {e}")
         return None
@@ -94,10 +92,10 @@ async def create_migration(message: str, autogenerate: bool = True) -> Optional[
 async def downgrade_migration(revision: str = "-1") -> bool:
     """
     Downgrade database to a previous revision.
-    
+
     Args:
         revision: Target revision (default: -1 for previous)
-        
+
     Returns:
         True if successful, False otherwise
     """
@@ -109,7 +107,7 @@ async def downgrade_migration(revision: str = "-1") -> bool:
             capture_output=True,
             text=True,
         )
-        
+
         if result.returncode == 0:
             logger.info(f"Database downgraded to {revision}")
             logger.debug(result.stdout)
@@ -117,16 +115,16 @@ async def downgrade_migration(revision: str = "-1") -> bool:
         else:
             logger.error(f"Downgrade failed: {result.stderr}")
             return False
-            
+
     except Exception as e:
         logger.error(f"Failed to downgrade: {e}")
         return False
 
 
-async def get_migration_status() -> Dict[str, Any]:
+async def get_migration_status() -> dict[str, Any]:
     """
     Get current migration status.
-    
+
     Returns:
         Dictionary with migration status information
     """
@@ -138,7 +136,7 @@ async def get_migration_status() -> Dict[str, Any]:
             capture_output=True,
             text=True,
         )
-        
+
         # Get heads
         heads_result = subprocess.run(
             ["alembic", "heads"],
@@ -146,7 +144,7 @@ async def get_migration_status() -> Dict[str, Any]:
             capture_output=True,
             text=True,
         )
-        
+
         # Get history
         history_result = subprocess.run(
             ["alembic", "history", "--verbose"],
@@ -154,14 +152,18 @@ async def get_migration_status() -> Dict[str, Any]:
             capture_output=True,
             text=True,
         )
-        
+
         return {
-            "current": current_result.stdout.strip() if current_result.returncode == 0 else "Unknown",
+            "current": (
+                current_result.stdout.strip() if current_result.returncode == 0 else "Unknown"
+            ),
             "heads": heads_result.stdout.strip() if heads_result.returncode == 0 else "Unknown",
-            "is_head": "head" in current_result.stdout.lower() if current_result.returncode == 0 else False,
+            "is_head": (
+                "head" in current_result.stdout.lower() if current_result.returncode == 0 else False
+            ),
             "history": history_result.stdout if history_result.returncode == 0 else "",
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to get migration status: {e}")
         return {
@@ -173,18 +175,18 @@ async def get_migration_status() -> Dict[str, Any]:
         }
 
 
-async def check_migration_health() -> Dict[str, Any]:
+async def check_migration_health() -> dict[str, Any]:
     """
     Check if migrations are healthy and up to date.
-    
+
     Returns:
         Dictionary with health status
     """
     status = await get_migration_status()
-    
+
     # Check for split heads
     has_split_heads = len(status.get("heads", "").split("\n")) > 1
-    
+
     return {
         "healthy": status.get("is_head", False) and not has_split_heads,
         "is_head": status.get("is_head", False),
@@ -195,9 +197,9 @@ async def check_migration_health() -> Dict[str, Any]:
 
 
 __all__ = [
-    "run_migrations",
+    "check_migration_health",
     "create_migration",
     "downgrade_migration",
     "get_migration_status",
-    "check_migration_health",
+    "run_migrations",
 ]

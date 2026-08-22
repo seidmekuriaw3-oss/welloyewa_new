@@ -1,21 +1,14 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Telegram bot initialization and configuration."""
 
 import json
-import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
-from telegram import Bot, Update
+from telegram import Bot
 from telegram.ext import (
     Application,
     ApplicationBuilder,
     BasePersistence,
-    CommandHandler,
-    CallbackQueryHandler,
-    MessageHandler,
-    filters,
-    ConversationHandler,
 )
 from telegram.ext._utils.types import CDCData
 
@@ -35,26 +28,29 @@ class RedisPersistence(BasePersistence):
         self.is_async = False
 
         import redis
+
         self._redis = redis.from_url(url, encoding="utf-8", decode_responses=True)
         self._key_prefix = key_prefix
         self._ttl = ttl
-        self.bot_data: Dict[str, Any] = self._load_data("bot_data")
-        self.chat_data: Dict[int, Dict[str, Any]] = self._load_data("chat_data")
-        self.user_data: Dict[int, Dict[str, Any]] = self._load_data("user_data")
-        self.callback_data: Dict[int, Dict[str, Any]] = self._load_data("callback_data")
-        self.conversations: Dict[str, Dict[str, Any]] = self._load_data("conversations")
+        self.bot_data: dict[str, Any] = self._load_data("bot_data")
+        self.chat_data: dict[int, dict[str, Any]] = self._load_data("chat_data")
+        self.user_data: dict[int, dict[str, Any]] = self._load_data("user_data")
+        self.callback_data: dict[int, dict[str, Any]] = self._load_data("callback_data")
+        self.conversations: dict[str, dict[str, Any]] = self._load_data("conversations")
 
     def _storage_key(self, name: str) -> str:
         return f"{self._key_prefix}:{name}"
 
-    def _load_data(self, name: str) -> Dict[Any, Any]:
+    def _load_data(self, name: str) -> dict[Any, Any]:
         try:
             raw = self._redis.get(self._storage_key(name))
             if not raw:
                 return {}
             data = json.loads(raw)
             if isinstance(data, dict):
-                return {int(k) if isinstance(k, str) and k.isdigit() else k: v for k, v in data.items()}
+                return {
+                    int(k) if isinstance(k, str) and k.isdigit() else k: v for k, v in data.items()
+                }
             return {}
         except Exception:
             return {}
@@ -65,11 +61,11 @@ class RedisPersistence(BasePersistence):
         except Exception:
             pass
 
-    async def get_user_data(self, *args, **kwargs) -> Dict[str, Any]:
+    async def get_user_data(self, *args, **kwargs) -> dict[str, Any]:
         user_id = kwargs.get("user_id") or (args[0] if args else None)
         return self.user_data.setdefault(int(user_id), {}) if user_id is not None else {}
 
-    async def get_chat_data(self, *args, **kwargs) -> Dict[str, Any]:
+    async def get_chat_data(self, *args, **kwargs) -> dict[str, Any]:
         chat_id = kwargs.get("chat_id") or (args[0] if args else None)
         return self.chat_data.setdefault(int(chat_id), {}) if chat_id is not None else {}
 
@@ -80,11 +76,11 @@ class RedisPersistence(BasePersistence):
         val = self.callback_data.setdefault(int(user_id), {})
         return val if isinstance(val, tuple) and len(val) == 2 else (val, {})
 
-    async def get_conversations(self, *args, **kwargs) -> Dict[str, Any]:
+    async def get_conversations(self, *args, **kwargs) -> dict[str, Any]:
         name = kwargs.get("name") or (args[0] if args else "default")
         return self.conversations.setdefault(str(name), {})
 
-    async def get_bot_data(self) -> Dict[str, Any]:
+    async def get_bot_data(self) -> dict[str, Any]:
         return self.bot_data
 
     async def update_user_data(self, *args, **kwargs) -> None:
@@ -103,7 +99,7 @@ class RedisPersistence(BasePersistence):
         self.chat_data[int(chat_id)] = data
         self._save_data("chat_data", self.chat_data)
 
-    async def update_bot_data(self, data: Dict[str, Any]) -> None:
+    async def update_bot_data(self, data: dict[str, Any]) -> None:
         self.bot_data = data
         self._save_data("bot_data", self.bot_data)
 
@@ -174,24 +170,26 @@ class JSONFilePersistence(BasePersistence):
         self.is_async = False
 
         self.filepath = filepath
-        self.bot_data: Dict[str, Any] = self._load_section("bot_data")
-        self.chat_data: Dict[int, Dict[str, Any]] = self._load_section("chat_data")
-        self.user_data: Dict[int, Dict[str, Any]] = self._load_section("user_data")
-        self.callback_data: Dict[int, Dict[str, Any]] = self._load_section("callback_data")
-        self.conversations: Dict[str, Dict[str, Any]] = self._load_section("conversations")
+        self.bot_data: dict[str, Any] = self._load_section("bot_data")
+        self.chat_data: dict[int, dict[str, Any]] = self._load_section("chat_data")
+        self.user_data: dict[int, dict[str, Any]] = self._load_section("user_data")
+        self.callback_data: dict[int, dict[str, Any]] = self._load_section("callback_data")
+        self.conversations: dict[str, dict[str, Any]] = self._load_section("conversations")
 
-    def _load_all(self) -> Dict[str, Any]:
+    def _load_all(self) -> dict[str, Any]:
         try:
-            with open(self.filepath, "r", encoding="utf-8") as f:
+            with open(self.filepath, encoding="utf-8") as f:
                 return json.load(f) or {}
         except (FileNotFoundError, json.JSONDecodeError):
             return {}
 
-    def _load_section(self, name: str) -> Dict[Any, Any]:
+    def _load_section(self, name: str) -> dict[Any, Any]:
         try:
             data = self._load_all().get(name, {})
             if isinstance(data, dict):
-                return {int(k) if isinstance(k, str) and k.isdigit() else k: v for k, v in data.items()}
+                return {
+                    int(k) if isinstance(k, str) and k.isdigit() else k: v for k, v in data.items()
+                }
             return {}
         except Exception:
             return {}
@@ -205,11 +203,11 @@ class JSONFilePersistence(BasePersistence):
         except Exception:
             pass
 
-    async def get_user_data(self, *args, **kwargs) -> Dict[str, Any]:
+    async def get_user_data(self, *args, **kwargs) -> dict[str, Any]:
         user_id = kwargs.get("user_id") or (args[0] if args else None)
         return self.user_data.setdefault(int(user_id), {}) if user_id is not None else {}
 
-    async def get_chat_data(self, *args, **kwargs) -> Dict[str, Any]:
+    async def get_chat_data(self, *args, **kwargs) -> dict[str, Any]:
         chat_id = kwargs.get("chat_id") or (args[0] if args else None)
         return self.chat_data.setdefault(int(chat_id), {}) if chat_id is not None else {}
 
@@ -220,11 +218,11 @@ class JSONFilePersistence(BasePersistence):
         val = self.callback_data.setdefault(int(user_id), {})
         return val if isinstance(val, tuple) and len(val) == 2 else (val, {})
 
-    async def get_conversations(self, *args, **kwargs) -> Dict[str, Any]:
+    async def get_conversations(self, *args, **kwargs) -> dict[str, Any]:
         name = kwargs.get("name") or (args[0] if args else "default")
         return self.conversations.setdefault(str(name), {})
 
-    async def get_bot_data(self) -> Dict[str, Any]:
+    async def get_bot_data(self) -> dict[str, Any]:
         return self.bot_data
 
     async def update_user_data(self, *args, **kwargs) -> None:
@@ -243,7 +241,7 @@ class JSONFilePersistence(BasePersistence):
         self.chat_data[int(chat_id)] = data
         self._save_section("chat_data", self.chat_data)
 
-    async def update_bot_data(self, data: Dict[str, Any]) -> None:
+    async def update_bot_data(self, data: dict[str, Any]) -> None:
         self.bot_data = data
         self._save_section("bot_data", self.bot_data)
 
@@ -303,8 +301,8 @@ class JSONFilePersistence(BasePersistence):
 
 
 # Global bot instances
-_bot: Optional[Bot] = None
-_application: Optional[Application] = None
+_bot: Bot | None = None
+_application: Application | None = None
 
 
 async def init_bot() -> Application:
@@ -319,6 +317,7 @@ async def init_bot() -> Application:
     # Use Redis persistence if available, else fall back to JSON file
     try:
         import redis as _redis_sync
+
         _test_client = _redis_sync.from_url(str(settings.REDIS_URL), socket_connect_timeout=2)
         _test_client.ping()
         _test_client.close()
@@ -349,6 +348,7 @@ async def init_bot() -> Application:
     # Register all handlers
     try:
         from bot.handlers import register_handlers
+
         await register_handlers(_application)
         logger.info("Telegram bot handlers registered successfully")
     except Exception as e:
@@ -385,4 +385,4 @@ def get_dispatcher():
 bot = None
 dispatcher = None
 
-__all__ = ["bot", "dispatcher", "init_bot", "shutdown_bot", "get_bot", "get_dispatcher"]
+__all__ = ["bot", "dispatcher", "get_bot", "get_dispatcher", "init_bot", "shutdown_bot"]

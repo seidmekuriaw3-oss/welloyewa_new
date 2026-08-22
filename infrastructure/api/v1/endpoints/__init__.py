@@ -4,25 +4,25 @@
 """API v1 endpoint modules for all resources."""
 
 from infrastructure.api.v1.endpoints import (
-    health,
-    webhook,
-    users,
-    products,
-    orders,
-    analytics,
-    payments,
     admin,
+    analytics,
     dashboards,
+    health,
+    orders,
+    payments,
+    products,
+    users,
+    webhook,
 )
 
 __all__ = [
-    "health",
-    "webhook",
-    "users",
-    "products",
-    "orders",
-    "analytics",
-    "payments",
     "admin",
+    "analytics",
     "dashboards",
+    "health",
+    "orders",
+    "payments",
+    "products",
+    "users",
+    "webhook",
 ]

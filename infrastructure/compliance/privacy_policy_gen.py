@@ -3,17 +3,16 @@
 # ============================
 """Privacy policy generation and management for GDPR compliance."""
 
-from enum import Enum
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 
-from core.config import settings
 from core.logger import logger
 
 
-class ConsentType(str, Enum):
+class ConsentType(StrEnum):
     """Types of user consent."""
+
     MARKETING = "marketing"
     ANALYTICS = "analytics"
     PERSONALIZATION = "personalization"
@@ -24,47 +23,47 @@ class ConsentType(str, Enum):
 @dataclass
 class PrivacyPolicy:
     """Privacy policy data."""
-    
+
     version: str
     effective_date: datetime
     content: str
-    content_am: Optional[str] = None
-    changes: Optional[List[str]] = None
-    previous_version: Optional[str] = None
+    content_am: str | None = None
+    changes: list[str] | None = None
+    previous_version: str | None = None
 
 
 @dataclass
 class UserConsent:
     """User consent record."""
-    
+
     user_id: int
     consent_type: ConsentType
     granted: bool
     granted_at: datetime
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
-    expires_at: Optional[datetime] = None
+    ip_address: str | None = None
+    user_agent: str | None = None
+    expires_at: datetime | None = None
 
 
 class PrivacyPolicyGenerator:
     """
     Privacy policy generator.
-    
+
     Features:
     - Generate GDPR-compliant privacy policy
     - Multi-language support (English, Amharic)
     - Version management
     - Consent tracking
     """
-    
+
     def __init__(self):
-        self._policies: Dict[str, PrivacyPolicy] = {}
-        self._user_consents: Dict[str, List[UserConsent]] = {}
+        self._policies: dict[str, PrivacyPolicy] = {}
+        self._user_consents: dict[str, list[UserConsent]] = {}
         self._current_version = "1.0"
-        
+
         # Initialize with default policy
         self._init_default_policy()
-    
+
     def _init_default_policy(self) -> None:
         """Initialize default privacy policy."""
         default_policy = PrivacyPolicy(
@@ -74,12 +73,12 @@ class PrivacyPolicyGenerator:
             content_am=self._generate_policy_content("am"),
         )
         self._policies["1.0"] = default_policy
-    
+
     def _generate_policy_content(self, language: str = "en") -> str:
         """Generate privacy policy content."""
         company_name = "Wolloyewa Technologies PLC"
         company_address = "Addis Ababa, Ethiopia"
-        
+
         if language == "am":
             return f"""
 # የግላዊነት ፖሊሲ
@@ -148,30 +147,30 @@ We do not share your information with third parties without your consent.
 Email: privacy@wolloyewa.com
 Address: {company_address}
 """
-    
+
     async def get_current_policy(self) -> PrivacyPolicy:
         """Get current privacy policy."""
         return self._policies.get(self._current_version)
-    
+
     async def update_privacy_policy(
         self,
         new_version: str,
-        changes: List[str],
-        effective_date: Optional[datetime] = None,
+        changes: list[str],
+        effective_date: datetime | None = None,
     ) -> PrivacyPolicy:
         """
         Update privacy policy to new version.
-        
+
         Args:
             new_version: New version number
             changes: List of changes
             effective_date: Effective date (defaults to now)
-            
+
         Returns:
             New PrivacyPolicy
         """
         current = await self.get_current_policy()
-        
+
         new_policy = PrivacyPolicy(
             version=new_version,
             effective_date=effective_date or datetime.utcnow(),
@@ -180,31 +179,31 @@ Address: {company_address}
             changes=changes,
             previous_version=current.version if current else None,
         )
-        
+
         self._policies[new_version] = new_policy
         self._current_version = new_version
-        
+
         logger.info(f"Privacy policy updated to version {new_version}")
         return new_policy
-    
+
     async def record_consent(
         self,
         user_id: int,
         consent_type: ConsentType,
         granted: bool,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> UserConsent:
         """
         Record user consent.
-        
+
         Args:
             user_id: User ID
             consent_type: Type of consent
             granted: Whether consent is granted
             ip_address: User's IP address
             user_agent: User's browser agent
-            
+
         Returns:
             UserConsent record
         """
@@ -216,32 +215,32 @@ Address: {company_address}
             ip_address=ip_address,
             user_agent=user_agent,
         )
-        
+
         key = f"{user_id}:{consent_type.value}"
         if key not in self._user_consents:
             self._user_consents[key] = []
         self._user_consents[key].append(consent)
-        
+
         logger.info(f"Consent recorded for user {user_id}: {consent_type.value} = {granted}")
         return consent
-    
+
     async def get_user_consents(
         self,
         user_id: int,
-        consent_type: Optional[ConsentType] = None,
-    ) -> List[UserConsent]:
+        consent_type: ConsentType | None = None,
+    ) -> list[UserConsent]:
         """Get user consent records."""
         consents = []
-        
+
         for key, records in self._user_consents.items():
             if key.startswith(str(user_id)):
                 if consent_type is None or consent_type.value in key:
                     consents.extend(records)
-        
+
         # Sort by timestamp descending
         consents.sort(key=lambda x: x.granted_at, reverse=True)
         return consents
-    
+
     async def has_consent(
         self,
         user_id: int,
@@ -249,19 +248,19 @@ Address: {company_address}
     ) -> bool:
         """Check if user has given consent."""
         consents = await self.get_user_consents(user_id, consent_type)
-        
+
         if not consents:
             return False
-        
+
         # Most recent consent
         latest = consents[0]
         return latest.granted
-    
+
     async def withdraw_consent(
         self,
         user_id: int,
         consent_type: ConsentType,
-        ip_address: Optional[str] = None,
+        ip_address: str | None = None,
     ) -> UserConsent:
         """Withdraw previously granted consent."""
         return await self.record_consent(user_id, consent_type, False, ip_address)
@@ -279,7 +278,7 @@ async def generate_privacy_policy(language: str = "en") -> str:
 
 async def update_privacy_policy(
     new_version: str,
-    changes: List[str],
+    changes: list[str],
 ) -> PrivacyPolicy:
     """Update privacy policy to new version."""
     return await privacy_policy_gen.update_privacy_policy(new_version, changes)
@@ -287,9 +286,9 @@ async def update_privacy_policy(
 
 class PrivacyCompliance:
     """Singleton privacy compliance manager."""
-    
-    _instance: Optional[PrivacyPolicyGenerator] = None
-    
+
+    _instance: PrivacyPolicyGenerator | None = None
+
     @classmethod
     def get_instance(cls) -> PrivacyPolicyGenerator:
         if cls._instance is None:
@@ -298,12 +297,12 @@ class PrivacyCompliance:
 
 
 __all__ = [
-    "PrivacyPolicyGenerator",
-    "PrivacyPolicy",
     "ConsentType",
-    "UserConsent",
-    "privacy_policy_gen",
-    "generate_privacy_policy",
-    "update_privacy_policy",
     "PrivacyCompliance",
+    "PrivacyPolicy",
+    "PrivacyPolicyGenerator",
+    "UserConsent",
+    "generate_privacy_policy",
+    "privacy_policy_gen",
+    "update_privacy_policy",
 ]

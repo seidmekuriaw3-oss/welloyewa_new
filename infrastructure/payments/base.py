@@ -4,14 +4,15 @@
 """Base classes and interfaces for payment providers."""
 
 from abc import ABC, abstractmethod
-from enum import Enum
-from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
 from decimal import Decimal
+from enum import StrEnum
+from typing import Any
 
 
-class PaymentStatus(str, Enum):
+class PaymentStatus(StrEnum):
     """Payment status values."""
+
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -20,8 +21,9 @@ class PaymentStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class PaymentMethod(str, Enum):
+class PaymentMethod(StrEnum):
     """Payment methods supported."""
+
     CHAPA = "chapa"
     TELEBIRR = "telebirr"
     CBE_BIRR = "cbe_birr"
@@ -30,8 +32,8 @@ class PaymentMethod(str, Enum):
 
 class PaymentError(Exception):
     """Base exception for payment errors."""
-    
-    def __init__(self, message: str, code: Optional[str] = None):
+
+    def __init__(self, message: str, code: str | None = None):
         self.message = message
         self.code = code
         super().__init__(message)
@@ -41,7 +43,7 @@ class PaymentError(Exception):
 class PaymentRequest:
     """
     Payment request data.
-    
+
     Attributes:
         amount: Amount to charge
         currency: Currency code (ETB)
@@ -55,25 +57,25 @@ class PaymentRequest:
         webhook_url: URL for payment notifications
         metadata: Additional metadata
     """
-    
+
     amount: Decimal
     currency: str = "ETB"
-    order_id: Optional[int] = None
-    order_number: Optional[str] = None
-    customer_name: Optional[str] = None
-    customer_email: Optional[str] = None
-    customer_phone: Optional[str] = None
-    description: Optional[str] = None
-    callback_url: Optional[str] = None
-    webhook_url: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    order_id: int | None = None
+    order_number: str | None = None
+    customer_name: str | None = None
+    customer_email: str | None = None
+    customer_phone: str | None = None
+    description: str | None = None
+    callback_url: str | None = None
+    webhook_url: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class PaymentResponse:
     """
     Payment response data.
-    
+
     Attributes:
         success: Whether payment was successful
         transaction_id: Gateway transaction ID
@@ -84,22 +86,22 @@ class PaymentResponse:
         reference: Payment reference
         raw_response: Raw gateway response
     """
-    
+
     success: bool
-    transaction_id: Optional[str] = None
+    transaction_id: str | None = None
     status: PaymentStatus = PaymentStatus.PENDING
-    message: Optional[str] = None
-    redirect_url: Optional[str] = None
-    payment_url: Optional[str] = None
-    reference: Optional[str] = None
-    raw_response: Dict[str, Any] = field(default_factory=dict)
+    message: str | None = None
+    redirect_url: str | None = None
+    payment_url: str | None = None
+    reference: str | None = None
+    raw_response: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class PaymentVerification:
     """
     Payment verification result.
-    
+
     Attributes:
         verified: Whether payment is verified
         transaction_id: Gateway transaction ID
@@ -111,97 +113,97 @@ class PaymentVerification:
         metadata: Additional data
         raw_response: Raw gateway response
     """
-    
+
     verified: bool
-    transaction_id: Optional[str] = None
+    transaction_id: str | None = None
     status: PaymentStatus = PaymentStatus.PENDING
-    amount: Optional[Decimal] = None
+    amount: Decimal | None = None
     currency: str = "ETB"
-    customer_email: Optional[str] = None
-    customer_phone: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    raw_response: Dict[str, Any] = field(default_factory=dict)
+    customer_email: str | None = None
+    customer_phone: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    raw_response: dict[str, Any] = field(default_factory=dict)
 
 
 class PaymentProvider(ABC):
     """
     Abstract base class for payment providers.
-    
+
     All payment gateways must implement this interface.
     """
-    
+
     @property
     @abstractmethod
     def name(self) -> str:
         """Provider name."""
         pass
-    
+
     @abstractmethod
     async def initialize_payment(self, request: PaymentRequest) -> PaymentResponse:
         """
         Initialize a payment.
-        
+
         Args:
             request: Payment request data
-            
+
         Returns:
             Payment response with redirect URL or payment link
         """
         pass
-    
+
     @abstractmethod
     async def verify_payment(self, transaction_id: str) -> PaymentVerification:
         """
         Verify payment status.
-        
+
         Args:
             transaction_id: Gateway transaction ID
-            
+
         Returns:
             Payment verification result
         """
         pass
-    
+
     @abstractmethod
-    async def process_webhook(self, payload: Dict[str, Any]) -> PaymentVerification:
+    async def process_webhook(self, payload: dict[str, Any]) -> PaymentVerification:
         """
         Process webhook notification from gateway.
-        
+
         Args:
             payload: Raw webhook payload
-            
+
         Returns:
             Payment verification result
         """
         pass
-    
+
     @abstractmethod
     async def refund_payment(
         self,
         transaction_id: str,
-        amount: Optional[Decimal] = None,
-        reason: Optional[str] = None,
+        amount: Decimal | None = None,
+        reason: str | None = None,
     ) -> bool:
         """
         Refund a payment.
-        
+
         Args:
             transaction_id: Gateway transaction ID
             amount: Amount to refund (None for full refund)
             reason: Refund reason
-            
+
         Returns:
             True if refund successful
         """
         pass
-    
+
     async def get_payment_status(self, transaction_id: str) -> PaymentStatus:
         """
         Get payment status.
-        
+
         Args:
             transaction_id: Gateway transaction ID
-            
+
         Returns:
             Payment status
         """
@@ -210,11 +212,11 @@ class PaymentProvider(ABC):
 
 
 __all__ = [
+    "PaymentError",
+    "PaymentMethod",
     "PaymentProvider",
     "PaymentRequest",
     "PaymentResponse",
-    "PaymentVerification",
     "PaymentStatus",
-    "PaymentMethod",
-    "PaymentError",
+    "PaymentVerification",
 ]

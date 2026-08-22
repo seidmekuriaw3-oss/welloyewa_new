@@ -3,16 +3,16 @@
 # ============================
 """Database session management with connection pooling."""
 
-from typing import AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
-    AsyncEngine,
 )
-from sqlalchemy.pool import NullPool, AsyncAdaptedQueuePool
+from sqlalchemy.pool import AsyncAdaptedQueuePool, NullPool
 
 from core.config import settings
 from core.logger import logger
@@ -21,23 +21,23 @@ from core.logger import logger
 class DatabaseSessionManager:
     """
     Manages database connections and sessions.
-    
+
     Features:
     - Connection pooling
     - Async session management
     - Graceful shutdown handling
     """
-    
+
     def __init__(self):
-        self._engine: Optional[AsyncEngine] = None
-        self._sessionmaker: Optional[async_sessionmaker] = None
+        self._engine: AsyncEngine | None = None
+        self._sessionmaker: async_sessionmaker | None = None
         self._initialized = False
-    
+
     async def initialize(self) -> None:
         """Initialize database connection pool."""
         if self._initialized:
             return
-        
+
         # Create engine with connection pool
         engine_kwargs = {
             "pool_size": settings.DATABASE_POOL_SIZE,
@@ -47,23 +47,24 @@ class DatabaseSessionManager:
             "pool_pre_ping": settings.DATABASE_POOL_PRE_PING,
             "echo": settings.DEBUG,
         }
-        
+
         # Use NullPool for testing to avoid connection leaks
         if settings.ENVIRONMENT == "testing":
             engine_kwargs["poolclass"] = NullPool
         else:
             engine_kwargs["poolclass"] = AsyncAdaptedQueuePool
-        
+
         raw_url = str(settings.DATABASE_URL)
         # Strip sslmode from URL (asyncpg uses connect_args instead)
         import re
-        raw_url = re.sub(r'[?&]sslmode=[^&]*', '', raw_url).rstrip('?')
+
+        raw_url = re.sub(r"[?&]sslmode=[^&]*", "", raw_url).rstrip("?")
         db_url = raw_url.replace("postgresql://", "postgresql+asyncpg://")
         self._engine = create_async_engine(
             db_url,
             **engine_kwargs,
         )
-        
+
         self._sessionmaker = async_sessionmaker(
             self._engine,
             class_=AsyncSession,
@@ -71,27 +72,29 @@ class DatabaseSessionManager:
             autocommit=False,
             autoflush=False,
         )
-        
+
         self._initialized = True
-        logger.info(f"Database connection pool initialized (pool_size={settings.DATABASE_POOL_SIZE})")
-    
+        logger.info(
+            f"Database connection pool initialized (pool_size={settings.DATABASE_POOL_SIZE})"
+        )
+
     async def close(self) -> None:
         """Close all database connections."""
         if self._engine:
             await self._engine.dispose()
             self._initialized = False
             logger.info("Database connection pool closed")
-    
+
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
         """
         Get a database session.
-        
+
         Yields:
             AsyncSession: Database session
         """
         if not self._initialized:
             await self.initialize()
-        
+
         async with self._sessionmaker() as session:
             try:
                 yield session
@@ -100,18 +103,18 @@ class DatabaseSessionManager:
                 raise
             finally:
                 await session.close()
-    
+
     @asynccontextmanager
     async def transaction(self) -> AsyncGenerator[AsyncSession, None]:
         """
         Get a session with transaction management.
-        
+
         Yields:
             AsyncSession: Database session with transaction
         """
         if not self._initialized:
             await self.initialize()
-        
+
         async with self._sessionmaker() as session:
             try:
                 yield session
@@ -121,7 +124,7 @@ class DatabaseSessionManager:
                 raise
             finally:
                 await session.close()
-    
+
     @property
     def is_initialized(self) -> bool:
         """Check if database is initialized."""
@@ -145,7 +148,7 @@ async def close_db() -> None:
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """
     Dependency for FastAPI to get database session.
-    
+
     Yields:
         AsyncSession: Database session
     """
@@ -156,7 +159,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 async def get_transaction_session() -> AsyncGenerator[AsyncSession, None]:
     """
     Get a database session with transaction auto-commit.
-    
+
     Yields:
         AsyncSession: Database session with transaction
     """
@@ -168,10 +171,10 @@ AsyncSessionLocal = _session_manager._sessionmaker
 
 
 __all__ = [
-    "DatabaseSessionManager",
     "AsyncSessionLocal",
-    "init_db",
+    "DatabaseSessionManager",
     "close_db",
     "get_db_session",
     "get_transaction_session",
+    "init_db",
 ]

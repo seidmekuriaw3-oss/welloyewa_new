@@ -3,21 +3,22 @@
 # ============================
 """Advanced product search with full-text search and filtering."""
 
-from typing import Optional, List, Dict, Any, Tuple
 from decimal import Decimal
-from sqlalchemy import select, and_, or_, func, text
+from typing import Any
+
+from sqlalchemy import String, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.logger import logger
 from apps.products.models import Product
 from apps.products.repository import ProductRepository
 from core.constants import ProductStatus
+from core.logger import logger
 
 
 class ProductSearchEngine:
     """
     Advanced product search engine.
-    
+
     Features:
     - Full-text search on product names and descriptions
     - Multi-language support (Amharic, English)
@@ -25,30 +26,30 @@ class ProductSearchEngine:
     - Sorting by relevance, price, rating, etc.
     - Pagination support
     """
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.product_repo = ProductRepository(db)
-    
+
     async def search(
         self,
         query: str,
-        category: Optional[str] = None,
-        category_id: Optional[int] = None,
-        vendor_id: Optional[int] = None,
-        min_price: Optional[Decimal] = None,
-        max_price: Optional[Decimal] = None,
-        min_rating: Optional[float] = None,
+        category: str | None = None,
+        category_id: int | None = None,
+        vendor_id: int | None = None,
+        min_price: Decimal | None = None,
+        max_price: Decimal | None = None,
+        min_rating: float | None = None,
         in_stock_only: bool = False,
         on_sale_only: bool = False,
         sort_by: str = "relevance",
         sort_desc: bool = True,
         page: int = 1,
         page_size: int = 20,
-    ) -> Tuple[List[Product], int]:
+    ) -> tuple[list[Product], int]:
         """
         Search products with filters.
-        
+
         Args:
             query: Search query string
             category: Filter by category enum
@@ -63,110 +64,103 @@ class ProductSearchEngine:
             sort_desc: Sort descending
             page: Page number
             page_size: Items per page
-            
+
         Returns:
             Tuple of (products, total_count)
         """
         # Build base conditions
         conditions = [
             Product.status == ProductStatus.ACTIVE.value,
-            Product.is_deleted == False,
+            not Product.is_deleted,
         ]
-        
+
         # Search query (full-text)
         if query:
             search_conditions = await self._build_search_conditions(query)
             conditions.append(search_conditions)
-        
+
         # Filters
         if category:
             conditions.append(Product.category == category)
-        
+
         if category_id:
             conditions.append(Product.category_id == category_id)
-        
+
         if vendor_id:
             conditions.append(Product.vendor_id == vendor_id)
-        
+
         if min_price is not None:
             conditions.append(Product.price >= min_price)
-        
+
         if max_price is not None:
             conditions.append(Product.price <= max_price)
-        
+
         if min_rating is not None:
             conditions.append(Product.rating >= min_rating)
-        
+
         if in_stock_only:
             conditions.append(Product.stock_quantity > 0)
-        
+
         if on_sale_only:
             from datetime import datetime
+
             now = datetime.utcnow()
-            conditions.append(Product.is_on_sale == True)
+            conditions.append(Product.is_on_sale)
             conditions.append(
-                or_(
-                    Product.sale_start_date <= now,
-                    Product.sale_start_date.is_(None)
-                )
+                or_(Product.sale_start_date <= now, Product.sale_start_date.is_(None))
             )
-            conditions.append(
-                or_(
-                    Product.sale_end_date >= now,
-                    Product.sale_end_date.is_(None)
-                )
-            )
-        
+            conditions.append(or_(Product.sale_end_date >= now, Product.sale_end_date.is_(None)))
+
         # Build query
         query_stmt = select(Product).where(and_(*conditions))
-        
+
         # Get total count
         count_stmt = select(func.count()).select_from(Product).where(and_(*conditions))
         count_result = await self.db.execute(count_stmt)
         total = count_result.scalar() or 0
-        
+
         # Apply sorting
         query_stmt = self._apply_sorting(query_stmt, sort_by, sort_desc, query)
-        
+
         # Apply pagination
         offset = (page - 1) * page_size
         query_stmt = query_stmt.offset(offset).limit(page_size)
-        
+
         # Execute query
         result = await self.db.execute(query_stmt)
         products = result.scalars().all()
-        
+
         return products, total
-    
+
     async def _build_search_conditions(self, query: str):
         """Build search conditions for full-text search."""
         search_pattern = f"%{query}%"
-        
+
         # Try PostgreSQL full-text search if available
         try:
             # Use tsvector for better search
-            ts_query = func.plainto_tsquery('english', query)
-            ts_vector = func.to_tsvector('english', 
-                func.concat(Product.name, ' ', Product.description, ' ', Product.tags)
+            ts_query = func.plainto_tsquery("english", query)
+            ts_vector = func.to_tsvector(
+                "english", func.concat(Product.name, " ", Product.description, " ", Product.tags)
             )
-            return ts_vector.op('@@')(ts_query)
+            return ts_vector.op("@@")(ts_query)
         except Exception:
             # Fallback to LIKE search
             return or_(
                 Product.name.ilike(search_pattern),
                 Product.name_am.ilike(search_pattern),
                 Product.description.ilike(search_pattern),
-                Product.tags.cast(String).ilike(search_pattern)
+                Product.tags.cast(String).ilike(search_pattern),
             )
-    
+
     def _apply_sorting(self, query, sort_by: str, sort_desc: bool, search_query: str):
         """Apply sorting to query."""
         if sort_by == "relevance" and search_query:
             # Sort by relevance (using ts_rank if available)
             try:
-                ts_query = func.plainto_tsquery('english', search_query)
-                ts_vector = func.to_tsvector('english',
-                    func.concat(Product.name, ' ', Product.description)
+                ts_query = func.plainto_tsquery("english", search_query)
+                ts_vector = func.to_tsvector(
+                    "english", func.concat(Product.name, " ", Product.description)
                 )
                 relevance = func.ts_rank(ts_vector, ts_query)
                 query = query.order_by(relevance.desc())
@@ -187,88 +181,91 @@ class ProductSearchEngine:
         else:
             # Default: sort by relevance or sales
             query = query.order_by(Product.sales_count.desc())
-        
+
         return query
-    
-    async def autocomplete(self, prefix: str, limit: int = 10) -> List[str]:
+
+    async def autocomplete(self, prefix: str, limit: int = 10) -> list[str]:
         """
         Get autocomplete suggestions for search query.
-        
+
         Args:
             prefix: Search prefix
             limit: Maximum number of suggestions
-            
+
         Returns:
             List of suggestion strings
         """
         search_pattern = f"{prefix}%"
-        
-        query = select(Product.name).where(
-            and_(
-                Product.status == ProductStatus.ACTIVE.value,
-                Product.is_deleted == False,
-                or_(
-                    Product.name.ilike(search_pattern),
-                    Product.name_am.ilike(search_pattern)
+
+        query = (
+            select(Product.name)
+            .where(
+                and_(
+                    Product.status == ProductStatus.ACTIVE.value,
+                    not Product.is_deleted,
+                    or_(Product.name.ilike(search_pattern), Product.name_am.ilike(search_pattern)),
                 )
             )
-        ).distinct().limit(limit)
-        
+            .distinct()
+            .limit(limit)
+        )
+
         result = await self.db.execute(query)
         suggestions = result.scalars().all()
-        
+
         return suggestions
-    
+
     async def get_facets(
         self,
-        query: Optional[str] = None,
-        category_id: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        query: str | None = None,
+        category_id: int | None = None,
+    ) -> dict[str, Any]:
         """
         Get search facets for filtering.
-        
+
         Returns:
             Dictionary with facet counts
         """
         conditions = [
             Product.status == ProductStatus.ACTIVE.value,
-            Product.is_deleted == False,
+            not Product.is_deleted,
         ]
-        
+
         if query:
             search_conditions = await self._build_search_conditions(query)
             conditions.append(search_conditions)
-        
+
         if category_id:
             conditions.append(Product.category_id == category_id)
-        
+
         # Category facets
-        category_query = select(
-            Product.category,
-            func.count().label("count")
-        ).where(and_(*conditions)).group_by(Product.category)
-        
+        category_query = (
+            select(Product.category, func.count().label("count"))
+            .where(and_(*conditions))
+            .group_by(Product.category)
+        )
+
         category_result = await self.db.execute(category_query)
         categories = {row.category: row.count for row in category_result.all() if row.category}
-        
+
         # Price range facets
         price_query = select(
-            func.min(Product.price).label("min_price"),
-            func.max(Product.price).label("max_price")
+            func.min(Product.price).label("min_price"), func.max(Product.price).label("max_price")
         ).where(and_(*conditions))
-        
+
         price_result = await self.db.execute(price_query)
         price_row = price_result.one()
-        
+
         # Rating facets
-        rating_query = select(
-            func.floor(Product.rating).label("rating_star"),
-            func.count().label("count")
-        ).where(and_(*conditions, Product.rating > 0)).group_by("rating_star")
-        
+        rating_query = (
+            select(func.floor(Product.rating).label("rating_star"), func.count().label("count"))
+            .where(and_(*conditions, Product.rating > 0))
+            .group_by("rating_star")
+        )
+
         rating_result = await self.db.execute(rating_query)
         ratings = {int(row.rating_star): row.count for row in rating_result.all()}
-        
+
         return {
             "categories": categories,
             "price_range": {
@@ -283,7 +280,7 @@ async def search_products(
     db: AsyncSession,
     query: str,
     **kwargs,
-) -> Tuple[List[Product], int]:
+) -> tuple[list[Product], int]:
     """Convenience function for product search."""
     engine = ProductSearchEngine(db)
     return await engine.search(query, **kwargs)
@@ -301,7 +298,7 @@ async def delete_product_index(db: AsyncSession, product_id: int) -> None:
 
 __all__ = [
     "ProductSearchEngine",
-    "search_products",
-    "index_product",
     "delete_product_index",
+    "index_product",
+    "search_products",
 ]

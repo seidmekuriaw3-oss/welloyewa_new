@@ -3,104 +3,104 @@
 # ============================
 """Legal and regulatory compliance for Ethiopian market."""
 
-from infrastructure.compliance.tax_calculator import (
-    TaxCalculator,
-    TaxRate,
-    TaxCategory,
-    calculate_vat,
-    calculate_withholding_tax,
-    calculate_turnover_tax,
-    calculate_total_tax,
-    TaxResult,
-)
-from infrastructure.compliance.invoice_legal_format import (
-    LegalInvoiceGenerator,
-    LegalInvoice,
-    InvoiceType,
-    generate_legal_invoice,
-    validate_invoice_for_tax,
-    TaxInvoice,
-    ReceiptInvoice,
-)
-from infrastructure.compliance.data_residency import (
-    DataResidencyManager,
-    DataRegion,
-    DataClassification,
-    ensure_data_residency,
-    get_data_location,
-    DataResidencyCompliance,
-)
-from infrastructure.compliance.privacy_policy_gen import (
-    PrivacyPolicyGenerator,
-    PrivacyPolicy,
-    ConsentType,
-    generate_privacy_policy,
-    update_privacy_policy,
-    PrivacyCompliance,
-)
-from infrastructure.compliance.terms_checker import (
-    TermsChecker,
-    TermsAcceptance,
-    TermsVersion,
-    check_terms_acceptance,
-    record_terms_acceptance,
-    get_current_terms,
-    TermsCompliance,
-)
 from infrastructure.compliance.audit_log_retention import (
     AuditLogRetention,
-    RetentionPolicy,
     LogRetentionManager,
-    enforce_retention_policy,
+    RetentionPolicy,
     archive_audit_logs,
     delete_expired_logs,
+    enforce_retention_policy,
+)
+from infrastructure.compliance.data_residency import (
+    DataClassification,
+    DataRegion,
+    DataResidencyCompliance,
+    DataResidencyManager,
+    ensure_data_residency,
+    get_data_location,
+)
+from infrastructure.compliance.invoice_legal_format import (
+    InvoiceType,
+    LegalInvoice,
+    LegalInvoiceGenerator,
+    ReceiptInvoice,
+    TaxInvoice,
+    generate_legal_invoice,
+    validate_invoice_for_tax,
+)
+from infrastructure.compliance.privacy_policy_gen import (
+    ConsentType,
+    PrivacyCompliance,
+    PrivacyPolicy,
+    PrivacyPolicyGenerator,
+    generate_privacy_policy,
+    update_privacy_policy,
+)
+from infrastructure.compliance.tax_calculator import (
+    TaxCalculator,
+    TaxCategory,
+    TaxRate,
+    TaxResult,
+    calculate_total_tax,
+    calculate_turnover_tax,
+    calculate_vat,
+    calculate_withholding_tax,
+)
+from infrastructure.compliance.terms_checker import (
+    TermsAcceptance,
+    TermsChecker,
+    TermsCompliance,
+    TermsVersion,
+    check_terms_acceptance,
+    get_current_terms,
+    record_terms_acceptance,
 )
 
 __all__ = [
-    # Tax Calculator
-    "TaxCalculator",
-    "TaxRate",
-    "TaxCategory",
-    "calculate_vat",
-    "calculate_withholding_tax",
-    "calculate_turnover_tax",
-    "calculate_total_tax",
-    "TaxResult",
-    # Legal Invoice
-    "LegalInvoiceGenerator",
-    "LegalInvoice",
-    "InvoiceType",
-    "generate_legal_invoice",
-    "validate_invoice_for_tax",
-    "TaxInvoice",
-    "ReceiptInvoice",
-    # Data Residency
-    "DataResidencyManager",
-    "DataRegion",
-    "DataClassification",
-    "ensure_data_residency",
-    "get_data_location",
-    "DataResidencyCompliance",
-    # Privacy Policy
-    "PrivacyPolicyGenerator",
-    "PrivacyPolicy",
-    "ConsentType",
-    "generate_privacy_policy",
-    "update_privacy_policy",
-    "PrivacyCompliance",
-    # Terms Checker
-    "TermsChecker",
-    "TermsAcceptance",
-    "TermsVersion",
-    "check_terms_acceptance",
-    "record_terms_acceptance",
-    "get_current_terms",
-    "TermsCompliance",
     # Audit Log Retention
     "AuditLogRetention",
-    "RetentionPolicy",
+    "ConsentType",
+    "DataClassification",
+    "DataRegion",
+    "DataResidencyCompliance",
+    # Data Residency
+    "DataResidencyManager",
+    "InvoiceType",
+    "LegalInvoice",
+    # Legal Invoice
+    "LegalInvoiceGenerator",
     "LogRetentionManager",
-    "enforce_retention_policy",
+    "PrivacyCompliance",
+    "PrivacyPolicy",
+    # Privacy Policy
+    "PrivacyPolicyGenerator",
+    "ReceiptInvoice",
+    "RetentionPolicy",
+    # Tax Calculator
+    "TaxCalculator",
+    "TaxCategory",
+    "TaxInvoice",
+    "TaxRate",
+    "TaxResult",
+    "TermsAcceptance",
+    # Terms Checker
+    "TermsChecker",
+    "TermsCompliance",
+    "TermsVersion",
     "archive_audit_logs",
+    "calculate_total_tax",
+    "calculate_turnover_tax",
+    "calculate_vat",
+    "calculate_withholding_tax",
+    "check_terms_acceptance",
     "delete_expired_logs",
+    "enforce_retention_policy",
+    "ensure_data_residency",
+    "generate_legal_invoice",
+    "generate_privacy_policy",
+    "get_current_terms",
+    "get_data_location",
+    "record_terms_acceptance",
+    "update_privacy_policy",
+    "validate_invoice_for_tax",
 ]

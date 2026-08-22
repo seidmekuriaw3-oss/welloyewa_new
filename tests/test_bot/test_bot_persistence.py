@@ -3,8 +3,9 @@
 # ============================
 """Unit tests for Telegram bot persistence fallback behavior."""
 
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from bot import bot_instance
 
@@ -30,7 +31,9 @@ class TestBotPersistence:
         bot_instance._bot = None
 
         with patch("bot.bot_instance.ApplicationBuilder", return_value=builder):
-            with patch("bot.bot_instance.RedisPersistence", side_effect=RuntimeError("redis unavailable")):
+            with patch(
+                "bot.bot_instance.RedisPersistence", side_effect=RuntimeError("redis unavailable")
+            ):
                 with patch("bot.bot_instance.JSONFilePersistence") as json_persistence_cls:
                     json_persistence_cls.return_value = "json_persistence"
 

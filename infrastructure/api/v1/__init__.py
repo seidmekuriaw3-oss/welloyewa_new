@@ -6,14 +6,14 @@
 from fastapi import APIRouter
 
 from infrastructure.api.v1.endpoints import (
-    health,
-    webhook,
-    users,
-    products,
-    orders,
-    analytics,
-    payments,
     admin,
+    analytics,
+    health,
+    orders,
+    payments,
+    products,
+    users,
+    webhook,
 )
 
 # Create main API router
@@ -39,13 +39,13 @@ payments_router = payments.router
 admin_router = admin.router
 
 __all__ = [
+    "admin_router",
+    "analytics_router",
     "api_router",
     "health_router",
-    "webhook_router",
-    "users_router",
-    "products_router",
     "orders_router",
-    "analytics_router",
     "payments_router",
-    "admin_router",
+    "products_router",
+    "users_router",
+    "webhook_router",
 ]

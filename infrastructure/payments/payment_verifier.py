@@ -6,25 +6,23 @@
 import hashlib
 import hmac
 import json
-from typing import Dict, Any, Optional
-from decimal import Decimal
+from typing import Any
 
-from infrastructure.payments.base import PaymentVerification, PaymentStatus
-from infrastructure.payments.factory import get_payment_provider
-from core.config import settings
 from core.logger import logger
+from infrastructure.payments.base import PaymentStatus, PaymentVerification
+from infrastructure.payments.factory import get_payment_provider
 
 
 class PaymentVerifier:
     """
     Payment verification utility.
-    
+
     Provides methods to verify payment status and validate webhook signatures.
     """
-    
+
     def __init__(self):
         self._providers = {}
-    
+
     async def verify_payment(
         self,
         method: str,
@@ -32,35 +30,35 @@ class PaymentVerifier:
     ) -> PaymentVerification:
         """
         Verify payment status with provider.
-        
+
         Args:
             method: Payment method (chapa, telebirr, cbe_birr)
             transaction_id: Transaction ID from gateway
-            
+
         Returns:
             Payment verification result
         """
         provider = await get_payment_provider(method)
         return await provider.verify_payment(transaction_id)
-    
+
     async def verify_webhook(
         self,
         method: str,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
     ) -> PaymentVerification:
         """
         Verify and process webhook payload.
-        
+
         Args:
             method: Payment method
             payload: Raw webhook payload
-            
+
         Returns:
             Payment verification result
         """
         provider = await get_payment_provider(method)
         return await provider.process_webhook(payload)
-    
+
     async def get_payment_status(
         self,
         method: str,
@@ -72,20 +70,20 @@ class PaymentVerifier:
 
 
 def verify_payment_signature(
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     secret: str,
-    signature_header: Optional[str] = None,
-    signature_field: Optional[str] = None,
+    signature_header: str | None = None,
+    signature_field: str | None = None,
 ) -> bool:
     """
     Verify webhook signature for payment notifications.
-    
+
     Args:
         payload: Webhook payload
         secret: Secret key for signature
         signature_header: Header containing signature (e.g., 'X-Signature')
         signature_field: Field in payload containing signature
-        
+
     Returns:
         True if signature is valid
     """
@@ -96,22 +94,22 @@ def verify_payment_signature(
         pass
     elif signature_field:
         signature = payload.get(signature_field)
-    
+
     if not signature:
         logger.warning("No signature found in webhook")
         return False
-    
+
     # Remove signature field from payload for verification
     payload_copy = {k: v for k, v in payload.items() if k != signature_field}
     payload_json = json.dumps(payload_copy, sort_keys=True)
-    
+
     # Compute expected signature
     expected = hmac.new(
         secret.encode(),
         payload_json.encode(),
         hashlib.sha256,
     ).hexdigest()
-    
+
     # Compare signatures
     return hmac.compare_digest(expected, signature)
 
@@ -124,23 +122,23 @@ async def verify_and_update_order_payment(
 ) -> bool:
     """
     Verify payment and update order status.
-    
+
     Args:
         db: Database session
         order_id: Order ID
         method: Payment method
         transaction_id: Transaction ID
-        
+
     Returns:
         True if payment is verified and order updated
     """
-    from apps.orders.services import OrderService
     from apps.orders.schemas import OrderStatusUpdate
+    from apps.orders.services import OrderService
     from core.constants import OrderStatus, PaymentStatus
-    
+
     verifier = PaymentVerifier()
     verification = await verifier.verify_payment(method, transaction_id)
-    
+
     if verification.verified:
         # Update order payment status
         order_service = OrderService(db)
@@ -149,7 +147,7 @@ async def verify_and_update_order_payment(
             payment_status=PaymentStatus.PAID.value,
             transaction_id=transaction_id,
         )
-        
+
         # Update order status if not already confirmed
         order = await order_service.get_order(order_id)
         if order.status == OrderStatus.PENDING.value:
@@ -158,15 +156,15 @@ async def verify_and_update_order_payment(
                 data=OrderStatusUpdate(status=OrderStatus.CONFIRMED.value),
                 user_id=None,
             )
-        
+
         logger.info(f"Payment verified and order {order_id} updated")
         return True
-    
+
     return False
 
 
 __all__ = [
     "PaymentVerifier",
-    "verify_payment_signature",
     "verify_and_update_order_payment",
+    "verify_payment_signature",
 ]

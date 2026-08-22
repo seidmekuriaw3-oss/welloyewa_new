@@ -1,49 +1,61 @@
 """Telegram bot start command, welcome message, and main menu callback handler."""
 
 from telegram import (
-    Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
+    Update,
     WebAppInfo,
 )
 from telegram.ext import ContextTypes
 
-from core.logger import logger
-from core.config import settings
-from apps.users.services import UserService
 from apps.users.schemas import UserUpdate
+from apps.users.services import UserService
+from core.config import settings
+from core.logger import logger
 from infrastructure.database.session import get_db_session
-
 
 # ---------------------------------------------------------------------------
 # Shared UI builders
 # ---------------------------------------------------------------------------
 
+
 def _build_main_menu(is_admin: bool = False, lang: str = "am") -> InlineKeyboardMarkup:
     """Build the main menu inline keyboard (label changes with language)."""
     labels = {
         "am": {
-            "products": "🛍️ ምርቶች",   "search": "🔍 ፈልግ",
-            "cart":     "🛒 ግዢ ቅርጫት", "profile": "👤 ፕሮፋይል",
-            "orders":   "📦 ትዕዛዞቼ",   "wishlist": "⭐ ተመራጮች",
-            "help":     "❓ እገዛ",       "feedback": "💬 ግብረ መልስ",
-            "admin":    "🔧 አስተዳደር",
+            "products": "🛍️ ምርቶች",
+            "search": "🔍 ፈልግ",
+            "cart": "🛒 ግዢ ቅርጫት",
+            "profile": "👤 ፕሮፋይል",
+            "orders": "📦 ትዕዛዞቼ",
+            "wishlist": "⭐ ተመራጮች",
+            "help": "❓ እገዛ",
+            "feedback": "💬 ግብረ መልስ",
+            "admin": "🔧 አስተዳደር",
         },
         "en": {
-            "products": "🛍️ Products",  "search": "🔍 Search",
-            "cart":     "🛒 Cart",       "profile": "👤 Profile",
-            "orders":   "📦 My Orders", "wishlist": "⭐ Wishlist",
-            "help":     "❓ Help",       "feedback": "💬 Feedback",
-            "admin":    "🔧 Admin",
+            "products": "🛍️ Products",
+            "search": "🔍 Search",
+            "cart": "🛒 Cart",
+            "profile": "👤 Profile",
+            "orders": "📦 My Orders",
+            "wishlist": "⭐ Wishlist",
+            "help": "❓ Help",
+            "feedback": "💬 Feedback",
+            "admin": "🔧 Admin",
         },
         "om": {
-            "products": "🛍️ Meeshaalee", "search": "🔍 Barbaadi",
-            "cart":     "🛒 Kuusaa",      "profile": "👤 Profaayilii",
-            "orders":   "📦 Ajajawwan",   "wishlist": "⭐ Barbaachisoo",
-            "help":     "❓ Gargaarsa",   "feedback": "💬 Yaada",
-            "admin":    "🔧 Bulchiinsa",
+            "products": "🛍️ Meeshaalee",
+            "search": "🔍 Barbaadi",
+            "cart": "🛒 Kuusaa",
+            "profile": "👤 Profaayilii",
+            "orders": "📦 Ajajawwan",
+            "wishlist": "⭐ Barbaachisoo",
+            "help": "❓ Gargaarsa",
+            "feedback": "💬 Yaada",
+            "admin": "🔧 Bulchiinsa",
         },
     }
     L = labels.get(lang, labels["am"])
@@ -53,18 +65,28 @@ def _build_main_menu(is_admin: bool = False, lang: str = "am") -> InlineKeyboard
         "om": "🛍️ Suuqa Bani",
     }
     keyboard = [
-        [InlineKeyboardButton(
-            open_store_labels.get(lang, open_store_labels["en"]),
-            web_app=WebAppInfo(url=settings.web_app_url),
-        )],
-        [InlineKeyboardButton(L["products"], callback_data="menu_products"),
-         InlineKeyboardButton(L["search"],   callback_data="menu_search")],
-        [InlineKeyboardButton(L["cart"],     callback_data="menu_cart"),
-         InlineKeyboardButton(L["profile"],  callback_data="menu_profile")],
-        [InlineKeyboardButton(L["orders"],   callback_data="menu_orders"),
-         InlineKeyboardButton(L["wishlist"], callback_data="menu_wishlist")],
-        [InlineKeyboardButton(L["help"],     callback_data="menu_help"),
-         InlineKeyboardButton(L["feedback"], callback_data="menu_feedback")],
+        [
+            InlineKeyboardButton(
+                open_store_labels.get(lang, open_store_labels["en"]),
+                web_app=WebAppInfo(url=settings.web_app_url),
+            )
+        ],
+        [
+            InlineKeyboardButton(L["products"], callback_data="menu_products"),
+            InlineKeyboardButton(L["search"], callback_data="menu_search"),
+        ],
+        [
+            InlineKeyboardButton(L["cart"], callback_data="menu_cart"),
+            InlineKeyboardButton(L["profile"], callback_data="menu_profile"),
+        ],
+        [
+            InlineKeyboardButton(L["orders"], callback_data="menu_orders"),
+            InlineKeyboardButton(L["wishlist"], callback_data="menu_wishlist"),
+        ],
+        [
+            InlineKeyboardButton(L["help"], callback_data="menu_help"),
+            InlineKeyboardButton(L["feedback"], callback_data="menu_feedback"),
+        ],
     ]
     if is_admin:
         keyboard.append([InlineKeyboardButton(L["admin"], callback_data="menu_admin")])
@@ -73,11 +95,13 @@ def _build_main_menu(is_admin: bool = False, lang: str = "am") -> InlineKeyboard
 
 def _build_language_keyboard() -> InlineKeyboardMarkup:
     """Language selection keyboard shown to brand-new users."""
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🇪🇹 አማርኛ",  callback_data="onboard_lang_am")],
-        [InlineKeyboardButton("🌐 English", callback_data="onboard_lang_en")],
-        [InlineKeyboardButton("🟢 Oromiffa", callback_data="onboard_lang_om")],
-    ])
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🇪🇹 አማርኛ", callback_data="onboard_lang_am")],
+            [InlineKeyboardButton("🌐 English", callback_data="onboard_lang_en")],
+            [InlineKeyboardButton("🟢 Oromiffa", callback_data="onboard_lang_om")],
+        ]
+    )
 
 
 def _build_phone_keyboard(lang: str = "am") -> ReplyKeyboardMarkup:
@@ -103,6 +127,7 @@ def _build_phone_keyboard(lang: str = "am") -> ReplyKeyboardMarkup:
 # ---------------------------------------------------------------------------
 # /start command
 # ---------------------------------------------------------------------------
+
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -132,6 +157,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             username=tg_user.username,
         )
         from bot.middlewares.auth import auth_middleware
+
         auth_middleware.invalidate(tg_user.id)
         break
 
@@ -151,15 +177,14 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         if user:
             try:
                 from apps.users.schemas import UserUpdate
+
                 async for db in get_db_session():
                     us = UserService(db)
                     await us.update_user(user.id, UserUpdate(language=lang_restore))
                     break
             except Exception:
                 pass
-        logger.info(
-            f"User {tg_user.id} restored from context.user_data (DB row was missing)"
-        )
+        logger.info(f"User {tg_user.id} restored from context.user_data (DB row was missing)")
 
     # Always clear the stale onboarding flag for returning users so that
     # reopening /start never loops back to language selection.
@@ -200,7 +225,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             "om": "\n\n⚠️ Lakkoofsi bilbilaa hin kuufamne — Profaayilii keessaa guuntaa.",
         }
         text = greetings.get(lang, greetings["am"])
-        phone_missing = (not user or not user.phone_number)
+        phone_missing = not user or not user.phone_number
         if phone_missing:
             text += nudge.get(lang, nudge["am"])
 
@@ -215,9 +240,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 # Onboarding Step 1 callback: language chosen → save + ask for phone
 # ---------------------------------------------------------------------------
 
-async def onboard_language_callback(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+
+async def onboard_language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Handle onboard_lang_am / onboard_lang_en / onboard_lang_om.
 
@@ -226,7 +250,7 @@ async def onboard_language_callback(
     query = update.callback_query
     await query.answer()
 
-    lang = query.data.replace("onboard_lang_", "")   # "am" | "en" | "om"
+    lang = query.data.replace("onboard_lang_", "")  # "am" | "en" | "om"
     tg_user = update.effective_user
 
     # Save language to DB
@@ -236,6 +260,7 @@ async def onboard_language_callback(
         if user:
             await user_service.update_user(user.id, UserUpdate(language=lang))
             from bot.middlewares.auth import auth_middleware
+
             auth_middleware.invalidate(tg_user.id)
         break
 
@@ -266,7 +291,7 @@ async def onboard_language_callback(
     await query.edit_message_text(ack.get(lang, ack["am"]), parse_mode="Markdown")
 
     await update.effective_message.reply_text(
-        "⬇️" if lang == "am" else "⬇️",
+        "⬇️",
         reply_markup=_build_phone_keyboard(lang),
     )
 
@@ -279,6 +304,7 @@ async def onboard_language_callback(
 # Main menu callback router
 # ---------------------------------------------------------------------------
 
+
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Route all menu_* callback queries to the right handler."""
     query = update.callback_query
@@ -288,30 +314,37 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     if action == "products":
         from bot.handlers.catalog import menu_command
+
         await menu_command(update, context)
 
     elif action == "search":
         from bot.handlers.search import search_command
+
         await search_command(update, context)
 
     elif action == "cart":
         from bot.handlers.cart import cart_command
+
         await cart_command(update, context)
 
     elif action == "profile":
         from bot.handlers.profile import profile_command
+
         await profile_command(update, context)
 
     elif action == "orders":
         from bot.handlers.profile import orders_command
+
         await orders_command(update, context)
 
     elif action == "wishlist":
         from bot.handlers.wishlist import wishlist_command
+
         await wishlist_command(update, context)
 
     elif action == "feedback":
         from bot.handlers.feedback import feedback_command
+
         await feedback_command(update, context)
 
     elif action == "help":
@@ -349,14 +382,15 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
 
     elif action == "admin":
-        from bot.handlers.admin.dashboard import admin_command
         # admin_command expects update.message, so show the panel inline here.
         if update.effective_user.id not in settings.admin_ids_list:
             await query.edit_message_text("❌ ፈቃድ የለዎትም።")
         else:
             from bot.handlers.admin.dashboard import ADMIN_MENU_TEXT, _admin_main_keyboard
+
             await query.edit_message_text(
-                ADMIN_MENU_TEXT, parse_mode="Markdown",
+                ADMIN_MENU_TEXT,
+                parse_mode="Markdown",
                 reply_markup=_admin_main_keyboard(),
             )
 
@@ -388,6 +422,7 @@ async def noop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 # ---------------------------------------------------------------------------
 # /help and fallback handlers
 # ---------------------------------------------------------------------------
+
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     lang = context.user_data.get("user", {}).get("language", "am")
@@ -449,12 +484,16 @@ async def shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "en": "🛍️ Open Wolloyewa Store",
         "om": "🛍️ Suuqa Wolloyewa Bani",
     }
-    markup = InlineKeyboardMarkup([[
-        InlineKeyboardButton(
-            button_labels.get(lang, button_labels["en"]),
-            web_app=WebAppInfo(url=settings.web_app_url),
-        )
-    ]])
+    markup = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    button_labels.get(lang, button_labels["en"]),
+                    web_app=WebAppInfo(url=settings.web_app_url),
+                )
+            ]
+        ]
+    )
     await update.message.reply_text(
         captions.get(lang, captions["en"]),
         reply_markup=markup,
@@ -462,13 +501,13 @@ async def shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 __all__ = [
-    "start_command",
-    "shop_command",
+    "_build_main_menu",
+    "_build_phone_keyboard",
     "help_command",
-    "unknown_command",
     "menu_callback",
     "noop_callback",
     "onboard_language_callback",
-    "_build_main_menu",
-    "_build_phone_keyboard",
+    "shop_command",
+    "start_command",
+    "unknown_command",
 ]

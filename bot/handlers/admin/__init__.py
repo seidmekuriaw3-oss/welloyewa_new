@@ -5,16 +5,16 @@
 
 from bot.handlers.admin import (
     dashboard,
-    products_admin,
     orders_admin,
-    users_admin,
+    products_admin,
     reports,
+    users_admin,
 )
 
 __all__ = [
     "dashboard",
-    "products_admin",
     "orders_admin",
-    "users_admin",
+    "products_admin",
     "reports",
+    "users_admin",
 ]

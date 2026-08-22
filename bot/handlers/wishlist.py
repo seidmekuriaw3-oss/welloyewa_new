@@ -2,12 +2,12 @@
 
 from datetime import datetime
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
+from apps.products.services import ProductService
 from core.logger import logger
 from core.utils.currency import format_etb
-from apps.products.services import ProductService
 from infrastructure.database.session import get_db_session
 
 WISHLIST_KEY = "wishlist"
@@ -73,6 +73,7 @@ async def wishlist_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     elif action == "wishlist_add_all":
         from bot.handlers.cart import add_to_cart
+
         user_id = update.effective_user.id
         for item in wishlist:
             await add_to_cart(user_id, item["product_id"], context)
@@ -82,9 +83,7 @@ async def wishlist_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     elif action == "wishlist_clear":
         _save_wishlist(context, [])
         try:
-            await query.message.edit_text(
-                "⭐ *ተመራጭ ምርቶችዎ ባዶ ነው!*", parse_mode="Markdown"
-            )
+            await query.message.edit_text("⭐ *ተመራጭ ምርቶችዎ ባዶ ነው!*", parse_mode="Markdown")
         except Exception:
             pass
         return
@@ -93,9 +92,7 @@ async def wishlist_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     wishlist = _get_wishlist(context)
     if not wishlist:
         try:
-            await query.message.edit_text(
-                "⭐ *ተመራጭ ምርቶችዎ ባዶ ነው!*", parse_mode="Markdown"
-            )
+            await query.message.edit_text("⭐ *ተመራጭ ምርቶችዎ ባዶ ነው!*", parse_mode="Markdown")
         except Exception:
             pass
         return
@@ -120,8 +117,13 @@ async def _build_wishlist_view(wishlist: list):
                 product = await product_service.get_product(item["product_id"])
                 if product:
                     price_text = format_etb(product.price)
-                    if getattr(product, "compare_price", None) and product.compare_price > product.price:
-                        price_text = f"~~{format_etb(product.compare_price)}~~ {format_etb(product.price)}"
+                    if (
+                        getattr(product, "compare_price", None)
+                        and product.compare_price > product.price
+                    ):
+                        price_text = (
+                            f"~~{format_etb(product.compare_price)}~~ {format_etb(product.price)}"
+                        )
                     wishlist_text += f"• *{product.name}*\n  💰 {price_text}\n\n"
             except Exception:
                 pass
@@ -137,7 +139,9 @@ async def _build_wishlist_view(wishlist: list):
     return wishlist_text, InlineKeyboardMarkup(keyboard)
 
 
-async def add_to_wishlist(user_id: int, product_id: int, context: ContextTypes.DEFAULT_TYPE = None) -> None:
+async def add_to_wishlist(
+    user_id: int, product_id: int, context: ContextTypes.DEFAULT_TYPE = None
+) -> None:
     """Add a product to the wishlist."""
     if context is None:
         return
@@ -148,7 +152,9 @@ async def add_to_wishlist(user_id: int, product_id: int, context: ContextTypes.D
     logger.info(f"Added product {product_id} to wishlist for user {user_id}")
 
 
-async def remove_from_wishlist(user_id: int, product_id: int, context: ContextTypes.DEFAULT_TYPE = None) -> None:
+async def remove_from_wishlist(
+    user_id: int, product_id: int, context: ContextTypes.DEFAULT_TYPE = None
+) -> None:
     """Remove a product from the wishlist."""
     if context is None:
         return
@@ -171,21 +177,22 @@ async def get_user_wishlist(user_id: int, context: ContextTypes.DEFAULT_TYPE = N
     return []
 
 
-async def refresh_wishlist_display(query, user_id: int, context: ContextTypes.DEFAULT_TYPE = None) -> None:
+async def refresh_wishlist_display(
+    query, user_id: int, context: ContextTypes.DEFAULT_TYPE = None
+) -> None:
     """Refresh the wishlist display."""
     wishlist = _get_wishlist(context) if context else []
     if not wishlist:
-        await query.message.edit_text(
-            "⭐ *ተመራጭ ምርቶችዎ ባዶ ነው!*", parse_mode="Markdown"
-        )
+        await query.message.edit_text("⭐ *ተመራጭ ምርቶችዎ ባዶ ነው!*", parse_mode="Markdown")
         return
     wishlist_text, reply_markup = await _build_wishlist_view(wishlist)
-    await query.message.edit_text(
-        wishlist_text, parse_mode="Markdown", reply_markup=reply_markup
-    )
+    await query.message.edit_text(wishlist_text, parse_mode="Markdown", reply_markup=reply_markup)
 
 
 __all__ = [
-    "wishlist_command", "wishlist_callback",
-    "add_to_wishlist", "get_user_wishlist", "clear_wishlist",
+    "add_to_wishlist",
+    "clear_wishlist",
+    "get_user_wishlist",
+    "wishlist_callback",
+    "wishlist_command",
 ]

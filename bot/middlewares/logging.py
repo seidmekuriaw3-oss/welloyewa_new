@@ -3,10 +3,10 @@
 # ============================
 """Logging middleware for bot requests and responses."""
 
-import time
 import json
-from typing import Callable, Awaitable
-from datetime import datetime
+import time
+from collections.abc import Awaitable, Callable
+
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -16,14 +16,14 @@ from core.logger import logger
 class LoggingMiddleware:
     """
     Logging middleware for bot updates.
-    
+
     Logs:
     - User actions
     - Command execution
     - Response times
     - Errors
     """
-    
+
     async def __call__(
         self,
         update: Update,
@@ -32,7 +32,7 @@ class LoggingMiddleware:
     ) -> None:
         """
         Process the update with logging.
-        
+
         Args:
             update: Telegram update
             context: Callback context
@@ -41,18 +41,18 @@ class LoggingMiddleware:
         start_time = time.time()
         user = update.effective_user
         chat = update.effective_chat
-        
+
         # Extract update info
         update_type = self._get_update_type(update)
         command = None
         text = None
-        
+
         if update.message:
             if update.message.text:
                 text = update.message.text
-                if text.startswith('/'):
+                if text.startswith("/"):
                     command = text.split()[0]
-        
+
         # Log incoming update
         log_data = {
             "update_id": update.update_id,
@@ -63,34 +63,34 @@ class LoggingMiddleware:
             "command": command,
             "text": text[:100] if text else None,
         }
-        
+
         logger.info(f"Incoming update: {json.dumps(log_data, default=str)}")
-        
+
         try:
             # Process the update
             await next_handler(update, context)
-            
+
             # Calculate response time
             response_time = (time.time() - start_time) * 1000
-            
+
             # Log success
             logger.info(
                 f"Update processed: user={user.id if user else None}, "
                 f"command={command}, duration={response_time:.2f}ms"
             )
-            
+
         except Exception as e:
             # Calculate response time
             response_time = (time.time() - start_time) * 1000
-            
+
             # Log error
             logger.error(
                 f"Update failed: user={user.id if user else None}, "
                 f"command={command}, duration={response_time:.2f}ms, "
-                f"error={str(e)}"
+                f"error={e!s}"
             )
             raise
-    
+
     def _get_update_type(self, update: Update) -> str:
         """Determine update type."""
         if update.message:

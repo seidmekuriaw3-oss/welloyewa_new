@@ -4,25 +4,27 @@
 """Database replication management for high availability."""
 
 import subprocess
-from enum import Enum
-from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
+from typing import Any
 
 from core.config import settings
 from core.logger import logger
 
 
-class ReplicationMode(str, Enum):
+class ReplicationMode(StrEnum):
     """Database replication modes."""
+
     ASYNCHRONOUS = "asynchronous"
     SYNCHRONOUS = "synchronous"
     STREAMING = "streaming"
     LOGICAL = "logical"
 
 
-class ReplicationStatus(str, Enum):
+class ReplicationStatus(StrEnum):
     """Replication status."""
+
     ACTIVE = "active"
     DEGRADED = "degraded"
     FAILED = "failed"
@@ -33,7 +35,7 @@ class ReplicationStatus(str, Enum):
 @dataclass
 class ReplicationConfig:
     """Replication configuration."""
-    
+
     mode: ReplicationMode = ReplicationMode.STREAMING
     replica_host: str = "localhost"
     replica_port: int = 5433
@@ -45,50 +47,50 @@ class ReplicationConfig:
 class ReplicationManager:
     """
     Database replication manager.
-    
+
     Features:
     - Setup and manage replication
     - Monitor replication lag
     - Automatic failover preparation
     - Replica health checks
     """
-    
-    def __init__(self, config: Optional[ReplicationConfig] = None):
+
+    def __init__(self, config: ReplicationConfig | None = None):
         self.config = config or ReplicationConfig()
         self.status = ReplicationStatus.SYNCING
-    
+
     async def setup_replication(self) -> bool:
         """
         Setup database replication.
-        
+
         Returns:
             True if setup successful
         """
         try:
             # Create replication user
             await self._create_replication_user()
-            
+
             # Configure primary database
             await self._configure_primary()
-            
+
             # Take base backup
             await self._take_base_backup()
-            
+
             # Configure replica
             await self._configure_replica()
-            
+
             # Start replication
             await self._start_replication()
-            
+
             self.status = ReplicationStatus.ACTIVE
             logger.info("Database replication setup completed")
             return True
-            
+
         except Exception as e:
             self.status = ReplicationStatus.FAILED
             logger.error(f"Replication setup failed: {e}")
             return False
-    
+
     async def _create_replication_user(self) -> None:
         """Create replication user on primary."""
         try:
@@ -97,35 +99,33 @@ class ReplicationManager:
                     "psql",
                     settings.DATABASE_URL,
                     "-c",
-                    f"CREATE USER {self.config.replication_user} WITH REPLICATION LOGIN PASSWORD 'secure_password';"
+                    f"CREATE USER {self.config.replication_user} WITH REPLICATION LOGIN PASSWORD 'secure_password';",
                 ],
                 check=True,
             )
         except subprocess.CalledProcessError as e:
             logger.warning(f"Replication user may already exist: {e}")
-    
+
     async def _configure_primary(self) -> None:
         """Configure primary database for replication."""
         # Update postgresql.conf
-        config_changes = f"""
-wal_level = replica
-max_wal_senders = {self.config.max_wal_senders}
-wal_keep_segments = {self.config.wal_keep_segments}
-hot_standby = on
-"""
         # Apply configuration
         logger.info("Primary database configured for replication")
-    
+
     async def _take_base_backup(self) -> None:
         """Take base backup for replica."""
         try:
             subprocess.run(
                 [
                     "pg_basebackup",
-                    "-h", self.config.replica_host,
-                    "-p", str(self.config.replica_port),
-                    "-U", self.config.replication_user,
-                    "-D", "/var/lib/postgresql/data",
+                    "-h",
+                    self.config.replica_host,
+                    "-p",
+                    str(self.config.replica_port),
+                    "-U",
+                    self.config.replication_user,
+                    "-D",
+                    "/var/lib/postgresql/data",
                     "-Fp",
                     "-Xs",
                     "-P",
@@ -136,13 +136,13 @@ hot_standby = on
         except subprocess.CalledProcessError as e:
             logger.error(f"Base backup failed: {e}")
             raise
-    
+
     async def _configure_replica(self) -> None:
         """Configure replica database."""
         # Create standby.signal file
         # Configure recovery settings
         logger.info("Replica database configured")
-    
+
     async def _start_replication(self) -> None:
         """Start replication process."""
         try:
@@ -154,11 +154,11 @@ hot_standby = on
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to start replica: {e}")
             raise
-    
-    async def get_replication_status(self) -> Dict[str, Any]:
+
+    async def get_replication_status(self) -> dict[str, Any]:
         """
         Get current replication status.
-        
+
         Returns:
             Replication status information
         """
@@ -171,7 +171,7 @@ hot_standby = on
                     "-t",
                     "-c",
                     """
-                    SELECT 
+                    SELECT
                         pid,
                         application_name,
                         client_addr,
@@ -181,16 +181,16 @@ hot_standby = on
                         flush_lag,
                         write_lag
                     FROM pg_stat_replication;
-                    """
+                    """,
                 ],
                 capture_output=True,
                 text=True,
                 check=True,
             )
-            
+
             # Parse result
             lag_seconds = self._parse_replication_lag(result.stdout)
-            
+
             return {
                 "status": self.status.value,
                 "mode": self.config.mode.value,
@@ -198,7 +198,7 @@ hot_standby = on
                 "is_healthy": lag_seconds < 60 if lag_seconds else True,
                 "timestamp": datetime.utcnow().isoformat(),
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to get replication status: {e}")
             return {
@@ -206,16 +206,16 @@ hot_standby = on
                 "error": str(e),
                 "timestamp": datetime.utcnow().isoformat(),
             }
-    
-    def _parse_replication_lag(self, output: str) -> Optional[float]:
+
+    def _parse_replication_lag(self, output: str) -> float | None:
         """Parse replication lag from psql output."""
         # Implementation depends on output format
         return None
-    
+
     async def failover_to_replica(self) -> bool:
         """
         Perform failover to replica.
-        
+
         Returns:
             True if failover successful
         """
@@ -225,32 +225,32 @@ hot_standby = on
                 ["pg_ctl", "promote", "-D", "/var/lib/postgresql/data"],
                 check=True,
             )
-            
+
             # Update application configuration
             await self._update_app_config()
-            
+
             self.status = ReplicationStatus.RECOVERING
             logger.warning("Failover to replica completed")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failover failed: {e}")
             return False
-    
+
     async def _update_app_config(self) -> None:
         """Update application configuration after failover."""
         # Update DATABASE_URL to point to new primary
         logger.info("Application configuration updated after failover")
-    
-    async def monitor_replication(self) -> Dict[str, Any]:
+
+    async def monitor_replication(self) -> dict[str, Any]:
         """
         Monitor replication health.
-        
+
         Returns:
             Health check results
         """
         status = await self.get_replication_status()
-        
+
         # Check replication lag
         if status.get("lag_seconds", 0) > 60:
             self.status = ReplicationStatus.DEGRADED
@@ -258,32 +258,32 @@ hot_standby = on
         elif status.get("lag_seconds", 0) > 300:
             self.status = ReplicationStatus.FAILED
             logger.error(f"Replication lag critical: {status['lag_seconds']}s")
-        
+
         return status
-    
+
     async def resync_replica(self) -> bool:
         """
         Resynchronize replica from primary.
-        
+
         Returns:
             True if resync successful
         """
         self.status = ReplicationStatus.SYNCING
-        
+
         try:
             # Stop replica
             subprocess.run(["pg_ctl", "stop", "-D", "/var/lib/postgresql/data"], check=True)
-            
+
             # Take fresh base backup
             await self._take_base_backup()
-            
+
             # Start replica
             await self._start_replication()
-            
+
             self.status = ReplicationStatus.ACTIVE
             logger.info("Replica resynchronized")
             return True
-            
+
         except Exception as e:
             self.status = ReplicationStatus.FAILED
             logger.error(f"Resync failed: {e}")
@@ -299,7 +299,7 @@ async def setup_replication() -> bool:
     return await replication_manager.setup_replication()
 
 
-async def get_replication_status() -> Dict[str, Any]:
+async def get_replication_status() -> dict[str, Any]:
     """Get replication status."""
     return await replication_manager.get_replication_status()
 
@@ -310,12 +310,12 @@ async def failover_to_replica() -> bool:
 
 
 __all__ = [
-    "ReplicationManager",
     "ReplicationConfig",
+    "ReplicationManager",
     "ReplicationMode",
     "ReplicationStatus",
+    "failover_to_replica",
+    "get_replication_status",
     "replication_manager",
     "setup_replication",
-    "get_replication_status",
-    "failover_to_replica",
 ]
