@@ -414,7 +414,9 @@ def main() -> None:
         if selected_port != preferred_port:
             settings.PORT = selected_port
             os.environ["PORT"] = str(selected_port)
-            settings.WEB_APP_URL = f"http://localhost:{selected_port}/app/"
+            logger.info(
+                "Selected a different local port; Telegram WebApp URL remains unchanged because only public HTTPS URLs are valid for Mini App buttons."
+            )
 
         loop_policy = "asyncio" if sys.platform == "win32" else "uvloop"
         uvicorn.run(

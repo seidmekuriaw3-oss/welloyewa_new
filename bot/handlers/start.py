@@ -23,9 +23,14 @@ from infrastructure.database.session import get_db_session
 
 
 def _build_store_button(label: str) -> InlineKeyboardButton:
-    """Build a Mini App button only when Telegram can reach an HTTPS URL."""
+    """Open the store in Telegram WebApp only for valid HTTPS URLs.
+
+    Telegram rejects plain HTTP links in inline keyboard buttons, so localhost
+    and other non-public HTTP URLs must fall back to an in-app menu action rather
+    than crashing with a BadRequest.
+    """
     store_url = settings.web_app_url
-    if store_url.lower().startswith("https://"):
+    if store_url and store_url.lower().startswith("https://"):
         return InlineKeyboardButton(label, web_app=WebAppInfo(url=store_url))
     return InlineKeyboardButton(label, callback_data="menu_products")
 

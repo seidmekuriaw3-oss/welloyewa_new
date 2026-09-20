@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}ወሎዮ ሱቅ 🇪🇹{% endblock %}
+
+{% block content %}
+
+<!-- ── Promo Banners ───────────────────────────────────────────── -->
+<div class="promo-scroll">
+    <div class="promo-card">
+        <div class="promo-text">
+            <h3>እስከ 30% ቅናሽ!</h3>
+            <p>ምርጥ ምርቶቸን አሁን ዳሰሳ</p>
+        </div>
+        <a href="/app/categories" class="promo-btn">ዳሰሳ →</a>
+    </div>
+    <div class="promo-card promo-gold">
+        <div class="promo-text">
+            <h3>1ኛ ትዕዛዝ ቅናሽ</h3>
+            <p>ከETB 1,000 በላይ ነፃ ዲሊቨሪ</p>
+        </div>
+        <a href="/app/categories" class="promo-btn">ግዛ →</a>
+    </div>
+</div>
+
+<!-- ── Categories Row ─────────────────────────────────────────── -->
+<div class="section" style="padding-bottom:0">
+    <div class="section-title">
+        📦 ምድቦቸ
+        <a href="/app/categories" style="margin-left:auto;font-size:13px;font-weight:600;color:var(--primary);text-decoration:none">ሁሉ ምርቶቸ →</a>
+    </div>
+    <div class="category-grid" id="homeCatGrid">
+        <div style="grid-column:1/-1;text-align:center;padding:12px;color:var(--text-muted);font-size:13px">እየጫናን…</div>
+    </div>
+</div>
+
+<!-- ── Products ───────────────────────────────────────────────── -->
+<div class="section">
+    <div class="section-title" id="productsSectionTitle">🛒 ምርቶቸ</div>
+    <div class="products-grid" id="productsGrid" style="grid-template-columns:repeat(2,1fr);gap:12px">
+        <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">
+            ምርቶቸ እየጫናን ነው…
+        </div>
+    </div>
+    <div id="loadMoreWrap" style="text-align:center;margin-top:18px;display:none">
+        <button id="loadMoreBtn" onclick="loadMoreProds()" class="btn-primary" style="width:auto;padding:12px 36px">
+            ተጨማሪ ምርቶቸ
+        </button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Category icon map ────────────────────────────────────────────
+const CAT_ICONS = {
+    'electronics':'📱','clothing':'👕','food':'🍎','food & drinks':'🍎',
+    'books':'📚','beauty':'💄','health':'💊','home':'🏠','home & living':'🏠',
+    'sports':'⚽','toys':'🧸','automotive':'🚗','agriculture':'🌾',
+};
+function catIcon(name) {
+    if (!name) return '🛍️';
+    const k = name.toLowerCase();
+    return CAT_ICONS[k] || Object.keys(CAT_ICONS).reduce(
+        (f, key) => (!f && k.includes(key)) ? CAT_ICONS[key] : f, '') || '🛍️';
+}
+
+// ── State ────────────────────────────────────────────────────────
+let allProds = [];
+let filteredProds = [];
+let activeCatId = null;
+let displayPage = 1;
+const PAGE_SIZE = 20;
+
+// ── Read URL params ──────────────────────────────────────────────
+const _urlParams = new URLSearchParams(window.location.search);
+const _initQ   = (_urlParams.get('q') || '').trim();
+const _initCat = _urlParams.get('category') ? parseInt(_urlParams.get('category')) : null;
+
+// ── Render product cards ─────────────────────────────────────────
+function renderProds(reset) {
+    if (reset) displayPage = 1;
+    const grid = document.getElementById('productsGrid');
+
+    if (!filteredProds.length) {
+        grid.innerHTML = `
+            <div style="grid-column:1/-1;text-align:center;padding:56px 16px;color:var(--text-muted)">
+                <div style="font-size:56px;margin-bottom:12px">🔍</div>
+                <p style="font-size:15px;font-weight:600;color:var(--text)">ምርቶቸ አልተገኙም</p>
+                <p style="font-size:13px;margin-top:6px">ሌሎቸ ምድቦቸ ይሞክሩ</p>
+            </div>`;
+        document.getElementById('loadMoreWrap').style.display = 'none';
+        return;
+    }
+
+    const slice = filteredProds.slice(0, displayPage * PAGE_SIZE);
+    grid.innerHTML = slice.map(p => {
+        const thumb = (p.images && p.images.length)
+            ? `<img src="${safeUrl(p.images[0])}" alt="" style="width:100%;height:100%;object-fit:cover">`
+            : `<span style="font-size:52px">📦</span>`;
+        const outOfStock = p.stock_quantity <= 0;
+        const nameAm = p.name_am ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">${he(p.name_am)}</div>` : '';
+        return `
+        <div class="product-card" onclick="window.location.href='/app/product/${p.id}'">
+            <div class="product-image" style="height:140px;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer">
+                ${thumb}
+            </div>
+            <div class="product-info" style="padding:10px 10px 12px">
+                ${nameAm}
+                <p class="product-name" style="font-size:13px;line-height:1.35;margin-bottom:6px">${he(p.name)}</p>
+                <div class="product-footer" style="gap:6px">
+                    <span class="product-price" style="font-size:14px">ETB ${Number(p.price).toLocaleString()}</span>
+                    ${outOfStock
+                        ? `<span style="font-size:10px;color:var(--danger);font-weight:600">አልቋል</span>`
+                        : `<button class="btn-add" style="padding:5px 10px;font-size:11px"
+                              onclick="event.stopPropagation();addCard(${p.id},'${he(p.name).replace(/'/g,"\\'")}',${p.price})">
+                              🛒 ጨምር
+                           </button>`}
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('loadMoreWrap').style.display =
+        filteredProds.length > displayPage * PAGE_SIZE ? 'block' : 'none';
+}
+
+function addCard(id, name, price) {
+    cart.add({ id, name, price });
+    refreshAllBadges();
+}
+
+function loadMoreProds() {
+    displayPage++;
+    renderProds(false);
+}
+
+// ── Filter by category ───────────────────────────────────────────
+function filterByCat(catId, el) {
+    activeCatId = catId;
+    document.querySelectorAll('#homeCatGrid .category-card').forEach(c => c.classList.remove('active'));
+    if (el) el.classList.add('active');
+
+    // Also clear search bar
+    const searchEl = document.getElementById('globalSearch');
+    if (searchEl) searchEl.value = '';
+    _sdrop.close();
+
+    applyFilters(null);
+}
+
+// ── Apply current search + category ────────────────────────────
+function applyFilters(q) {
+    const searchQ = (q !== null ? q : (document.getElementById('globalSearch')?.value || '')).trim().toLowerCase();
+    let base = activeCatId !== null
+        ? allProds.filter(p => p.category_id === activeCatId)
+        : allProds;
+    filteredProds = searchQ
+        ? base.filter(p => (p.name || '').toLowerCase().includes(searchQ) || (p.name_am || '').toLowerCase().includes(searchQ))
+        : base;
+    const title = document.getElementById('productsSectionTitle');
+    if (title) {
+        if (searchQ) title.textContent = `🔍 "${searchQ}" ውጤቶቸ`;
+        else if (activeCatId) title.textContent = '🛒 ምርቶቸ';
+        else title.textContent = '🛒 ሁሉ ምርቶቸ';
+    }
+    renderProds(true);
+}
+
+// ── Override global search for home page ────────────────────────
+function onGlobalSearch(val) {
+    clearTimeout(_sdrop.timer);
+    _sdrop.close();
+    applyFilters(val);
+}
+
+// ── Load categories mini-strip ──────────────────────────────────
+async function loadHomeCats() {
+    const grid = document.getElementById('homeCatGrid');
+    try {
+        const cats = await fetch('/app/api/categories').then(r => r.json());
+        const items = [{ id: null, name: 'ሁሉ', name_am: '' }, ...cats];
+        grid.innerHTML = items.map(c => {
+            const isAll = c.id === null;
+            const isActive = isAll ? activeCatId === null : c.id === activeCatId;
+            const label = isAll ? 'ሁሉ' : he(c.name_am || c.name);
+            const icon  = isAll ? '🛍️' : catIcon(c.name);
+            const cid   = isAll ? 'null' : c.id;
+            return `
+            <div class="category-card${isActive ? ' active' : ''}" onclick="filterByCat(${cid},this)">
+                <div class="icon">${icon}</div>
+                <div class="label">${label}</div>
+            </div>`;
+        }).join('');
+    } catch(e) {
+        grid.innerHTML = '';
+    }
+}
+
+// ── Load products ───────────────────────────────────────────────
+async function loadHomeProds() {
+    const grid = document.getElementById('productsGrid');
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">ምርቶቸ እየጫናን ነው…</div>';
+    try {
+        // Fetch all products (up to 200); let client handle filtering
+        const url = '/app/api/products?page_size=200&page=1';
+        const resp = await fetch(url, { cache: 'no-store' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        allProds = Array.isArray(data.items) ? data.items : [];
+
+        // Apply initial URL params
+        if (_initCat !== null) {
+            activeCatId = _initCat;
+            // Highlight the matching category card (if already rendered)
+            document.querySelectorAll('#homeCatGrid .category-card').forEach((el, i) => {
+                el.classList.toggle('active', i > 0 && /* rough match */ false);
+            });
+        }
+        if (_initQ) {
+            const searchEl = document.getElementById('globalSearch');
+            if (searchEl) searchEl.value = _initQ;
+        }
+        applyFilters(_initQ || null);
+    } catch(e) {
+        grid.innerHTML = `
+            <div style="grid-column:1/-1;text-align:center;padding:40px 16px;color:var(--text-muted)">
+                <div style="font-size:48px;margin-bottom:12px">⚠️</div>
+                <p style="font-size:14px;font-weight:600">ምርቶቸ መጫን አልተቻለም</p>
+                <button onclick="loadHomeProds()" class="btn-primary" style="margin-top:16px;width:auto;padding:10px 24px;font-size:14px">
+                    እንደገና ሞክር
+                </button>
+            </div>`;
+    }
+}
+
+// ── Boot ─────────────────────────────────────────────────────────
+(async function boot() {
+    // Fetch categories and products in parallel
+    await Promise.all([loadHomeCats(), loadHomeProds()]);
+    refreshAllBadges();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}ትዕዛዞቼ — ወሎዮ ሱቅ{% endblock %}
+
+{% block content %}
+
+<div style="background:linear-gradient(135deg,var(--primary) 0%,var(--primary-dark) 100%);padding:28px 16px 24px;text-align:center;color:white">
+    <h1 style="font-size:22px;font-weight:800;margin-bottom:6px">📋 ትዕዛዞቼ</h1>
+    <p style="font-size:13px;opacity:.85">የቅርብ ጊዜ ትዕዛዞቸዎን ይመልከቱ</p>
+</div>
+
+<div class="orders-list" id="ordersList">
+    <div style="text-align:center;padding:40px;color:var(--text-muted)">እየጫናን ነው…</div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const STATUS_ICONS  = { pending:'⏳', confirmed:'✅', processing:'⚙️', shipped:'🚚', delivered:'📬', cancelled:'❌', refunded:'↩️' };
+const STATUS_AM     = { pending:'በጥበቃ ላይ', confirmed:'ተረጋግጧል', processing:'በሂደት ላይ', shipped:'ተልኳል', delivered:'ደርሷል', cancelled:'ተሰርዟል', refunded:'ተመልሷል' };
+
+async function loadOrders() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const init_data = tg ? tg.initData : '';
+    const el = document.getElementById('ordersList');
+    try {
+        const res = await fetch('/app/api/my-orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ init_data }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            el.innerHTML = `
+                <div style="text-align:center;padding:56px 16px;color:var(--text-muted)">
+                    <div style="font-size:52px;margin-bottom:12px">📋</div>
+                    <p style="font-size:15px;font-weight:600">ትዕዛዞቸን ለማየት<br>Telegram ከፍቶ ይጠቀሙ።</p>
+                </div>`;
+            return;
+        }
+        const orders = data.orders || [];
+        if (!orders.length) {
+            el.innerHTML = `
+                <div style="text-align:center;padding:56px 16px;color:var(--text-muted)">
+                    <div style="font-size:56px;margin-bottom:16px">📦</div>
+                    <p style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px">ምንም ትዕዛዞቸ የሉም</p>
+                    <p style="font-size:13px;margin-bottom:24px">ምርቶቸን ዳሰሳ ትዕዛዝዎን ይጀምሩ</p>
+                    <a href="/app/" class="btn-primary" style="display:inline-block;padding:12px 28px;width:auto">ዳሰሳ →</a>
+                </div>`;
+            return;
+        }
+        el.innerHTML = orders.map(o => {
+            const icon   = STATUS_ICONS[o.status] || '📋';
+            const statusAm = STATUS_AM[o.status] || o.status;
+            const items  = (o.items || []).map(i => `<span class="order-item-chip">${he(i.name)} ×${i.quantity}</span>`).join('');
+            const date   = o.created_at ? new Date(o.created_at).toLocaleDateString('am-ET') : '';
+            return `
+            <div class="order-card">
+                <div class="order-header" onclick="this.parentElement.classList.toggle('expanded')">
+                    <div class="order-meta">
+                        <div class="order-number">#${he(o.order_number)}</div>
+                        <div class="order-date">${date}</div>
+                        ${o.shipping_city ? `<div class="order-city">📍 ${he(o.shipping_city)}</div>` : ''}
+                    </div>
+                    <div class="order-right">
+                        <div class="order-total">ETB ${Number(o.total).toLocaleString()}</div>
+                        <span style="font-size:12px;background:var(--primary-light);color:var(--primary);border-radius:999px;padding:3px 10px;font-weight:600">
+                            ${icon} ${statusAm}
+                        </span>
+                    </div>
+                </div>
+                ${items ? `<div style="padding:0 16px 14px;display:flex;flex-wrap:wrap;gap:6px">${items}</div>` : ''}
+                ${o.tracking_number ? `<div style="padding:0 16px 14px;font-size:12px;color:var(--text-muted)">🔍 ${he(o.tracking_number)}</div>` : ''}
+            </div>`;
+        }).join('');
+    } catch(e) {
+        el.innerHTML = '<p style="text-align:center;padding:40px;color:var(--text-muted)">ትዕዛዞቸ መጫን አልተቻለም።</p>';
+    }
+}
+
+loadOrders();
+refreshAllBadges();
+</script>
+{% endblock %}

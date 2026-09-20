@@ -151,13 +151,35 @@ class Settings(BaseSettings):
 
     @property
     def web_app_url(self) -> str:
-        """Public URL for the Telegram Mini App store page."""
+        """Public HTTPS URL for the Telegram Mini App store page.
+
+        Telegram rejects plain HTTP URLs for inline WebApp buttons. Localhost
+        addresses are fine for browser testing but must never be used as the
+        public Telegram Mini App URL.
+        """
         if self.WEB_APP_URL:
-            return self.WEB_APP_URL.rstrip("/") + "/"
+            value = self.WEB_APP_URL.strip()
+            if value.startswith("https://"):
+                return value.rstrip("/") + "/"
+            return ""
         if self.REPLIT_DOMAINS:
             domain = self.REPLIT_DOMAINS.split(",")[0].strip()
             return f"https://{domain}/app/"
-        return f"http://localhost:{self.PORT}/app/"
+        return ""
+
+    @web_app_url.setter
+    def web_app_url(self, value: str) -> None:
+        """Set the public Mini App URL while keeping Telegram-compatible HTTPS-only validation."""
+        cleaned = (value or "").strip()
+        if cleaned and cleaned.startswith("https://"):
+            self.WEB_APP_URL = cleaned.rstrip("/") + "/"
+        else:
+            self.WEB_APP_URL = cleaned
+
+    @web_app_url.deleter
+    def web_app_url(self) -> None:
+        """Allow tests and runtime patches to clear the public Mini App URL."""
+        self.WEB_APP_URL = None
 
     # Cloudinary
     CLOUDINARY_CLOUD_NAME: str | None = Field(default=None)

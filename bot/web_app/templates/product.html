@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}ምርት — ወሎዮ ሱቅ{% endblock %}
+
+{% block content %}
+
+<div style="padding:12px 16px;display:flex;align-items:center;gap:8px;background:var(--white);border-bottom:1px solid var(--border);position:sticky;top:56px;z-index:90">
+    <button onclick="history.back()" style="background:none;border:none;font-size:24px;cursor:pointer;padding:4px 8px;color:var(--text);line-height:1">‹</button>
+    <span style="font-size:15px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="productBreadcrumb">ምርት</span>
+    <a href="/app/cart" style="position:relative;font-size:22px;text-decoration:none">
+        🛒<span class="cart-badge" id="navCartBadge2" style="display:none;position:absolute;top:-4px;right:-6px;background:var(--danger);color:white;border-radius:999px;font-size:9px;min-width:16px;height:16px;display:none;align-items:center;justify-content:center;font-weight:700;padding:0 3px">0</span>
+    </a>
+</div>
+
+<div id="productDetail" style="max-width:700px;margin:0 auto;padding-bottom:40px">
+    <div style="text-align:center;padding:60px 16px;color:var(--text-muted)">
+        <div style="font-size:40px;margin-bottom:12px">⏳</div>
+        <p>እየጫናን ነው…</p>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const _pid = {{ product_id }};
+let _qty = 1;
+let _prod = null;
+
+async function loadProduct() {
+    const el = document.getElementById('productDetail');
+    try {
+        const resp = await fetch(`/app/api/product/${_pid}`, { cache: 'no-store' });
+        if (!resp.ok) throw new Error('not found');
+        _prod = await resp.json();
+
+        const name   = _prod.name || '';
+        const nameAm = _prod.name_am || '';
+        const price  = Number(_prod.price || 0);
+        const cmpP   = _prod.compare_price ? Number(_prod.compare_price) : null;
+        const stock  = Number(_prod.stock_quantity || 0);
+        const inStock = stock > 0;
+        const imgs   = _prod.images || [];
+        const desc   = _prod.description || _prod.description_am || '';
+
+        document.getElementById('productBreadcrumb').textContent = name || 'ምርት';
+        document.title = (name || 'ምርት') + ' — ወሎዮ ሱቅ';
+
+        const thumbHtml = imgs.length && imgs[0]
+            ? `<img src="${safeUrl(imgs[0])}" alt="${he(name)}" style="width:100%;height:100%;object-fit:cover;display:block">`
+            : `<div style="height:260px;display:flex;align-items:center;justify-content:center;font-size:100px;background:var(--bg)">📦</div>`;
+
+        const discountPct = (cmpP && cmpP > price)
+            ? Math.round((cmpP - price) / cmpP * 100)
+            : null;
+
+        el.innerHTML = `
+            <!-- Image -->
+            <div style="background:var(--bg);overflow:hidden${imgs.length ? ';aspect-ratio:1' : ';height:260px'}">
+                ${thumbHtml}
+            </div>
+
+            <div style="padding:18px 16px 8px">
+                <!-- Name -->
+                <h1 style="font-size:20px;font-weight:800;line-height:1.35;margin-bottom:${nameAm ? '4px' : '10px'}">${he(name)}</h1>
+                ${nameAm ? `<p style="font-size:14px;color:var(--text-muted);margin-bottom:10px">${he(nameAm)}</p>` : ''}
+
+                <!-- Price -->
+                <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+                    <span style="font-size:28px;font-weight:800;color:var(--primary)">ETB ${price.toLocaleString()}</span>
+                    ${cmpP && cmpP > price ? `
+                        <span style="font-size:15px;text-decoration:line-through;color:var(--text-muted)">ETB ${cmpP.toLocaleString()}</span>
+                        <span style="font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:999px">-${discountPct}%</span>
+                    ` : ''}
+                </div>
+
+                <!-- Stock badge -->
+                <div style="margin-bottom:18px">
+                    <span class="badge ${inStock ? 'badge-green' : 'badge-red'}">
+                        ${inStock ? '✅ ምርቱ አለ' + (stock < 20 ? ' (' + stock + ' ቀረ)' : '') : '❌ አልቋል'}
+                    </span>
+                </div>
+
+                <!-- Description -->
+                ${desc ? `<p style="font-size:14px;color:var(--text-muted);line-height:1.75;margin-bottom:20px">${he(desc)}</p>` : ''}
+
+                <!-- Qty control -->
+                ${inStock ? `
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+                    <span style="font-size:14px;font-weight:600;color:var(--text-muted)">ብዛት</span>
+                    <div style="display:flex;align-items:center;gap:8px;background:var(--bg);border-radius:10px;padding:4px">
+                        <button onclick="changeQty(-1)" class="qty-btn">−</button>
+                        <span id="qtyVal" style="font-size:18px;font-weight:700;min-width:28px;text-align:center">1</span>
+                        <button onclick="changeQty(1)" class="qty-btn">+</button>
+                    </div>
+                </div>
+                <button onclick="doAddToCart()" class="btn-primary" id="addCartBtn">
+                    🛒 ወደ ቅርጫት ጨምር
+                </button>
+                <a href="/app/cart" class="btn-primary" id="goCartBtn" style="display:none;background:var(--primary-dark);margin-top:10px">
+                    ✅ ቅርጫቴን ይምልከቱ →
+                </a>
+                ` : `
+                <button class="btn-primary" disabled style="opacity:.45;cursor:not-allowed">
+                    ❌ አልቋል
+                </button>
+                `}
+            </div>
+
+            <!-- Related / back -->
+            <div style="padding:16px 16px 8px;border-top:1px solid var(--border);margin-top:8px">
+                <a href="/app/" style="font-size:13px;color:var(--primary);font-weight:600;text-decoration:none">‹ ወደ ምርቶቸ ዝርዝር</a>
+            </div>
+        `;
+    } catch(e) {
+        el.innerHTML = `
+            <div style="text-align:center;padding:60px 16px;color:var(--text-muted)">
+                <div style="font-size:52px;margin-bottom:14px">❌</div>
+                <p style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px">ምርቱ አልተገኘም</p>
+                <a href="/app/" class="btn-primary" style="display:inline-block;margin-top:16px;padding:12px 28px;width:auto">ወደ ዋና ገጽ →</a>
+            </div>`;
+    }
+}
+
+function changeQty(delta) {
+    _qty = Math.max(1, _qty + delta);
+    const el = document.getElementById('qtyVal');
+    if (el) el.textContent = _qty;
+}
+
+function doAddToCart() {
+    if (!_prod) return;
+    cart.add({ id: _prod.id, name: _prod.name, price: Number(_prod.price) }, _qty);
+    refreshAllBadges();
+    // Show "go to cart" button
+    const addBtn  = document.getElementById('addCartBtn');
+    const cartBtn = document.getElementById('goCartBtn');
+    if (addBtn)  addBtn.style.display  = 'none';
+    if (cartBtn) cartBtn.style.display = 'block';
+}
+
+loadProduct();
+refreshAllBadges();
+</script>
+{% endblock %}

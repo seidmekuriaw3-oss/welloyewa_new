@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}ግባ — ወሎዮ ሱቅ{% endblock %}
+
+{% block content %}
+<main class="auth-page">
+    <section class="auth-card">
+        <h1>ወደ መለያዎ ይግቡ</h1>
+        <p class="auth-subtitle">ትዕዛዞችዎን ለመከታተል ይግቡ።</p>
+        <form id="loginForm">
+            <label for="loginPhone">ስልክ ቁጥር</label>
+            <input id="loginPhone" name="phone" type="tel" inputmode="tel" required autocomplete="tel" placeholder="0912345678">
+            <label for="loginPassword">የይለፍ ቃል</label>
+            <input id="loginPassword" name="password" type="password" required autocomplete="current-password">
+            <p id="loginError" class="form-error" role="alert"></p>
+            <button class="btn-primary" type="submit">ግባ</button>
+        </form>
+        <p class="auth-link">መለያ የለዎትም? <a href="/app/register">ይመዝገቡ</a></p>
+    </section>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const error = document.getElementById('loginError');
+    error.textContent = '';
+    const response = await fetch('/app/api/web/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: form.phone.value, password: form.password.value }),
+    });
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        error.textContent = data.detail || 'መግባት አልተቻለም።';
+        return;
+    }
+    const data = await response.json();
+    localStorage.setItem('wolloyewa_access_token', data.access_token);
+    window.location.href = '/app/dashboard';
+});
+</script>
+{% endblock %}

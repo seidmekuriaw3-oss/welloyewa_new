@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}ዕቃዎቼ — ወሎዮ ሱቅ{% endblock %}
+
+{% block content %}
+
+<div style="background:var(--white);border-bottom:1px solid var(--border);padding:18px 16px;display:flex;align-items:center;gap:10px">
+    <span style="font-size:22px">🛒</span>
+    <h1 style="font-size:20px;font-weight:800">ዕቃዎቸ</h1>
+</div>
+
+<div class="cart-page">
+
+    <!-- Empty state -->
+    <div id="cartEmpty" class="cart-empty" style="display:none">
+        <div style="font-size:80px;margin-bottom:20px">🛒</div>
+        <p style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:8px">ዕቃዎቸ ባይ ነው</p>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:28px">ምርቶቸን ዳሰሳ ወደ ቅርጫትዎ ያክሉ</p>
+        <a href="/app/categories" class="btn-primary" style="display:inline-block;padding:14px 32px;width:auto;font-size:15px">
+            ምርቶቸ ዳሰሳ →
+        </a>
+    </div>
+
+    <!-- Cart items -->
+    <div id="cartItems"></div>
+
+    <!-- Summary -->
+    <div class="cart-summary" id="cartSummary" style="display:none">
+        <div class="cart-summary-row">
+            <span>ንኡስ ድምር</span>
+            <span id="cartSubtotal">ETB 0</span>
+        </div>
+        <div class="cart-summary-row">
+            <span>🚚 ዲሊቨሪ</span>
+            <span id="cartShipping">ETB 50</span>
+        </div>
+        <div class="cart-summary-row total">
+            <span>ጠቅላላ</span>
+            <strong id="cartTotal">ETB 0</strong>
+        </div>
+        <a href="/app/checkout" class="btn-primary" style="margin-top:16px">✅ ትዕዛዝ ስጡ</a>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function renderCart() {
+    const items = cart.items;
+    const emptyEl    = document.getElementById('cartEmpty');
+    const itemsEl    = document.getElementById('cartItems');
+    const summaryEl  = document.getElementById('cartSummary');
+
+    if (!items.length) {
+        emptyEl.style.display   = 'block';
+        itemsEl.innerHTML       = '';
+        summaryEl.style.display = 'none';
+        return;
+    }
+    emptyEl.style.display   = 'none';
+    summaryEl.style.display = 'block';
+
+    itemsEl.innerHTML = items.map((item, idx) => `
+        <div class="cart-item">
+            <div class="cart-item-img">📦</div>
+            <div class="cart-item-info">
+                <p class="cart-item-name">${he(item.name)}</p>
+                <p class="cart-item-price">ETB ${Number(item.price).toLocaleString()} × ${item.qty}</p>
+            </div>
+            <div class="cart-item-actions">
+                <button onclick="changeQty(${item.id}, -1)" class="qty-btn" style="width:28px;height:28px;font-size:14px">−</button>
+                <span style="min-width:24px;text-align:center;font-weight:700">${item.qty}</span>
+                <button onclick="changeQty(${item.id}, 1)"  class="qty-btn" style="width:28px;height:28px;font-size:14px">+</button>
+                <button onclick="removeFromCart(${item.id})" class="btn-remove">🗑</button>
+            </div>
+        </div>
+    `).join('');
+
+    const subtotal = cart.total();
+    const shipping = subtotal >= 1000 ? 0 : 50;
+    const total    = subtotal + shipping;
+    document.getElementById('cartSubtotal').textContent = 'ETB ' + Number(subtotal).toLocaleString();
+    document.getElementById('cartShipping').textContent = shipping === 0 ? 'ነፃ ✓' : 'ETB ' + shipping;
+    document.getElementById('cartTotal').textContent    = 'ETB ' + Number(total).toLocaleString();
+    refreshAllBadges();
+}
+
+function changeQty(productId, delta) {
+    const item = cart.items.find(i => i.id === productId);
+    if (!item) return;
+    const newQty = item.qty + delta;
+    if (newQty <= 0) {
+        cart.remove(productId);
+    } else {
+        cart.updateQty(productId, newQty);
+    }
+    renderCart();
+}
+
+function removeFromCart(productId) {
+    cart.remove(productId);
+    renderCart();
+}
+
+renderCart();
+</script>
+{% endblock %}
