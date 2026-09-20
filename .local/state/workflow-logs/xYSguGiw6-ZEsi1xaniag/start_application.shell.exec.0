@@ -1,0 +1,284 @@
+Redis started on 127.0.0.1:6379
+[32m2026-07-02 00:33:32 | INFO     | root | Logging initialized | Level: INFO | Format: text[0m
+[32m2026-07-02 00:33:33 | INFO     | main | API v1 router registered[0m
+[32m2026-07-02 00:33:33 | INFO     | main | Webhook router registered[0m
+[32m2026-07-02 00:33:33 | INFO     | main | Web app router registered[0m
+[32m2026-07-02 00:33:33 | INFO     | main | Web app static files mounted at /app/static[0m
+[32mINFO[0m:     Started server process [[36m184[0m]
+[32mINFO[0m:     Waiting for application startup.
+[32m2026-07-02 00:33:33 | INFO     | main | Starting Wolloyewa_Store_Bot v1.0.0[0m
+[32m2026-07-02 00:33:33 | INFO     | main | Environment: development[0m
+[32m2026-07-02 00:33:33 | INFO     | core.logger | Database connection pool initialized (pool_size=20)[0m
+[32m2026-07-02 00:33:33 | INFO     | main | Database connection pool initialized[0m
+[32m2026-07-02 00:33:33 | INFO     | main | Database schema verified/created[0m
+[32m2026-07-02 00:33:33 | INFO     | core.logger | Redis connection established[0m
+[32m2026-07-02 00:33:33 | INFO     | main | Redis connection initialized[0m
+[32m2026-07-02 00:33:33 | INFO     | core.logger | Initializing Telegram bot...[0m
+[32m2026-07-02 00:33:33 | INFO     | core.logger | Using Redis-based persistence for Telegram bot state[0m
+[32m2026-07-02 00:33:33 | INFO     | core.logger | Setting up bot dispatcher...[0m
+[32m2026-07-02 00:33:33 | INFO     | core.logger | Auth middleware registered (group -1)[0m
+[32m2026-07-02 00:33:33 | INFO     | core.logger | Command handlers registered[0m
+[32m2026-07-02 00:33:33 | INFO     | core.logger | Callback handlers registered[0m
+/home/runner/workspace/bot/dispatcher.py:109: PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message. Read this FAQ entry to learn more about the per_* settings: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Frequently-Asked-Questions#what-do-the-per_-settings-in-conversationhandler-do.
+  checkout_conv = ConversationHandler(
+/home/runner/workspace/bot/dispatcher.py:136: PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message. Read this FAQ entry to learn more about the per_* settings: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Frequently-Asked-Questions#what-do-the-per_-settings-in-conversationhandler-do.
+  search_conv = ConversationHandler(
+/home/runner/workspace/bot/dispatcher.py:160: PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message. Read this FAQ entry to learn more about the per_* settings: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Frequently-Asked-Questions#what-do-the-per_-settings-in-conversationhandler-do.
+  feedback_conv = ConversationHandler(
+[32m2026-07-02 00:33:33 | INFO     | core.logger | Conversation handlers registered[0m
+[32m2026-07-02 00:33:33 | INFO     | core.logger | Message handlers registered[0m
+[32m2026-07-02 00:33:33 | INFO     | core.logger | Bot dispatcher setup complete ✓[0m
+[32m2026-07-02 00:33:33 | INFO     | core.logger | Telegram bot handlers registered successfully[0m
+[32m2026-07-02 00:33:34 | INFO     | core.logger | Bot initialized: User(allows_users_to_create_topics=False, api_kwargs={'supports_join_request_queries': False}, can_connect_to_business=False, can_join_groups=True, can_manage_bots=False, can_read_all_group_messages=False, first_name='ወሎየዋ ሱቅ', has_main_web_app=False, has_topics_enabled=False, id=8927914359, is_bot=True, supports_guest_queries=False, supports_inline_queries=False, username='Wolloyewa_Store_Bot')[0m
+[32m2026-07-02 00:33:34 | INFO     | main | Telegram bot initialized[0m
+[32m2026-07-02 00:33:34 | INFO     | main | Starting Telegram bot in POLLING mode...[0m
+[32m2026-07-02 00:33:34 | INFO     | main | Webhook cleared, starting polling...[0m
+[32m2026-07-02 00:33:39 | INFO     | apscheduler.scheduler | Scheduler started[0m
+[32m2026-07-02 00:33:39 | INFO     | main | Telegram bot polling started![0m
+[32m2026-07-02 00:33:39 | INFO     | core.logger | Task scheduler started[0m
+[32m2026-07-02 00:33:39 | INFO     | main | Background task scheduler started[0m
+[32m2026-07-02 00:33:39 | INFO     | core.logger | Running startup hooks...[0m
+[32m2026-07-02 00:33:39 | INFO     | core.logger | Starting Wolloyewa_Store_Bot v1.0.0[0m
+[32m2026-07-02 00:33:39 | INFO     | core.logger | Environment: development[0m
+[32m2026-07-02 00:33:39 | INFO     | core.logger | Debug mode: True[0m
+[32m2026-07-02 00:33:39 | INFO     | core.logger | All startup hooks completed successfully[0m
+[32m2026-07-02 00:33:39 | INFO     | main | Application startup completed[0m
+[32mINFO[0m:     Application startup complete.
+[32mINFO[0m:     Uvicorn running on [1mhttp://0.0.0.0:5000[0m (Press CTRL+C to quit)
+2026-07-02 00:33:49,262 INFO sqlalchemy.engine.Engine select pg_catalog.version()
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | select pg_catalog.version()[0m
+2026-07-02 00:33:49,263 INFO sqlalchemy.engine.Engine [raw sql] ()
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()[0m
+2026-07-02 00:33:49,265 INFO sqlalchemy.engine.Engine select current_schema()
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | select current_schema()[0m
+2026-07-02 00:33:49,265 INFO sqlalchemy.engine.Engine [raw sql] ()
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()[0m
+2026-07-02 00:33:49,267 INFO sqlalchemy.engine.Engine show standard_conforming_strings
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | show standard_conforming_strings[0m
+2026-07-02 00:33:49,267 INFO sqlalchemy.engine.Engine [raw sql] ()
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()[0m
+2026-07-02 00:33:49,268 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)[0m
+2026-07-02 00:33:49,275 INFO sqlalchemy.engine.Engine SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+WHERE products.is_deleted = false AND products.status = $1::product_status AND (lower(products.name) LIKE lower($2::VARCHAR) OR lower(coalesce(products.name_am, $3::VARCHAR)) LIKE lower($4::VARCHAR)) ORDER BY products.name 
+ LIMIT $5::INTEGER
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+WHERE products.is_deleted = false AND products.status = $1::product_status AND (lower(products.name) LIKE lower($2::VARCHAR) OR lower(coalesce(products.name_am, $3::VARCHAR)) LIKE lower($4::VARCHAR)) ORDER BY products.name 
+ LIMIT $5::INTEGER[0m
+2026-07-02 00:33:49,276 INFO sqlalchemy.engine.Engine [generated in 0.00030s] ('ACTIVE', '%phone%', '', '%phone%', 6)
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | [generated in 0.00030s] ('ACTIVE', '%phone%', '', '%phone%', 6)[0m
+2026-07-02 00:33:49,299 INFO sqlalchemy.engine.Engine SELECT categories.id AS categories_id, categories.name AS categories_name, categories.name_am AS categories_name_am, categories.slug AS categories_slug, categories.description AS categories_description, categories.description_am AS categories_description_am, categories.parent_id AS categories_parent_id, categories.image_url AS categories_image_url, categories.icon_url AS categories_icon_url, categories.meta_title AS categories_meta_title, categories.meta_description AS categories_meta_description, categories.display_order AS categories_display_order, categories.is_active AS categories_is_active, categories.is_featured AS categories_is_featured, categories.product_count AS categories_product_count, categories.created_at AS categories_created_at, categories.updated_at AS categories_updated_at 
+FROM categories 
+WHERE categories.id IN ($1::INTEGER)
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | SELECT categories.id AS categories_id, categories.name AS categories_name, categories.name_am AS categories_name_am, categories.slug AS categories_slug, categories.description AS categories_description, categories.description_am AS categories_description_am, categories.parent_id AS categories_parent_id, categories.image_url AS categories_image_url, categories.icon_url AS categories_icon_url, categories.meta_title AS categories_meta_title, categories.meta_description AS categories_meta_description, categories.display_order AS categories_display_order, categories.is_active AS categories_is_active, categories.is_featured AS categories_is_featured, categories.product_count AS categories_product_count, categories.created_at AS categories_created_at, categories.updated_at AS categories_updated_at 
+FROM categories 
+WHERE categories.id IN ($1::INTEGER)[0m
+2026-07-02 00:33:49,300 INFO sqlalchemy.engine.Engine [generated in 0.00026s] (1,)
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | [generated in 0.00026s] (1,)[0m
+2026-07-02 00:33:49,310 INFO sqlalchemy.engine.Engine ROLLBACK
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | ROLLBACK[0m
+2026-07-02 00:33:49,370 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)[0m
+2026-07-02 00:33:49,371 INFO sqlalchemy.engine.Engine SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+WHERE products.is_deleted = false AND products.status = $1::product_status AND (lower(products.name) LIKE lower($2::VARCHAR) OR lower(coalesce(products.name_am, $3::VARCHAR)) LIKE lower($4::VARCHAR)) ORDER BY products.name 
+ LIMIT $5::INTEGER
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+WHERE products.is_deleted = false AND products.status = $1::product_status AND (lower(products.name) LIKE lower($2::VARCHAR) OR lower(coalesce(products.name_am, $3::VARCHAR)) LIKE lower($4::VARCHAR)) ORDER BY products.name 
+ LIMIT $5::INTEGER[0m
+2026-07-02 00:33:49,371 INFO sqlalchemy.engine.Engine [cached since 0.09552s ago] ('ACTIVE', '%lap%', '', '%lap%', 6)
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | [cached since 0.09552s ago] ('ACTIVE', '%lap%', '', '%lap%', 6)[0m
+2026-07-02 00:33:49,376 INFO sqlalchemy.engine.Engine SELECT categories.id AS categories_id, categories.name AS categories_name, categories.name_am AS categories_name_am, categories.slug AS categories_slug, categories.description AS categories_description, categories.description_am AS categories_description_am, categories.parent_id AS categories_parent_id, categories.image_url AS categories_image_url, categories.icon_url AS categories_icon_url, categories.meta_title AS categories_meta_title, categories.meta_description AS categories_meta_description, categories.display_order AS categories_display_order, categories.is_active AS categories_is_active, categories.is_featured AS categories_is_featured, categories.product_count AS categories_product_count, categories.created_at AS categories_created_at, categories.updated_at AS categories_updated_at 
+FROM categories 
+WHERE categories.id IN ($1::INTEGER)
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | SELECT categories.id AS categories_id, categories.name AS categories_name, categories.name_am AS categories_name_am, categories.slug AS categories_slug, categories.description AS categories_description, categories.description_am AS categories_description_am, categories.parent_id AS categories_parent_id, categories.image_url AS categories_image_url, categories.icon_url AS categories_icon_url, categories.meta_title AS categories_meta_title, categories.meta_description AS categories_meta_description, categories.display_order AS categories_display_order, categories.is_active AS categories_is_active, categories.is_featured AS categories_is_featured, categories.product_count AS categories_product_count, categories.created_at AS categories_created_at, categories.updated_at AS categories_updated_at 
+FROM categories 
+WHERE categories.id IN ($1::INTEGER)[0m
+2026-07-02 00:33:49,376 INFO sqlalchemy.engine.Engine [cached since 0.07671s ago] (1,)
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | [cached since 0.07671s ago] (1,)[0m
+2026-07-02 00:33:49,379 INFO sqlalchemy.engine.Engine ROLLBACK
+[32m2026-07-02 00:33:49 | INFO     | sqlalchemy.engine.Engine | ROLLBACK[0m
+2026-07-02 00:33:54,020 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+[32m2026-07-02 00:33:54 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)[0m
+2026-07-02 00:33:54,025 INFO sqlalchemy.engine.Engine SELECT categories.name, categories.name_am, categories.slug, categories.description, categories.description_am, categories.parent_id, categories.image_url, categories.icon_url, categories.meta_title, categories.meta_description, categories.display_order, categories.is_active, categories.is_featured, categories.product_count, categories.id, categories.created_at, categories.updated_at, count(products.id) AS live_count 
+FROM categories LEFT OUTER JOIN products ON products.category_id = categories.id AND products.is_deleted = false 
+WHERE categories.is_active = true GROUP BY categories.id ORDER BY categories.name
+[32m2026-07-02 00:33:54 | INFO     | sqlalchemy.engine.Engine | SELECT categories.name, categories.name_am, categories.slug, categories.description, categories.description_am, categories.parent_id, categories.image_url, categories.icon_url, categories.meta_title, categories.meta_description, categories.display_order, categories.is_active, categories.is_featured, categories.product_count, categories.id, categories.created_at, categories.updated_at, count(products.id) AS live_count 
+FROM categories LEFT OUTER JOIN products ON products.category_id = categories.id AND products.is_deleted = false 
+WHERE categories.is_active = true GROUP BY categories.id ORDER BY categories.name[0m
+2026-07-02 00:33:54,026 INFO sqlalchemy.engine.Engine [generated in 0.00026s] ()
+[32m2026-07-02 00:33:54 | INFO     | sqlalchemy.engine.Engine | [generated in 0.00026s] ()[0m
+2026-07-02 00:33:54,042 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+[32m2026-07-02 00:33:54 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)[0m
+2026-07-02 00:33:54,043 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM products
+[32m2026-07-02 00:33:54 | INFO     | sqlalchemy.engine.Engine | SELECT count(*) AS count_1 
+FROM products[0m
+2026-07-02 00:33:54,043 INFO sqlalchemy.engine.Engine [generated in 0.00014s] ()
+[32m2026-07-02 00:33:54 | INFO     | sqlalchemy.engine.Engine | [generated in 0.00014s] ()[0m
+2026-07-02 00:33:54,047 INFO sqlalchemy.engine.Engine ROLLBACK
+[32m2026-07-02 00:33:54 | INFO     | sqlalchemy.engine.Engine | ROLLBACK[0m
+2026-07-02 00:33:54,054 INFO sqlalchemy.engine.Engine SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+ LIMIT $1::INTEGER
+[32m2026-07-02 00:33:54 | INFO     | sqlalchemy.engine.Engine | SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+ LIMIT $1::INTEGER[0m
+2026-07-02 00:33:54,054 INFO sqlalchemy.engine.Engine [generated in 0.00048s] (200,)
+[32m2026-07-02 00:33:54 | INFO     | sqlalchemy.engine.Engine | [generated in 0.00048s] (200,)[0m
+2026-07-02 00:33:54,078 INFO sqlalchemy.engine.Engine ROLLBACK
+[32m2026-07-02 00:33:54 | INFO     | sqlalchemy.engine.Engine | ROLLBACK[0m
+2026-07-02 00:34:36,591 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+[32m2026-07-02 00:34:36 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)[0m
+2026-07-02 00:34:36,594 INFO sqlalchemy.engine.Engine SELECT users.telegram_id, users.username, users.first_name, users.last_name, users.phone_number, users.email, users.role, users.status, users.gender, users.date_of_birth, users.profile_picture, users.language, users.location_lat, users.location_lng, users.city, users.subcity, users.woreda, users.house_number, users.is_verified, users.verified_at, users.last_active, users.last_login_ip, users.password_hash, users.reset_token, users.reset_token_expires, users.id, users.created_at, users.updated_at, users.deleted_at, users.is_deleted, users.extra_data 
+FROM users 
+WHERE users.telegram_id = $1::BIGINT
+[32m2026-07-02 00:34:36 | INFO     | sqlalchemy.engine.Engine | SELECT users.telegram_id, users.username, users.first_name, users.last_name, users.phone_number, users.email, users.role, users.status, users.gender, users.date_of_birth, users.profile_picture, users.language, users.location_lat, users.location_lng, users.city, users.subcity, users.woreda, users.house_number, users.is_verified, users.verified_at, users.last_active, users.last_login_ip, users.password_hash, users.reset_token, users.reset_token_expires, users.id, users.created_at, users.updated_at, users.deleted_at, users.is_deleted, users.extra_data 
+FROM users 
+WHERE users.telegram_id = $1::BIGINT[0m
+2026-07-02 00:34:36,594 INFO sqlalchemy.engine.Engine [generated in 0.00021s] (5848843259,)
+[32m2026-07-02 00:34:36 | INFO     | sqlalchemy.engine.Engine | [generated in 0.00021s] (5848843259,)[0m
+[32m2026-07-02 00:34:36 | INFO     | core.logger | User 5848843259 (@Supman100) started the bot[0m
+2026-07-02 00:34:36,616 INFO sqlalchemy.engine.Engine ROLLBACK
+[32m2026-07-02 00:34:36 | INFO     | sqlalchemy.engine.Engine | ROLLBACK[0m
+2026-07-02 00:34:36,618 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+[32m2026-07-02 00:34:36 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)[0m
+2026-07-02 00:34:36,618 INFO sqlalchemy.engine.Engine SELECT users.telegram_id, users.username, users.first_name, users.last_name, users.phone_number, users.email, users.role, users.status, users.gender, users.date_of_birth, users.profile_picture, users.language, users.location_lat, users.location_lng, users.city, users.subcity, users.woreda, users.house_number, users.is_verified, users.verified_at, users.last_active, users.last_login_ip, users.password_hash, users.reset_token, users.reset_token_expires, users.id, users.created_at, users.updated_at, users.deleted_at, users.is_deleted, users.extra_data 
+FROM users 
+WHERE users.telegram_id = $1::BIGINT
+[32m2026-07-02 00:34:36 | INFO     | sqlalchemy.engine.Engine | SELECT users.telegram_id, users.username, users.first_name, users.last_name, users.phone_number, users.email, users.role, users.status, users.gender, users.date_of_birth, users.profile_picture, users.language, users.location_lat, users.location_lng, users.city, users.subcity, users.woreda, users.house_number, users.is_verified, users.verified_at, users.last_active, users.last_login_ip, users.password_hash, users.reset_token, users.reset_token_expires, users.id, users.created_at, users.updated_at, users.deleted_at, users.is_deleted, users.extra_data 
+FROM users 
+WHERE users.telegram_id = $1::BIGINT[0m
+2026-07-02 00:34:36,618 INFO sqlalchemy.engine.Engine [cached since 0.02426s ago] (5848843259,)
+[32m2026-07-02 00:34:36 | INFO     | sqlalchemy.engine.Engine | [cached since 0.02426s ago] (5848843259,)[0m
+2026-07-02 00:34:36,624 INFO sqlalchemy.engine.Engine SELECT users.telegram_id, users.username, users.first_name, users.last_name, users.phone_number, users.email, users.role, users.status, users.gender, users.date_of_birth, users.profile_picture, users.language, users.location_lat, users.location_lng, users.city, users.subcity, users.woreda, users.house_number, users.is_verified, users.verified_at, users.last_active, users.last_login_ip, users.password_hash, users.reset_token, users.reset_token_expires, users.id, users.created_at, users.updated_at, users.deleted_at, users.is_deleted, users.extra_data 
+FROM users 
+WHERE users.telegram_id = $1::BIGINT
+[32m2026-07-02 00:34:36 | INFO     | sqlalchemy.engine.Engine | SELECT users.telegram_id, users.username, users.first_name, users.last_name, users.phone_number, users.email, users.role, users.status, users.gender, users.date_of_birth, users.profile_picture, users.language, users.location_lat, users.location_lng, users.city, users.subcity, users.woreda, users.house_number, users.is_verified, users.verified_at, users.last_active, users.last_login_ip, users.password_hash, users.reset_token, users.reset_token_expires, users.id, users.created_at, users.updated_at, users.deleted_at, users.is_deleted, users.extra_data 
+FROM users 
+WHERE users.telegram_id = $1::BIGINT[0m
+2026-07-02 00:34:36,624 INFO sqlalchemy.engine.Engine [cached since 0.03067s ago] (5848843259,)
+[32m2026-07-02 00:34:36 | INFO     | sqlalchemy.engine.Engine | [cached since 0.03067s ago] (5848843259,)[0m
+2026-07-02 00:34:36,627 INFO sqlalchemy.engine.Engine ROLLBACK
+[32m2026-07-02 00:34:36 | INFO     | sqlalchemy.engine.Engine | ROLLBACK[0m
+2026-07-02 00:34:42,066 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+[32m2026-07-02 00:34:42 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)[0m
+2026-07-02 00:34:42,066 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM products
+[32m2026-07-02 00:34:42 | INFO     | sqlalchemy.engine.Engine | SELECT count(*) AS count_1 
+FROM products[0m
+2026-07-02 00:34:42,066 INFO sqlalchemy.engine.Engine [cached since 48.02s ago] ()
+[32m2026-07-02 00:34:42 | INFO     | sqlalchemy.engine.Engine | [cached since 48.02s ago] ()[0m
+2026-07-02 00:34:42,067 INFO sqlalchemy.engine.Engine SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+ LIMIT $1::INTEGER
+[32m2026-07-02 00:34:42 | INFO     | sqlalchemy.engine.Engine | SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+ LIMIT $1::INTEGER[0m
+2026-07-02 00:34:42,068 INFO sqlalchemy.engine.Engine [cached since 48.01s ago] (200,)
+[32m2026-07-02 00:34:42 | INFO     | sqlalchemy.engine.Engine | [cached since 48.01s ago] (200,)[0m
+2026-07-02 00:34:42,073 INFO sqlalchemy.engine.Engine ROLLBACK
+[32m2026-07-02 00:34:42 | INFO     | sqlalchemy.engine.Engine | ROLLBACK[0m
+2026-07-02 00:34:42,094 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+[32m2026-07-02 00:34:42 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)[0m
+2026-07-02 00:34:42,094 INFO sqlalchemy.engine.Engine SELECT categories.name, categories.name_am, categories.slug, categories.description, categories.description_am, categories.parent_id, categories.image_url, categories.icon_url, categories.meta_title, categories.meta_description, categories.display_order, categories.is_active, categories.is_featured, categories.product_count, categories.id, categories.created_at, categories.updated_at, count(products.id) AS live_count 
+FROM categories LEFT OUTER JOIN products ON products.category_id = categories.id AND products.is_deleted = false 
+WHERE categories.is_active = true GROUP BY categories.id ORDER BY categories.name
+[32m2026-07-02 00:34:42 | INFO     | sqlalchemy.engine.Engine | SELECT categories.name, categories.name_am, categories.slug, categories.description, categories.description_am, categories.parent_id, categories.image_url, categories.icon_url, categories.meta_title, categories.meta_description, categories.display_order, categories.is_active, categories.is_featured, categories.product_count, categories.id, categories.created_at, categories.updated_at, count(products.id) AS live_count 
+FROM categories LEFT OUTER JOIN products ON products.category_id = categories.id AND products.is_deleted = false 
+WHERE categories.is_active = true GROUP BY categories.id ORDER BY categories.name[0m
+2026-07-02 00:34:42,094 INFO sqlalchemy.engine.Engine [cached since 48.07s ago] ()
+[32m2026-07-02 00:34:42 | INFO     | sqlalchemy.engine.Engine | [cached since 48.07s ago] ()[0m
+2026-07-02 00:34:42,097 INFO sqlalchemy.engine.Engine ROLLBACK
+[32m2026-07-02 00:34:42 | INFO     | sqlalchemy.engine.Engine | ROLLBACK[0m
+2026-07-02 00:38:13,444 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+[32m2026-07-02 00:38:13 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)[0m
+2026-07-02 00:38:13,444 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM products
+[32m2026-07-02 00:38:13 | INFO     | sqlalchemy.engine.Engine | SELECT count(*) AS count_1 
+FROM products[0m
+2026-07-02 00:38:13,445 INFO sqlalchemy.engine.Engine [cached since 259.4s ago] ()
+[32m2026-07-02 00:38:13 | INFO     | sqlalchemy.engine.Engine | [cached since 259.4s ago] ()[0m
+2026-07-02 00:38:13,447 INFO sqlalchemy.engine.Engine SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+ LIMIT $1::INTEGER
+[32m2026-07-02 00:38:13 | INFO     | sqlalchemy.engine.Engine | SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+ LIMIT $1::INTEGER[0m
+2026-07-02 00:38:13,448 INFO sqlalchemy.engine.Engine [cached since 259.4s ago] (5,)
+[32m2026-07-02 00:38:13 | INFO     | sqlalchemy.engine.Engine | [cached since 259.4s ago] (5,)[0m
+2026-07-02 00:38:13,454 INFO sqlalchemy.engine.Engine ROLLBACK
+[32m2026-07-02 00:38:13 | INFO     | sqlalchemy.engine.Engine | ROLLBACK[0m
+2026-07-02 00:38:40,660 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+[32m2026-07-02 00:38:40 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)[0m
+2026-07-02 00:38:40,661 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM products
+[32m2026-07-02 00:38:40 | INFO     | sqlalchemy.engine.Engine | SELECT count(*) AS count_1 
+FROM products[0m
+2026-07-02 00:38:40,661 INFO sqlalchemy.engine.Engine [cached since 286.6s ago] ()
+[32m2026-07-02 00:38:40 | INFO     | sqlalchemy.engine.Engine | [cached since 286.6s ago] ()[0m
+2026-07-02 00:38:40,662 INFO sqlalchemy.engine.Engine SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+ LIMIT $1::INTEGER
+[32m2026-07-02 00:38:40 | INFO     | sqlalchemy.engine.Engine | SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+ LIMIT $1::INTEGER[0m
+2026-07-02 00:38:40,662 INFO sqlalchemy.engine.Engine [cached since 286.6s ago] (20,)
+[32m2026-07-02 00:38:40 | INFO     | sqlalchemy.engine.Engine | [cached since 286.6s ago] (20,)[0m
+2026-07-02 00:38:40,666 INFO sqlalchemy.engine.Engine ROLLBACK
+[32m2026-07-02 00:38:40 | INFO     | sqlalchemy.engine.Engine | ROLLBACK[0m
+2026-07-02 00:39:15,588 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+[32m2026-07-02 00:39:15 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)[0m
+2026-07-02 00:39:15,588 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM products
+[32m2026-07-02 00:39:15 | INFO     | sqlalchemy.engine.Engine | SELECT count(*) AS count_1 
+FROM products[0m
+2026-07-02 00:39:15,588 INFO sqlalchemy.engine.Engine [cached since 321.5s ago] ()
+[32m2026-07-02 00:39:15 | INFO     | sqlalchemy.engine.Engine | [cached since 321.5s ago] ()[0m
+2026-07-02 00:39:15,590 INFO sqlalchemy.engine.Engine SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+ LIMIT $1::INTEGER
+[32m2026-07-02 00:39:15 | INFO     | sqlalchemy.engine.Engine | SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+ LIMIT $1::INTEGER[0m
+2026-07-02 00:39:15,590 INFO sqlalchemy.engine.Engine [cached since 321.5s ago] (20,)
+[32m2026-07-02 00:39:15 | INFO     | sqlalchemy.engine.Engine | [cached since 321.5s ago] (20,)[0m
+2026-07-02 00:39:15,595 INFO sqlalchemy.engine.Engine ROLLBACK
+[32m2026-07-02 00:39:15 | INFO     | sqlalchemy.engine.Engine | ROLLBACK[0m
+2026-07-02 00:39:54,140 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+[32m2026-07-02 00:39:54 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)[0m
+2026-07-02 00:39:54,141 INFO sqlalchemy.engine.Engine SELECT categories.name, categories.name_am, categories.slug, categories.description, categories.description_am, categories.parent_id, categories.image_url, categories.icon_url, categories.meta_title, categories.meta_description, categories.display_order, categories.is_active, categories.is_featured, categories.product_count, categories.id, categories.created_at, categories.updated_at, count(products.id) AS live_count 
+FROM categories LEFT OUTER JOIN products ON products.category_id = categories.id AND products.is_deleted = false 
+WHERE categories.is_active = true GROUP BY categories.id ORDER BY categories.name
+[32m2026-07-02 00:39:54 | INFO     | sqlalchemy.engine.Engine | SELECT categories.name, categories.name_am, categories.slug, categories.description, categories.description_am, categories.parent_id, categories.image_url, categories.icon_url, categories.meta_title, categories.meta_description, categories.display_order, categories.is_active, categories.is_featured, categories.product_count, categories.id, categories.created_at, categories.updated_at, count(products.id) AS live_count 
+FROM categories LEFT OUTER JOIN products ON products.category_id = categories.id AND products.is_deleted = false 
+WHERE categories.is_active = true GROUP BY categories.id ORDER BY categories.name[0m
+2026-07-02 00:39:54,141 INFO sqlalchemy.engine.Engine [cached since 360.1s ago] ()
+[32m2026-07-02 00:39:54 | INFO     | sqlalchemy.engine.Engine | [cached since 360.1s ago] ()[0m
+2026-07-02 00:39:54,145 INFO sqlalchemy.engine.Engine ROLLBACK
+[32m2026-07-02 00:39:54 | INFO     | sqlalchemy.engine.Engine | ROLLBACK[0m
+2026-07-02 00:41:17,308 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+[32m2026-07-02 00:41:17 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)[0m
+2026-07-02 00:41:17,308 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM products
+[32m2026-07-02 00:41:17 | INFO     | sqlalchemy.engine.Engine | SELECT count(*) AS count_1 
+FROM products[0m
+2026-07-02 00:41:17,308 INFO sqlalchemy.engine.Engine [cached since 443.3s ago] ()
+[32m2026-07-02 00:41:17 | INFO     | sqlalchemy.engine.Engine | [cached since 443.3s ago] ()[0m
+2026-07-02 00:41:17,310 INFO sqlalchemy.engine.Engine SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+ LIMIT $1::INTEGER
+[32m2026-07-02 00:41:17 | INFO     | sqlalchemy.engine.Engine | SELECT products.vendor_id, products.name, products.name_am, products.slug, products.description, products.description_am, products.short_description, products.category_id, products.category_type, products.subcategory, products.tags, products.price, products.compare_price, products.cost_price, products.stock_quantity, products.low_stock_threshold, products.sku, products.barcode, products.weight, products.dimensions, products.images, products.video_url, products.status, products.is_featured, products.is_on_sale, products.sale_start_date, products.sale_end_date, products.meta_title, products.meta_description, products.views_count, products.sales_count, products.rating, products.reviews_count, products.id, products.created_at, products.updated_at, products.deleted_at, products.is_deleted, products.extra_data 
+FROM products 
+ LIMIT $1::INTEGER[0m
+2026-07-02 00:41:17,311 INFO sqlalchemy.engine.Engine [cached since 443.3s ago] (200,)
+[32m2026-07-02 00:41:17 | INFO     | sqlalchemy.engine.Engine | [cached since 443.3s ago] (200,)[0m
+2026-07-02 00:41:17,316 INFO sqlalchemy.engine.Engine ROLLBACK
+[32m2026-07-02 00:41:17 | INFO     | sqlalchemy.engine.Engine | ROLLBACK[0m
+[32mINFO[0m:     Shutting down
+[32mINFO[0m:     Waiting for application shutdown.
+[32m2026-07-02 00:44:55 | INFO     | main | Shutting down application...[0m
+[32m2026-07-02 00:44:55 | INFO     | main | Stopping Telegram bot polling...[0m

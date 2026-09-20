@@ -1,0 +1,53 @@
+modules = ["python-3.11", "web"]
+[agent]
+expertMode = true
+stack = "BEST_EFFORT_FALLBACK"
+
+[nix]
+channel = "stable-25_05"
+packages = ["cargo", "file", "fontconfig", "freetype", "ghostscript", "glib", "glibcLocales", "gmp", "harfbuzz", "lcms2", "libGL", "libGLU", "libiconv", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "libyaml", "openjpeg", "openssl", "pango", "pkg-config", "postgresql", "rustc", "tcl", "tk", "xsimd", "zlib"]
+
+[userenv]
+
+[userenv.shared]
+ENVIRONMENT = "development"
+DEBUG = "True"
+LOG_FORMAT = "text"
+ENABLE_WEB_APP = "True"
+STORAGE_PROVIDER = "local"
+ADMIN_IDS = "5848843259"
+CELERY_BROKER_URL = "redis://localhost:6379/0"
+CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
+CELERY_TASK_ALWAYS_EAGER = "True"
+LOG_FILE_PATH = "./logs/bot_errors.log"
+PROMETHEUS_ENABLED = "False"
+REDIS_URL = "redis://localhost:6379/0"
+DISABLE_BOT_POLLING = "0"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash start.sh"
+waitForPort = 5000
+
+[[ports]]
+localPort = 5000
+externalPort = 80

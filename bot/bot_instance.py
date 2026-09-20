@@ -1,0 +1,379 @@
+#!/usr/bin/env python3
+"""Telegram bot initialization and configuration."""
+
+import json
+from typing import Any
+
+from telegram import Bot
+from telegram.ext import (
+    Application,
+    ApplicationBuilder,
+    BasePersistence,
+)
+from telegram.ext._utils.types import CDCData
+
+from core.config import settings
+from core.logger import logger
+from core.utils.async_helpers import maybe_await
+
+
+class RedisPersistence(BasePersistence):
+    """Telegram persistence backed by Redis."""
+
+    def __init__(self, url: str, key_prefix: str = "telegram_persistence", ttl: int = 86400):
+        super().__init__()
+        self.store_user_data = True
+        self.store_chat_data = True
+        self.store_bot_data = True
+        self.store_callback_data = True
+        self.is_async = False
+
+        import redis
+
+        self._redis = redis.from_url(url, encoding="utf-8", decode_responses=True)
+        self._key_prefix = key_prefix
+        self._ttl = ttl
+        self.bot_data: dict[str, Any] = self._load_data("bot_data")
+        self.chat_data: dict[int, dict[str, Any]] = self._load_data("chat_data")
+        self.user_data: dict[int, dict[str, Any]] = self._load_data("user_data")
+        self.callback_data: dict[int, dict[str, Any]] = self._load_data("callback_data")
+        self.conversations: dict[str, dict[str, Any]] = self._load_data("conversations")
+
+    def _storage_key(self, name: str) -> str:
+        return f"{self._key_prefix}:{name}"
+
+    def _load_data(self, name: str) -> dict[Any, Any]:
+        try:
+            raw = self._redis.get(self._storage_key(name))
+            if not raw:
+                return {}
+            data = json.loads(raw)
+            if isinstance(data, dict):
+                return {
+                    int(k) if isinstance(k, str) and k.isdigit() else k: v for k, v in data.items()
+                }
+            return {}
+        except Exception:
+            return {}
+
+    def _save_data(self, name: str, data: Any) -> None:
+        try:
+            self._redis.set(self._storage_key(name), json.dumps(data, default=str), ex=self._ttl)
+        except Exception:
+            pass
+
+    async def get_user_data(self, *args, **kwargs) -> dict[str, Any]:
+        user_id = kwargs.get("user_id") or (args[0] if args else None)
+        return self.user_data.setdefault(int(user_id), {}) if user_id is not None else {}
+
+    async def get_chat_data(self, *args, **kwargs) -> dict[str, Any]:
+        chat_id = kwargs.get("chat_id") or (args[0] if args else None)
+        return self.chat_data.setdefault(int(chat_id), {}) if chat_id is not None else {}
+
+    async def get_callback_data(self, *args, **kwargs) -> CDCData:
+        user_id = kwargs.get("user_id") or (args[0] if args else None)
+        if user_id is None:
+            return {}, {}
+        val = self.callback_data.setdefault(int(user_id), {})
+        return val if isinstance(val, tuple) and len(val) == 2 else (val, {})
+
+    async def get_conversations(self, *args, **kwargs) -> dict[str, Any]:
+        name = kwargs.get("name") or (args[0] if args else "default")
+        return self.conversations.setdefault(str(name), {})
+
+    async def get_bot_data(self) -> dict[str, Any]:
+        return self.bot_data
+
+    async def update_user_data(self, *args, **kwargs) -> None:
+        user_id = kwargs.get("user_id") or (args[0] if args else None)
+        if user_id is None:
+            return
+        data = kwargs.get("data") or (args[1] if len(args) > 1 else {})
+        self.user_data[int(user_id)] = data
+        self._save_data("user_data", self.user_data)
+
+    async def update_chat_data(self, *args, **kwargs) -> None:
+        chat_id = kwargs.get("chat_id") or (args[0] if args else None)
+        if chat_id is None:
+            return
+        data = kwargs.get("data") or (args[1] if len(args) > 1 else {})
+        self.chat_data[int(chat_id)] = data
+        self._save_data("chat_data", self.chat_data)
+
+    async def update_bot_data(self, data: dict[str, Any]) -> None:
+        self.bot_data = data
+        self._save_data("bot_data", self.bot_data)
+
+    async def update_callback_data(self, *args, **kwargs) -> None:
+        user_id = kwargs.get("user_id") or (args[0] if args else None)
+        if user_id is None:
+            return
+        data = kwargs.get("data") or (args[1] if len(args) > 1 else {})
+        self.callback_data[int(user_id)] = data
+        self._save_data("callback_data", self.callback_data)
+
+    async def update_conversation(self, *args, **kwargs) -> None:
+        name = kwargs.get("name") or (args[0] if args else "default")
+        key = kwargs.get("key") or (args[1] if len(args) > 1 else None)
+        new_state = kwargs.get("new_state") or (args[2] if len(args) > 2 else None)
+        if key is None:
+            return
+        convo_dict = self.conversations.setdefault(str(name), {})
+        if new_state is None:
+            convo_dict.pop(str(key), None)
+        else:
+            convo_dict[str(key)] = new_state
+        self._save_data("conversations", self.conversations)
+
+    async def drop_chat_data(self, *args, **kwargs) -> None:
+        chat_id = kwargs.get("chat_id") or (args[0] if args else None)
+        if chat_id is None:
+            return
+        self.chat_data.pop(int(chat_id), None)
+        self._save_data("chat_data", self.chat_data)
+
+    async def drop_user_data(self, *args, **kwargs) -> None:
+        user_id = kwargs.get("user_id") or (args[0] if args else None)
+        if user_id is None:
+            return
+        self.user_data.pop(int(user_id), None)
+        self._save_data("user_data", self.user_data)
+
+    async def refresh_bot_data(self, *args, **kwargs) -> None:
+        self.bot_data = self._load_data("bot_data")
+
+    async def refresh_chat_data(self, *args, **kwargs) -> None:
+        self.chat_data = self._load_data("chat_data")
+
+    async def refresh_user_data(self, *args, **kwargs) -> None:
+        self.user_data = self._load_data("user_data")
+
+    async def flush(self) -> None:
+        self._save_data("bot_data", self.bot_data)
+        self._save_data("chat_data", self.chat_data)
+        self._save_data("user_data", self.user_data)
+        self._save_data("callback_data", self.callback_data)
+        self._save_data("conversations", self.conversations)
+
+    async def stop(self) -> None:
+        await self.flush()
+
+
+class JSONFilePersistence(BasePersistence):
+    """Telegram persistence backed by a JSON file (fallback when Redis is unavailable)."""
+
+    def __init__(self, filepath: str = "bot_data.json"):
+        super().__init__()
+        self.store_user_data = True
+        self.store_chat_data = True
+        self.store_bot_data = True
+        self.store_callback_data = True
+        self.is_async = False
+
+        self.filepath = filepath
+        self.bot_data: dict[str, Any] = self._load_section("bot_data")
+        self.chat_data: dict[int, dict[str, Any]] = self._load_section("chat_data")
+        self.user_data: dict[int, dict[str, Any]] = self._load_section("user_data")
+        self.callback_data: dict[int, dict[str, Any]] = self._load_section("callback_data")
+        self.conversations: dict[str, dict[str, Any]] = self._load_section("conversations")
+
+    def _load_all(self) -> dict[str, Any]:
+        try:
+            with open(self.filepath, encoding="utf-8") as f:
+                return json.load(f) or {}
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
+
+    def _load_section(self, name: str) -> dict[Any, Any]:
+        try:
+            data = self._load_all().get(name, {})
+            if isinstance(data, dict):
+                return {
+                    int(k) if isinstance(k, str) and k.isdigit() else k: v for k, v in data.items()
+                }
+            return {}
+        except Exception:
+            return {}
+
+    def _save_section(self, name: str, data: Any) -> None:
+        try:
+            existing = self._load_all()
+            existing[name] = data
+            with open(self.filepath, "w", encoding="utf-8") as f:
+                json.dump(existing, f, default=str, ensure_ascii=False)
+        except Exception:
+            pass
+
+    async def get_user_data(self, *args, **kwargs) -> dict[str, Any]:
+        user_id = kwargs.get("user_id") or (args[0] if args else None)
+        return self.user_data.setdefault(int(user_id), {}) if user_id is not None else {}
+
+    async def get_chat_data(self, *args, **kwargs) -> dict[str, Any]:
+        chat_id = kwargs.get("chat_id") or (args[0] if args else None)
+        return self.chat_data.setdefault(int(chat_id), {}) if chat_id is not None else {}
+
+    async def get_callback_data(self, *args, **kwargs) -> CDCData:
+        user_id = kwargs.get("user_id") or (args[0] if args else None)
+        if user_id is None:
+            return {}, {}
+        val = self.callback_data.setdefault(int(user_id), {})
+        return val if isinstance(val, tuple) and len(val) == 2 else (val, {})
+
+    async def get_conversations(self, *args, **kwargs) -> dict[str, Any]:
+        name = kwargs.get("name") or (args[0] if args else "default")
+        return self.conversations.setdefault(str(name), {})
+
+    async def get_bot_data(self) -> dict[str, Any]:
+        return self.bot_data
+
+    async def update_user_data(self, *args, **kwargs) -> None:
+        user_id = kwargs.get("user_id") or (args[0] if args else None)
+        if user_id is None:
+            return
+        data = kwargs.get("data") or (args[1] if len(args) > 1 else {})
+        self.user_data[int(user_id)] = data
+        self._save_section("user_data", self.user_data)
+
+    async def update_chat_data(self, *args, **kwargs) -> None:
+        chat_id = kwargs.get("chat_id") or (args[0] if args else None)
+        if chat_id is None:
+            return
+        data = kwargs.get("data") or (args[1] if len(args) > 1 else {})
+        self.chat_data[int(chat_id)] = data
+        self._save_section("chat_data", self.chat_data)
+
+    async def update_bot_data(self, data: dict[str, Any]) -> None:
+        self.bot_data = data
+        self._save_section("bot_data", self.bot_data)
+
+    async def update_callback_data(self, *args, **kwargs) -> None:
+        user_id = kwargs.get("user_id") or (args[0] if args else None)
+        if user_id is None:
+            return
+        data = kwargs.get("data") or (args[1] if len(args) > 1 else {})
+        self.callback_data[int(user_id)] = data
+        self._save_section("callback_data", self.callback_data)
+
+    async def update_conversation(self, *args, **kwargs) -> None:
+        name = kwargs.get("name") or (args[0] if args else "default")
+        key = kwargs.get("key") or (args[1] if len(args) > 1 else None)
+        new_state = kwargs.get("new_state") or (args[2] if len(args) > 2 else None)
+        if key is None:
+            return
+        convo_dict = self.conversations.setdefault(str(name), {})
+        if new_state is None:
+            convo_dict.pop(str(key), None)
+        else:
+            convo_dict[str(key)] = new_state
+        self._save_section("conversations", self.conversations)
+
+    async def drop_chat_data(self, *args, **kwargs) -> None:
+        chat_id = kwargs.get("chat_id") or (args[0] if args else None)
+        if chat_id is None:
+            return
+        self.chat_data.pop(int(chat_id), None)
+        self._save_section("chat_data", self.chat_data)
+
+    async def drop_user_data(self, *args, **kwargs) -> None:
+        user_id = kwargs.get("user_id") or (args[0] if args else None)
+        if user_id is None:
+            return
+        self.user_data.pop(int(user_id), None)
+        self._save_section("user_data", self.user_data)
+
+    async def refresh_bot_data(self, *args, **kwargs) -> None:
+        self.bot_data = self._load_section("bot_data")
+
+    async def refresh_chat_data(self, *args, **kwargs) -> None:
+        self.chat_data = self._load_section("chat_data")
+
+    async def refresh_user_data(self, *args, **kwargs) -> None:
+        self.user_data = self._load_section("user_data")
+
+    async def flush(self) -> None:
+        self._save_section("bot_data", self.bot_data)
+        self._save_section("chat_data", self.chat_data)
+        self._save_section("user_data", self.user_data)
+        self._save_section("callback_data", self.callback_data)
+        self._save_section("conversations", self.conversations)
+
+    async def stop(self) -> None:
+        await self.flush()
+
+
+# Global bot instances
+_bot: Bot | None = None
+_application: Application | None = None
+
+
+async def init_bot() -> Application:
+    """Initialize the Telegram bot application."""
+    global _application, _bot
+
+    if _application is not None:
+        return _application
+
+    logger.info("Initializing Telegram bot...")
+
+    # Use Redis persistence if available, else fall back to JSON file
+    try:
+        persistence = RedisPersistence(
+            url=str(settings.REDIS_URL),
+            key_prefix="telegram_persistence",
+            ttl=settings.REDIS_SESSION_TTL,
+        )
+        logger.info("Using Redis-based persistence for Telegram bot state")
+    except Exception as exc:
+        logger.warning(f"Redis persistence unavailable, using JSON file: {exc}")
+        persistence = JSONFilePersistence(filepath="bot_data.json")
+
+    _application = (
+        ApplicationBuilder()
+        .token(settings.TELEGRAM_BOT_TOKEN)
+        .persistence(persistence)
+        .build()
+    )
+
+    _bot = _application.bot
+
+    # Register all handlers
+    try:
+        from bot.handlers import register_handlers
+
+        await register_handlers(_application)
+        logger.info("Telegram bot handlers registered successfully")
+    except Exception as e:
+        logger.warning(f"Could not register handlers in init_bot: {e}")
+
+    logger.info(f"Bot initialized: {await maybe_await(_bot.get_me())}")
+    return _application
+
+
+async def shutdown_bot() -> None:
+    """Shutdown the Telegram bot gracefully."""
+    global _application
+    if _application:
+        logger.info("Shutting down bot...")
+        await _application.shutdown()
+        _application = None
+        logger.info("Bot shutdown complete")
+
+
+def get_bot() -> Bot:
+    """Get the bot instance."""
+    if _bot is None:
+        raise RuntimeError("Bot not initialized. Call init_bot() first.")
+    return _bot
+
+
+def get_dispatcher():
+    """Get the application (dispatcher) instance."""
+    if _application is None:
+        raise RuntimeError("Bot not initialized. Call init_bot() first.")
+    return _application
+
+
+bot = None
+dispatcher = None
+
+__all__ = ["bot", "dispatcher", "get_bot", "get_dispatcher", "init_bot", "shutdown_bot"]

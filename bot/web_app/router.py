@@ -1,0 +1,874 @@
+# ============================
+# WOLLOYEWA STORE BOT - WEB APP ROUTER
+# ============================
+"""FastAPI router for the Telegram Mini App web interface."""
+
+import hashlib
+import hmac
+import json
+import urllib.parse
+from decimal import Decimal
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
+
+from apps.orders.services import OrderService
+from apps.products.services import ProductService
+from apps.users.services import UserService
+from core.config import settings
+from core.dependencies import get_current_user, get_db_session
+from core.logger import logger
+
+# Setup templates
+templates_dir = Path(__file__).parent / "templates"
+templates = Jinja2Templates(directory=str(templates_dir))
+
+web_app_router = APIRouter(prefix="/app", tags=["Web App"])
+
+
+# ---------------------------------------------------------------------------
+# Telegram initData verification
+# ---------------------------------------------------------------------------
+
+_INIT_DATA_MAX_AGE_SECONDS = 3600  # reject initData older than 1 hour
+
+
+def _verify_telegram_init_data(init_data: str, bot_token: str) -> dict | None:
+    """
+    Verify Telegram Mini App initData using HMAC-SHA256.
+    Also validates auth_date freshness (max 1 hour).
+    Returns the parsed user dict if valid, None otherwise.
+    https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
+    """
+    import time as _time
+
+    try:
+        params = dict(urllib.parse.parse_qsl(init_data, strict_parsing=True))
+    except Exception:
+        return None
+
+    received_hash = params.pop("hash", None)
+    if not received_hash:
+        return None
+
+    # Validate auth_date freshness
+    auth_date_str = params.get("auth_date")
+    if auth_date_str:
+        try:
+            auth_date = int(auth_date_str)
+            if abs(_time.time() - auth_date) > _INIT_DATA_MAX_AGE_SECONDS:
+                return None
+        except (ValueError, TypeError):
+            return None
+
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(params.items()))
+    secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
+    expected_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+
+    if not hmac.compare_digest(expected_hash, received_hash):
+        return None
+
+    user_str = params.get("user")
+    if user_str:
+        try:
+            return json.loads(user_str)
+        except Exception:
+            return None
+    return {}
+
+
+# ---------------------------------------------------------------------------
+# Checkout request schema
+# ---------------------------------------------------------------------------
+
+
+class CartItemIn(BaseModel):
+    id: int
+    name: str
+    price: float = Field(ge=0)
+    qty: int = Field(gt=0, le=100)
+
+
+class CheckoutRequest(BaseModel):
+    init_data: str | None = None
+    items: list[CartItemIn]
+    full_name: str
+    phone: str
+    city: str
+    address: str
+    payment_method: str  # "chapa" | "telebirr" | "cbe" | "cod"
+
+
+_PAYMENT_MAP = {
+    "chapa": "chapa",
+    "telebirr": "telebirr",
+    "cbe": "cbe_birr",
+    "cod": "cash_on_delivery",
+}
+
+_PAYMENT_LABELS = {
+    "chapa": "🏦 Chapa",
+    "telebirr": "📱 Telebirr",
+    "cbe": "🏛️ CBE Birr",
+    "cod": "💵 Cash on Delivery",
+}
+
+
+# ---------------------------------------------------------------------------
+# Internal: send Telegram order confirmation
+# ---------------------------------------------------------------------------
+
+
+async def _send_order_confirmation(
+    telegram_id: int,
+    order_number: str,
+    full_name: str,
+    city: str,
+    total: float,
+    items: list[CartItemIn],
+    payment_method: str,
+) -> None:
+    """Fire-and-forget Telegram order confirmation message."""
+    from telegram import Bot
+
+    items_text = "\n".join(f"  • {i.name} x {i.qty}  —  ETB {i.price * i.qty:,.2f}" for i in items)
+    pm_label = _PAYMENT_LABELS.get(payment_method, payment_method)
+    text = (
+        f"✅ *Order Confirmed!*\n\n"
+        f"📦 Order No: `{order_number}`\n"
+        f"👤 Name: {full_name}\n"
+        f"📍 Delivery: {city}\n"
+        f"💳 Payment: {pm_label}\n\n"
+        f"*Items:*\n{items_text}\n\n"
+        f"💰 *Total: ETB {total:,.2f}*\n\n"
+        f"We'll notify you once your order ships. "
+        f"Thank you for shopping at ወሎየዋ ሱቅ! 🇪🇹"
+    )
+    try:
+        async with Bot(token=settings.TELEGRAM_BOT_TOKEN) as bot:
+            await bot.send_message(
+                chat_id=telegram_id,
+                text=text,
+                parse_mode="Markdown",
+            )
+        logger.info(
+            f"Order confirmation sent to Telegram user {telegram_id} for order {order_number}"
+        )
+    except Exception as exc:
+        logger.warning(f"Could not send Telegram confirmation to {telegram_id}: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Page routes
+# ---------------------------------------------------------------------------
+
+_BASE_CTX = {"project_name": settings.PROJECT_NAME}
+
+
+@web_app_router.get("/", response_class=HTMLResponse)
+async def index_page(request: Request):
+    return templates.TemplateResponse(request, "index.html", {**_BASE_CTX, "page": "home"})
+
+
+@web_app_router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse(request, "login.html", {**_BASE_CTX, "page": "login"})
+
+
+@web_app_router.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request):
+    return templates.TemplateResponse(request, "register.html", {**_BASE_CTX, "page": "register"})
+
+
+@web_app_router.get("/categories", response_class=HTMLResponse)
+async def categories_page(request: Request):
+    return templates.TemplateResponse(
+        request, "categories.html", {**_BASE_CTX, "page": "categories"}
+    )
+
+
+@web_app_router.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_page(request: Request):
+    return templates.TemplateResponse(request, "dashboard.html", {**_BASE_CTX, "page": "dashboard"})
+
+
+@web_app_router.get("/profile", response_class=HTMLResponse)
+async def profile_page(request: Request):
+    return templates.TemplateResponse(request, "profile.html", {**_BASE_CTX, "page": "profile"})
+
+
+@web_app_router.get("/product/{product_id}", response_class=HTMLResponse)
+async def product_page(request: Request, product_id: int):
+    return templates.TemplateResponse(
+        request, "product.html", {**_BASE_CTX, "page": "product", "product_id": product_id}
+    )
+
+
+@web_app_router.get("/cart", response_class=HTMLResponse)
+async def cart_page(request: Request):
+    return templates.TemplateResponse(request, "cart.html", {**_BASE_CTX, "page": "cart"})
+
+
+@web_app_router.get("/checkout", response_class=HTMLResponse)
+async def checkout_page(request: Request):
+    """Checkout page."""
+    return templates.TemplateResponse(request, "checkout.html", {**_BASE_CTX, "page": "checkout"})
+
+
+@web_app_router.get("/orders", response_class=HTMLResponse)
+async def orders_page(request: Request):
+    return templates.TemplateResponse(request, "orders.html", {**_BASE_CTX, "page": "orders"})
+
+
+# ---------------------------------------------------------------------------
+# Web Auth API endpoints  (non-Telegram users)
+# ---------------------------------------------------------------------------
+
+
+class WebRegisterRequest(BaseModel):
+    full_name: str
+    phone: str
+    password: str
+    email: str | None = None
+
+
+class WebLoginRequest(BaseModel):
+    phone: str
+    password: str
+
+
+def _web_auth_response(db_user) -> dict:
+    from core.security import create_access_token
+
+    token = create_access_token(
+        {"sub": str(db_user.id), "role": getattr(db_user, "role", "customer")}
+    )
+    name_parts = []
+    if db_user.first_name:
+        name_parts.append(db_user.first_name)
+    if db_user.last_name:
+        name_parts.append(db_user.last_name)
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": db_user.id,
+            "full_name": " ".join(name_parts) or db_user.phone_number or "ደንበኛ",
+            "phone": db_user.phone_number or "",
+            "email": db_user.email or "",
+        },
+    }
+
+
+@web_app_router.post("/api/web/register")
+async def api_web_register(body: WebRegisterRequest, db=Depends(get_db_session)):
+    """Register a new web (non-Telegram) customer account."""
+    import re
+
+    from sqlalchemy import select
+
+    from apps.users.models import User
+    from core.security import hash_password
+
+    # Normalise phone
+    phone = re.sub(r"[\s\-()]", "", body.phone)
+    if not re.match(r"^(09|07)\d{8}$", phone):
+        raise HTTPException(status_code=422, detail="ስልክ ቁጥሩ ልክ አይደለም (ምሳሌ: 0912345678)")
+
+    if len(body.password) < 6:
+        raise HTTPException(status_code=422, detail="የይለፍ ቃሉ ቢያንስ 6 ፊደል መሆን አለበት")
+
+    # Check duplicate phone
+    result = await db.execute(
+        select(User).where(User.phone_number == phone, User.is_deleted.isnot(True))
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="ይህ ስልክ ቁጥር ቀደም ሲል ተመዝግቧል")
+
+    # Parse name
+    parts = body.full_name.strip().split(None, 1)
+    first_name = parts[0]
+    last_name = parts[1] if len(parts) > 1 else None
+
+    new_user = User(
+        first_name=first_name,
+        last_name=last_name,
+        phone_number=phone,
+        email=body.email or None,
+        password_hash=hash_password(body.password),
+        role="customer",
+        status="active",
+    )
+    db.add(new_user)
+    await db.flush()
+    await db.refresh(new_user)
+    await db.commit()
+
+    logger.info("Web registration: user_id=%s phone=%s", new_user.id, phone)
+    return _web_auth_response(new_user)
+
+
+@web_app_router.post("/api/web/login")
+async def api_web_login(body: WebLoginRequest, db=Depends(get_db_session)):
+    """Authenticate a web (non-Telegram) customer via phone + password."""
+    import re
+
+    from sqlalchemy import select
+
+    from apps.users.models import User
+    from core.security import verify_password
+
+    phone = re.sub(r"[\s\-()]", "", body.phone)
+
+    result = await db.execute(
+        select(User).where(User.phone_number == phone, User.is_deleted.isnot(True))
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="ስልክ ቁጥሩ ወይም የይለፍ ቃሉ ስህተት ነው")
+
+    if not user.password_hash:
+        raise HTTPException(status_code=401, detail="ይህ አካውንት Telegram ብቻ ይጠቀማል። Telegram ቦቱን ይክፈቱ")
+
+    if not verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="ስልክ ቁጥሩ ወይም የይለፍ ቃሉ ስህተት ነው")
+
+    if getattr(user, "status", "active") != "active":
+        raise HTTPException(status_code=403, detail="አካውንቱ ንቁ አይደለም")
+
+    logger.info("Web login: user_id=%s phone=%s", user.id, phone)
+    return _web_auth_response(user)
+
+
+# ---------------------------------------------------------------------------
+# JSON API endpoints
+# ---------------------------------------------------------------------------
+
+
+@web_app_router.get("/api/categories")
+async def get_categories(db=Depends(get_db_session)):
+    """Get categories for web app with live product counts."""
+    from sqlalchemy import func, select
+
+    from apps.products.models import Category, Product
+
+    result = await db.execute(
+        select(
+            Category,
+            func.count(Product.id).label("live_count"),
+        )
+        .outerjoin(Product, (Product.category_id == Category.id) & Product.is_deleted.is_(False))
+        .where(Category.is_active)
+        .group_by(Category.id)
+        .order_by(Category.name)
+    )
+    rows = result.all()
+    return [
+        {
+            "id": cat.id,
+            "name": cat.name,
+            "name_am": cat.name_am or "",
+            "slug": cat.slug or cat.name,
+            "icon_url": getattr(cat, "icon_url", "") or "",
+            "image_url": getattr(cat, "image_url", "") or "",
+            "product_count": count,
+            "is_featured": getattr(cat, "is_featured", False),
+        }
+        for cat, count in rows
+    ]
+
+
+@web_app_router.get("/api/products")
+async def get_products(
+    page: int = 1,
+    page_size: int = 20,
+    q: str = "",
+    category_id: int | None = None,
+    db=Depends(get_db_session),
+):
+    """Get products for web app with optional search and category filter."""
+    from fastapi.responses import JSONResponse
+    from sqlalchemy import func, or_, select
+
+    from apps.products.models import Product
+
+    q = q.strip()
+    conditions = [Product.is_deleted.is_(False)]
+
+    if q:
+        pattern = f"%{q}%"
+        conditions.append(
+            or_(
+                func.lower(Product.name).like(func.lower(pattern)),
+                func.lower(func.coalesce(Product.name_am, "")).like(func.lower(pattern)),
+            )
+        )
+    if category_id is not None:
+        conditions.append(Product.category_id == category_id)
+
+    count_stmt = select(func.count()).select_from(Product).where(*conditions)
+    total_result = await db.execute(count_stmt)
+    total = total_result.scalar() or 0
+
+    stmt = (
+        select(Product)
+        .where(*conditions)
+        .order_by(Product.is_featured.desc(), Product.id)
+        .limit(page_size)
+        .offset((page - 1) * page_size)
+    )
+    result = await db.execute(stmt)
+    products = result.scalars().all()
+
+    items = [
+        {
+            "id": p.id,
+            "name": p.name,
+            "name_am": p.name_am or "",
+            "slug": p.slug or "",
+            "description": p.description or "",
+            "price": float(p.price),
+            "compare_price": float(p.compare_price) if p.compare_price else None,
+            "stock_quantity": p.stock_quantity,
+            "images": p.images or [],
+            "status": p.status if isinstance(p.status, str) else str(p.status.value),
+            "is_featured": p.is_featured,
+            "category_id": p.category_id,
+            "category_type": p.category_type or "",
+        }
+        for p in products
+    ]
+
+    return JSONResponse(
+        content={"items": items, "total": total, "page": page, "page_size": page_size},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@web_app_router.get("/api/search")
+async def search_products(q: str = "", limit: int = 6, db=Depends(get_db_session)):
+    """
+    Autocomplete / search endpoint.
+    Returns up to `limit` products whose name or Amharic name contains `q` (case-insensitive).
+    """
+    from sqlalchemy import func, or_, select
+    from sqlalchemy.orm import selectinload
+
+    from apps.products.models import Product
+    from core.constants import ProductStatus
+
+    q = q.strip()
+    if not q:
+        return {"items": [], "query": q}
+
+    pattern = f"%{q}%"
+    stmt = (
+        select(Product)
+        .options(selectinload(Product.category_rel))
+        .where(
+            Product.is_deleted.is_(False),
+            Product.status == ProductStatus.ACTIVE,
+            or_(
+                func.lower(Product.name).like(func.lower(pattern)),
+                func.lower(func.coalesce(Product.name_am, "")).like(func.lower(pattern)),
+            ),
+        )
+        .order_by(Product.name)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    products = result.scalars().all()
+
+    return {
+        "items": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "name_am": getattr(p, "name_am", "") or "",
+                "price": float(p.price),
+                "category": p.category_rel.name if p.category_rel else "",
+                "image_url": (p.images[0] if p.images else "") if p.images else "",
+            }
+            for p in products
+        ],
+        "query": q,
+    }
+
+
+@web_app_router.get("/api/product/{product_id}")
+async def get_product(product_id: int, db=Depends(get_db_session)):
+    """Get single product."""
+    product_service = ProductService(db)
+    product = await product_service.get_product(product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product.to_dict()
+
+
+def _user_from_bearer(request: Request, db) -> int | None:
+    """Extract user_id from Authorization: Bearer <jwt> header, or None."""
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None
+    token = auth[7:]
+    from core.security import verify_token
+
+    payload = verify_token(token)
+    if not payload:
+        return None
+    try:
+        return int(payload.get("sub", 0))
+    except (ValueError, TypeError):
+        return None
+
+
+@web_app_router.post("/api/checkout")
+async def api_checkout(request: Request, body: CheckoutRequest, db=Depends(get_db_session)):
+    """
+    Place an order from the web app.
+    Accepts:
+      1. Telegram initData (HMAC-verified) in body.init_data
+      2. JWT Bearer token in Authorization header (web-registered users)
+      3. DEBUG fallback to first DB user
+    """
+    from sqlalchemy import select
+
+    from apps.orders.schemas import OrderCreate, OrderItemCreate
+    from apps.users.models import User
+    from core.constants import PaymentMethod, ShippingMethod
+
+    if not body.items:
+        raise HTTPException(status_code=400, detail="Cart is empty.")
+
+    user_service = UserService(db)
+    db_user = None
+
+    # ── 1. Telegram initData ─────────────────────────────────────────────────
+    tg_user: dict | None = None
+    if body.init_data:
+        tg_user = _verify_telegram_init_data(body.init_data, settings.TELEGRAM_BOT_TOKEN)
+        if tg_user and tg_user.get("id"):
+            tg_id = int(tg_user["id"])
+            db_user = await user_service.get_user_by_telegram(tg_id)
+            if not db_user:
+                db_user = await user_service.get_or_create_user(
+                    telegram_id=tg_id,
+                    first_name=tg_user.get("first_name") or body.full_name,
+                    username=tg_user.get("username"),
+                )
+
+    # ── 2. Web JWT Bearer token ──────────────────────────────────────────────
+    if not db_user:
+        web_user_id = _user_from_bearer(request, db)
+        if web_user_id:
+            result = await db.execute(
+                select(User).where(User.id == web_user_id, User.is_deleted.is_(False))
+            )
+            db_user = result.scalar_one_or_none()
+
+    # ── 3. DEBUG fallback ────────────────────────────────────────────────────
+    if not db_user and settings.DEBUG:
+        result = await db.execute(select(User).limit(1))
+        db_user = result.scalar_one_or_none()
+
+    if not db_user:
+        raise HTTPException(
+            status_code=401,
+            detail="ይቅርታ — ለዚህ ትዕዛዝ መስጠት ይግቡ ወይም ይመዝገቡ።",
+        )
+
+    # ── Map payment method ───────────────────────────────────────────────────
+    pm_value = _PAYMENT_MAP.get(body.payment_method, "cash_on_delivery")
+    try:
+        pm = PaymentMethod(pm_value)
+    except ValueError:
+        pm = PaymentMethod.CASH_ON_DELIVERY
+
+    # ── Calculate shipping fee ───────────────────────────────────────────────
+    from sqlalchemy import select
+
+    from apps.products.models import Product
+
+    product_ids = [item.id for item in body.items]
+    result = await db.execute(
+        select(Product.id, Product.price).where(
+            Product.id.in_(product_ids), Product.is_deleted.is_(False)
+        )
+    )
+    current_prices = {product_id: price for product_id, price in result.all()}
+    if len(current_prices) != len(set(product_ids)):
+        raise HTTPException(status_code=400, detail="One or more products are unavailable.")
+
+    subtotal = sum(float(current_prices[i.id]) * i.qty for i in body.items)
+    shipping_fee = Decimal("0") if subtotal >= 1000 else Decimal("50")
+
+    # ── Build and create order ───────────────────────────────────────────────
+    order_data = OrderCreate(
+        payment_method=pm,
+        shipping_address=body.address,
+        shipping_city=body.city,
+        shipping_phone=body.phone,
+        shipping_method=ShippingMethod.STANDARD,
+        shipping_fee=shipping_fee,
+        customer_notes=f"Mini App order — Recipient: {body.full_name}",
+        items=[OrderItemCreate(product_id=i.id, quantity=i.qty) for i in body.items],
+    )
+
+    order_service = OrderService(db)
+    try:
+        order = await order_service.create_order(db_user.id, order_data)
+    except Exception as exc:
+        logger.error(f"Order creation failed: {exc}")
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # ── Send Telegram confirmation (non-blocking) ────────────────────────────
+    notify_tg_id = tg_user.get("id") if tg_user else None
+    if not notify_tg_id and db_user.telegram_id:
+        notify_tg_id = db_user.telegram_id
+
+    if notify_tg_id:
+        await _send_order_confirmation(
+            telegram_id=int(notify_tg_id),
+            order_number=order.order_number,
+            full_name=body.full_name,
+            city=body.city,
+            total=float(order.total),
+            items=[
+                CartItemIn(id=i.id, name=i.name, price=float(current_prices[i.id]), qty=i.qty)
+                for i in body.items
+            ],
+            payment_method=body.payment_method,
+        )
+
+    return {
+        "order_number": order.order_number,
+        "order_id": order.id,
+        "total": float(order.total),
+    }
+
+
+@web_app_router.post("/api/auth")
+async def tg_auth(request: Request, db=Depends(get_db_session)):
+    """
+    Authenticate a Telegram Mini App user via initData HMAC-SHA256 verification.
+    Returns a short-lived JWT access token + basic user info.
+
+    In DEBUG mode with empty initData, falls back to the first DB user so the
+    flow is testable directly in the browser without a real Telegram session.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    init_data: str = body.get("init_data", "")
+    tg_user: dict | None = None
+
+    if init_data:
+        tg_user = _verify_telegram_init_data(init_data, settings.TELEGRAM_BOT_TOKEN)
+        if tg_user is None:
+            raise HTTPException(status_code=401, detail="Invalid Telegram auth data")
+
+    user_service = UserService(db)
+    db_user = None
+
+    if tg_user and tg_user.get("id"):
+        db_user = await user_service.get_or_create_user(
+            telegram_id=int(tg_user["id"]),
+            first_name=tg_user.get("first_name") or "User",
+            username=tg_user.get("username"),
+        )
+    elif settings.DEBUG:
+        # Dev fallback: use first user in DB (seeded system vendor or real user)
+        from sqlalchemy import select
+
+        from apps.users.models import User
+
+        result = await db.execute(select(User).limit(1))
+        db_user = result.scalar_one_or_none()
+
+    if not db_user:
+        raise HTTPException(
+            status_code=401,
+            detail="Could not identify your account. Please open the store via Telegram.",
+        )
+
+    from core.security import create_access_token
+
+    token = create_access_token({"sub": str(db_user.id), "telegram_id": db_user.telegram_id})
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": db_user.id,
+            "first_name": db_user.first_name or "User",
+            "last_name": db_user.last_name or "",
+            "username": db_user.username or "",
+            "telegram_id": db_user.telegram_id,
+        },
+    }
+
+
+class MyOrdersRequest(BaseModel):
+    init_data: str | None = None
+
+
+@web_app_router.post("/api/my-orders")
+async def api_my_orders(body: MyOrdersRequest, db=Depends(get_db_session)):
+    """
+    Return order history for the Telegram Mini App user.
+    Identifies the user via initData (HMAC-verified), with DEBUG fallback.
+    """
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from apps.orders.models import Order
+    from apps.users.models import User
+
+    tg_user: dict | None = None
+    if body.init_data:
+        tg_user = _verify_telegram_init_data(body.init_data, settings.TELEGRAM_BOT_TOKEN)
+
+    db_user = None
+    if tg_user and tg_user.get("id"):
+        user_service = UserService(db)
+        db_user = await user_service.get_user_by_telegram(int(tg_user["id"]))
+
+    if not db_user and settings.DEBUG:
+        result = await db.execute(select(User).limit(1))
+        db_user = result.scalar_one_or_none()
+
+    if not db_user:
+        raise HTTPException(
+            status_code=401,
+            detail="Could not identify your account. Please open this store via Telegram.",
+        )
+
+    result = await db.execute(
+        select(Order)
+        .where(Order.user_id == db_user.id)
+        .options(selectinload(Order.items))
+        .order_by(Order.created_at.desc())
+        .limit(30)
+    )
+    orders = result.scalars().all()
+
+    def _serialize(o: Order) -> dict:
+        items = []
+        for it in o.items or []:
+            name = f"Product #{it.product_id}"
+            if hasattr(it, "product_name") and it.product_name:
+                name = it.product_name
+            elif it.product:
+                name = it.product.name
+            items.append(
+                {
+                    "product_id": it.product_id,
+                    "name": name,
+                    "quantity": it.quantity,
+                    "unit_price": float(it.unit_price),
+                    "total_price": float(it.total_price),
+                }
+            )
+        return {
+            "id": o.id,
+            "order_number": o.order_number,
+            "status": o.status.value if hasattr(o.status, "value") else str(o.status),
+            "payment_method": (
+                o.payment_method.value
+                if hasattr(o.payment_method, "value")
+                else str(o.payment_method)
+            ),
+            "payment_status": (
+                o.payment_status.value
+                if hasattr(o.payment_status, "value")
+                else str(o.payment_status)
+            ),
+            "subtotal": float(o.subtotal),
+            "shipping_fee": float(o.shipping_fee),
+            "tax": float(o.tax),
+            "total": float(o.total),
+            "shipping_city": o.shipping_city,
+            "shipping_address": o.shipping_address,
+            "shipping_phone": o.shipping_phone,
+            "tracking_number": o.tracking_number,
+            "customer_notes": o.customer_notes,
+            "created_at": o.created_at.isoformat() if o.created_at else None,
+            "items": items,
+        }
+
+    return {"orders": [_serialize(o) for o in orders], "total": len(orders)}
+
+
+@web_app_router.get("/api/orders")
+async def get_orders(
+    current_user=Depends(get_current_user),
+    db=Depends(get_db_session),
+):
+    """Get order history for the authenticated user."""
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from apps.orders.models import Order
+
+    result = await db.execute(
+        select(Order)
+        .where(Order.user_id == current_user["id"])
+        .options(selectinload(Order.items))
+        .order_by(Order.created_at.desc())
+        .limit(50)
+    )
+    orders = result.scalars().all()
+
+    def _fmt_order(o: "Order") -> dict:
+        return {
+            "id": o.id,
+            "order_number": o.order_number,
+            "status": str(o.status.value if hasattr(o.status, "value") else o.status),
+            "total": float(o.total),
+            "subtotal": float(o.subtotal),
+            "shipping_fee": float(o.shipping_fee),
+            "payment_method": str(
+                o.payment_method.value if hasattr(o.payment_method, "value") else o.payment_method
+            ),
+            "payment_status": str(
+                o.payment_status.value if hasattr(o.payment_status, "value") else o.payment_status
+            ),
+            "shipping_city": o.shipping_city,
+            "created_at": o.created_at.isoformat() if o.created_at else None,
+            "item_count": len(o.items),
+        }
+
+    return {"items": [_fmt_order(o) for o in orders], "total": len(orders)}
+
+
+@web_app_router.get("/api/user/profile")
+async def get_user_profile(
+    current_user=Depends(get_current_user),
+    db=Depends(get_db_session),
+):
+    """Get profile for the authenticated user."""
+    user_service = UserService(db)
+    user = await user_service.get_user(current_user["id"])
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "id": user.id,
+        "first_name": user.first_name,
+        "last_name": user.last_name or "",
+        "username": user.username or "",
+        "telegram_id": user.telegram_id,
+        "phone_number": user.phone_number or "",
+        "email": user.email or "",
+        "language": user.language,
+        "city": user.city or "",
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
+
+
+__all__ = ["web_app_router"]

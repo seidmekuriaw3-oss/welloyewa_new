@@ -1,0 +1,225 @@
+# ============================
+# WOLLOYEWA STORE BOT - AMHARIC TRANSLATION
+# ============================
+# Amharic translations for Wolloyewa Store Bot
+# Copyright (C) 2024 Wolloyewa Technologies PLC
+# This file is distributed under the same license as the Wolloyewa project.
+# 
+# Translator: Wolloyewa Team <translations@wolloyewa.com>
+
+msgid ""
+msgstr ""
+"Project-Id-Version: Wolloyewa Store Bot 1.0.0\n"
+"Report-Msgid-Bugs-To: support@wolloyewa.com\n"
+"POT-Creation-Date: 2024-01-01 00:00+0000\n"
+"PO-Revision-Date: 2024-01-01 00:00+0000\n"
+"Last-Translator: Wolloyewa Team <translations@wolloyewa.com>\n"
+"Language-Team: Amharic <am@li.org>\n"
+"Language: am\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+# ============================
+# Welcome and Greeting Messages
+# ============================
+
+msgid "welcome_message"
+msgstr "🌟 እንኳን ደህና መጡ ወደ ዎሎየዋ ስቶር! የኢትዮጵያ የመጀመሪያው ዘመናዊ የኢ-ኮሜርስ ቴሌግራም ቦት።"
+
+msgid "welcome_back_message"
+msgstr "👋 እንኳን ደህና ተመለሱ! እንዴት ልረዳዎት እችላለሁ?"
+
+msgid "help_message"
+msgstr "📖 የቦት መመሪያ\n\n/start - ቦቱን ለመጀመር\n/menu - ዋና ምናሌ ለማየት\n/search - ምርቶችን ለመፈለግ\n/cart - የግዢ ቅርጫትን ለማየት\n/checkout - ግዢን ለማጠናቀቅ\n/profile - መለያዎን ለማየት\n/orders - ትዕዛዞትን ለመከታተል\n/feedback - ግብረ መልስ ለመስጠት"
+
+# ============================
+# Product Messages
+# ============================
+
+msgid "product_list_title"
+msgstr "📦 ምርቶች"
+
+msgid "product_detail_title"
+msgstr "📦 የምርት ዝርዝር"
+
+msgid "product_not_found"
+msgstr "❌ ምርቱ አልተገኘም።"
+
+msgid "product_added_to_cart"
+msgstr "✅ ምርቱ ወደ ቅርጫት ተጨምሯል!"
+
+msgid "product_removed_from_cart"
+msgstr "🗑️ ምርቱ ከቅርጫት ተወግዷል!"
+
+msgid "out_of_stock"
+msgstr "❌ ክምችት የለም"
+
+msgid "in_stock"
+msgstr "✅ ክምችት አለ"
+
+msgid "low_stock"
+msgstr "⚠️ ጥቂት ክምችት ቀርቷል"
+
+# ============================
+# Cart Messages
+# ============================
+
+msgid "cart_empty"
+msgstr "🛒 የግዢ ቅርጫትዎ ባዶ ነው!"
+
+msgid "cart_title"
+msgstr "🛒 የግዢ ቅርጫት"
+
+msgid "cart_subtotal"
+msgstr "💰 ንኡስ ድምር"
+
+msgid "cart_total"
+msgstr "💎 ጠቅላላ"
+
+msgid "cart_updated"
+msgstr "✅ ቅርጫትዎ ተዘምኗል"
+
+msgid "cart_cleared"
+msgstr "🗑️ ቅርጫትዎ ተጠርጓል"
+
+# ============================
+# Order Messages
+# ============================
+
+msgid "order_created"
+msgstr "✅ ትዕዛዝዎ ተፈጥሯል!"
+
+msgid "order_confirmed"
+msgstr "✅ ትዕዛዝዎ ተረጋግጧል!"
+
+msgid "order_shipped"
+msgstr "🚚 ትዕዛዝዎ ተልኳል!"
+
+msgid "order_delivered"
+msgstr "📦✅ ትዕዛዝዎ ደርሷል!"
+
+msgid "order_cancelled"
+msgstr "❌ ትዕዛዝዎ ተሰርዟል"
+
+msgid "order_status_pending"
+msgstr "⏳ በመጠባበቅ ላይ"
+
+msgid "order_status_processing"
+msgstr "🔄 በማቀናበር ላይ"
+
+msgid "order_status_completed"
+msgstr "✅ ተጠናቋል"
+
+# ============================
+# Payment Messages
+# ============================
+
+msgid "payment_success"
+msgstr "✅ ክፍያዎ ተሳክቷል!"
+
+msgid "payment_failed"
+msgstr "❌ ክፍያው አልተሳካም። እባክዎ እንደገና ይሞክሩ"
+
+msgid "payment_processing"
+msgstr "⏳ ክፍያዎ በማቀናበር ላይ..."
+
+msgid "payment_method_selected"
+msgstr "✅ የክፍያ መንገድ ተመርጧል"
+
+# ============================
+# Error Messages
+# ============================
+
+msgid "error_general"
+msgstr "❌ የማይጠበቅ ስህተት ተከስቷል። እባክዎ ቆይተው እንደገና ይሞክሩ።"
+
+msgid "error_network"
+msgstr "🌐 የኢንተርኔት ግንኙነት ችግር። እባክዎ ግንኙነትዎን ይፈትሹ።"
+
+msgid "error_authentication"
+msgstr "🔒 እባክዎ እንደገና ይግቡ።"
+
+msgid "error_permission"
+msgstr "🚫 ይህን ተግባር ለማከናወን ፈቃድ የለዎትም።"
+
+msgid "error_not_found"
+msgstr "🔍 የሚፈልጉት ነገር አልተገኘም።"
+
+# ============================
+# Button Labels
+# ============================
+
+msgid "btn_back"
+msgstr "🔙 ወደ ኋላ"
+
+msgid "btn_next"
+msgstr "ቀጣይ ▶️"
+
+msgid "btn_confirm"
+msgstr "✅ አረጋግጥ"
+
+msgid "btn_cancel"
+msgstr "❌ ሰርዝ"
+
+msgid "btn_save"
+msgstr "💾 አስቀምጥ"
+
+msgid "btn_delete"
+msgstr "🗑️ ሰርዝ"
+
+msgid "btn_edit"
+msgstr "✏️ አርትዕ"
+
+msgid "btn_search"
+msgstr "🔍 ፈልግ"
+
+msgid "btn_add_to_cart"
+msgstr "🛒 ወደ ቅርጫት ጨምር"
+
+msgid "btn_checkout"
+msgstr "✅ ግዢ አጠናቅቅ"
+
+msgid "btn_view_order"
+msgstr "📋 ትዕዛዝ ይመልከቱ"
+
+msgid "btn_track_order"
+msgstr "📍 ትዕዛዝ ክታተል"
+
+msgid "btn_contact_support"
+msgstr "💬 ድጋፍ ያግኙ"
+
+# ============================
+# Category Messages
+# ============================
+
+msgid "category_electronics"
+msgstr "ኤሌክትሮኒክስ"
+
+msgid "category_clothing"
+msgstr "አልባሳት"
+
+msgid "category_food"
+msgstr "ምግብ"
+
+msgid "category_books"
+msgstr "መጽሐፍት"
+
+msgid "category_beauty"
+msgstr "ውበት"
+
+msgid "category_health"
+msgstr "ጤና"
+
+msgid "category_home"
+msgstr "ቤት"
+
+msgid "category_sports"
+msgstr "ስፖርት"
+
+msgid "category_toys"
+msgstr "መጫወቻ"
+
+msgid "category_other"
+msgstr "ሌላ"

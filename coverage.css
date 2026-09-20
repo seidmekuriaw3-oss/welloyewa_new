@@ -1,0 +1,17 @@
+/* Minimal stylesheet used by coverage.py HTML reports. */
+body {
+  font-family: Arial, sans-serif;
+  margin: 1rem;
+}
+
+#header {
+  margin-bottom: 1rem;
+}
+
+h1 {
+  margin-bottom: 0.5rem;
+}
+
+.coverage-summary {
+  font-size: 0.95rem;
+}

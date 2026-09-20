@@ -1,0 +1,137 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wolloyewa-app-service
+  namespace: wolloyewa
+  labels:
+    app: wolloyewa
+    component: api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: wolloyewa
+    component: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wolloyewa-app-external
+  namespace: wolloyewa
+  labels:
+    app: wolloyewa
+    component: api
+    type: external
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+      name: http
+    - port: 443
+      targetPort: 8000
+      protocol: TCP
+      name: https
+  selector:
+    app: wolloyewa
+    component: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wolloyewa-redis
+  namespace: wolloyewa
+  labels:
+    app: wolloyewa
+    component: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+      name: redis
+  selector:
+    app: wolloyewa
+    component: redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wolloyewa-postgres
+  namespace: wolloyewa
+  labels:
+    app: wolloyewa
+    component: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+      name: postgres
+  selector:
+    app: wolloyewa
+    component: postgres
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wolloyewa-postgres-replica
+  namespace: wolloyewa
+  labels:
+    app: wolloyewa
+    component: postgres-replica
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+      name: postgres
+  selector:
+    app: wolloyewa
+    component: postgres-replica
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wolloyewa-celery-worker
+  namespace: wolloyewa
+  labels:
+    app: wolloyewa
+    component: celery-worker
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5555
+      targetPort: 5555
+      protocol: TCP
+      name: flower
+  selector:
+    app: wolloyewa
+    component: celery-worker
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wolloyewa-celery-beat
+  namespace: wolloyewa
+  labels:
+    app: wolloyewa
+    component: celery-beat
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5556
+      targetPort: 5556
+      protocol: TCP
+      name: monitor
+  selector:
+    app: wolloyewa
+    component: celery-beat

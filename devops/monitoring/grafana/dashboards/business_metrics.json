@@ -1,0 +1,165 @@
+{
+  "dashboard": {
+    "title": "Wolloyewa Business Metrics",
+    "description": "Business KPIs and Analytics Dashboard",
+    "tags": ["wolloyewa", "business", "kpi"],
+    "timezone": "africa/addis_ababa",
+    "editable": true,
+    "refresh": "1m",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Revenue (Last 30 days)",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 4, "h": 3},
+        "targets": [
+          {
+            "expr": "sum(increase(orders_value_total{status=\"completed\"}[30d]))",
+            "legendFormat": "Total Revenue"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "unit": "currencyETB"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Total Orders (Last 30d)",
+        "type": "stat",
+        "gridPos": {"x": 4, "y": 0, "w": 4, "h": 3},
+        "targets": [
+          {
+            "expr": "sum(increase(orders_total[30d]))",
+            "legendFormat": "Total Orders"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Average Order Value",
+        "type": "stat",
+        "gridPos": {"x": 8, "y": 0, "w": 4, "h": 3},
+        "targets": [
+          {
+            "expr": "sum(orders_value_total) / sum(orders_total)",
+            "legendFormat": "AOV"
+          }
+        ],
+        "options": {
+          "unit": "currencyETB"
+        }
+      },
+      {
+        "id": 4,
+        "title": "Conversion Rate",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 0, "w": 4, "h": 3},
+        "targets": [
+          {
+            "expr": "(sum(orders_total) / sum(bot_active_users)) * 100",
+            "legendFormat": "CR"
+          }
+        ],
+        "options": {
+          "unit": "percent"
+        }
+      },
+      {
+        "id": 5,
+        "title": "Revenue by Payment Method",
+        "type": "piechart",
+        "gridPos": {"x": 0, "y": 3, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "sum by (method) (payments_value_total{status=\"completed\"})",
+            "legendFormat": "{{method}}"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Daily Revenue Trend",
+        "type": "graph",
+        "gridPos": {"x": 6, "y": 3, "w": 10, "h": 6},
+        "targets": [
+          {
+            "expr": "sum(increase(orders_value_total[24h]))",
+            "legendFormat": "Daily Revenue"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Top Products by Revenue",
+        "type": "table",
+        "gridPos": {"x": 0, "y": 9, "w": 8, "h": 6},
+        "targets": [
+          {
+            "expr": "topk(10, sum by (product) (order_items_revenue))",
+            "format": "table"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "User Acquisition (Last 30d)",
+        "type": "graph",
+        "gridPos": {"x": 8, "y": 9, "w": 8, "h": 6},
+        "targets": [
+          {
+            "expr": "sum(increase(users_total[24h]))",
+            "legendFormat": "New Users"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Order Status Distribution",
+        "type": "piechart",
+        "gridPos": {"x": 0, "y": 15, "w": 6, "h": 5},
+        "targets": [
+          {
+            "expr": "sum by (status) (orders_total)",
+            "legendFormat": "{{status}}"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Customer Lifetime Value (Cohort)",
+        "type": "heatmap",
+        "gridPos": {"x": 6, "y": 15, "w": 10, "h": 6},
+        "targets": [
+          {
+            "expr": "avg by (cohort) (customer_ltv)",
+            "legendFormat": "Cohort {{cohort}}"
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-30d",
+      "to": "now"
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Promotions",
+          "datasource": "Prometheus",
+          "expr": "promotion_active",
+          "titleFormat": "Promotion Active",
+          "iconColor": "green"
+        },
+        {
+          "name": "High Revenue",
+          "datasource": "Prometheus",
+          "expr": "sum(increase(orders_value_total[1h])) > 50000",
+          "titleFormat": "High Revenue Hour",
+          "iconColor": "yellow"
+        }
+      ]
+    }
+  }
+}

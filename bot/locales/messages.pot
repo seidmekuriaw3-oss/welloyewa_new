@@ -1,0 +1,221 @@
+# ============================
+# WOLLOYEWA STORE BOT - MESSAGES POT FILE
+# ============================
+# Translation template for Wolloyewa Store Bot
+# Copyright (C) 2024 Wolloyewa Technologies PLC
+# This file is distributed under the same license as the Wolloyewa project.
+
+msgid ""
+msgstr ""
+"Project-Id-Version: Wolloyewa Store Bot 1.0.0\n"
+"Report-Msgid-Bugs-To: support@wolloyewa.com\n"
+"POT-Creation-Date: 2024-01-01 00:00+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+# ============================
+# Welcome and Greeting Messages
+# ============================
+
+msgid "welcome_message"
+msgstr ""
+
+msgid "welcome_back_message"
+msgstr ""
+
+msgid "help_message"
+msgstr ""
+
+# ============================
+# Product Messages
+# ============================
+
+msgid "product_list_title"
+msgstr ""
+
+msgid "product_detail_title"
+msgstr ""
+
+msgid "product_not_found"
+msgstr ""
+
+msgid "product_added_to_cart"
+msgstr ""
+
+msgid "product_removed_from_cart"
+msgstr ""
+
+msgid "out_of_stock"
+msgstr ""
+
+msgid "in_stock"
+msgstr ""
+
+msgid "low_stock"
+msgstr ""
+
+# ============================
+# Cart Messages
+# ============================
+
+msgid "cart_empty"
+msgstr ""
+
+msgid "cart_title"
+msgstr ""
+
+msgid "cart_subtotal"
+msgstr ""
+
+msgid "cart_total"
+msgstr ""
+
+msgid "cart_updated"
+msgstr ""
+
+msgid "cart_cleared"
+msgstr ""
+
+# ============================
+# Order Messages
+# ============================
+
+msgid "order_created"
+msgstr ""
+
+msgid "order_confirmed"
+msgstr ""
+
+msgid "order_shipped"
+msgstr ""
+
+msgid "order_delivered"
+msgstr ""
+
+msgid "order_cancelled"
+msgstr ""
+
+msgid "order_status_pending"
+msgstr ""
+
+msgid "order_status_processing"
+msgstr ""
+
+msgid "order_status_completed"
+msgstr ""
+
+# ============================
+# Payment Messages
+# ============================
+
+msgid "payment_success"
+msgstr ""
+
+msgid "payment_failed"
+msgstr ""
+
+msgid "payment_processing"
+msgstr ""
+
+msgid "payment_method_selected"
+msgstr ""
+
+# ============================
+# Error Messages
+# ============================
+
+msgid "error_general"
+msgstr ""
+
+msgid "error_network"
+msgstr ""
+
+msgid "error_authentication"
+msgstr ""
+
+msgid "error_permission"
+msgstr ""
+
+msgid "error_not_found"
+msgstr ""
+
+# ============================
+# Button Labels
+# ============================
+
+msgid "btn_back"
+msgstr ""
+
+msgid "btn_next"
+msgstr ""
+
+msgid "btn_confirm"
+msgstr ""
+
+msgid "btn_cancel"
+msgstr ""
+
+msgid "btn_save"
+msgstr ""
+
+msgid "btn_delete"
+msgstr ""
+
+msgid "btn_edit"
+msgstr ""
+
+msgid "btn_search"
+msgstr ""
+
+msgid "btn_add_to_cart"
+msgstr ""
+
+msgid "btn_checkout"
+msgstr ""
+
+msgid "btn_view_order"
+msgstr ""
+
+msgid "btn_track_order"
+msgstr ""
+
+msgid "btn_contact_support"
+msgstr ""
+
+# ============================
+# Category Messages
+# ============================
+
+msgid "category_electronics"
+msgstr ""
+
+msgid "category_clothing"
+msgstr ""
+
+msgid "category_food"
+msgstr ""
+
+msgid "category_books"
+msgstr ""
+
+msgid "category_beauty"
+msgstr ""
+
+msgid "category_health"
+msgstr ""
+
+msgid "category_home"
+msgstr ""
+
+msgid "category_sports"
+msgstr ""
+
+msgid "category_toys"
+msgstr ""
+
+msgid "category_other"
+msgstr ""

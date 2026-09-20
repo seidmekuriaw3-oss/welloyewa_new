@@ -1,0 +1,225 @@
+# ============================
+# WOLLOYEWA STORE BOT - ENGLISH TRANSLATION
+# ============================
+# English translations for Wolloyewa Store Bot
+# Copyright (C) 2024 Wolloyewa Technologies PLC
+# This file is distributed under the same license as the Wolloyewa project.
+# 
+# Translator: Wolloyewa Team <translations@wolloyewa.com>
+
+msgid ""
+msgstr ""
+"Project-Id-Version: Wolloyewa Store Bot 1.0.0\n"
+"Report-Msgid-Bugs-To: support@wolloyewa.com\n"
+"POT-Creation-Date: 2024-01-01 00:00+0000\n"
+"PO-Revision-Date: 2024-01-01 00:00+0000\n"
+"Last-Translator: Wolloyewa Team <translations@wolloyewa.com>\n"
+"Language-Team: English <en@li.org>\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# ============================
+# Welcome and Greeting Messages
+# ============================
+
+msgid "welcome_message"
+msgstr "🌟 Welcome to Wolloyewa Store! Ethiopia's premier modern e-commerce Telegram bot."
+
+msgid "welcome_back_message"
+msgstr "👋 Welcome back! How can I help you today?"
+
+msgid "help_message"
+msgstr "📖 Bot Help\n\n/start - Start the bot\n/menu - Show main menu\n/search - Search products\n/cart - View your cart\n/checkout - Complete your purchase\n/profile - View your profile\n/orders - Track your orders\n/feedback - Send feedback"
+
+# ============================
+# Product Messages
+# ============================
+
+msgid "product_list_title"
+msgstr "📦 Products"
+
+msgid "product_detail_title"
+msgstr "📦 Product Details"
+
+msgid "product_not_found"
+msgstr "❌ Product not found."
+
+msgid "product_added_to_cart"
+msgstr "✅ Product added to cart!"
+
+msgid "product_removed_from_cart"
+msgstr "🗑️ Product removed from cart!"
+
+msgid "out_of_stock"
+msgstr "❌ Out of Stock"
+
+msgid "in_stock"
+msgstr "✅ In Stock"
+
+msgid "low_stock"
+msgstr "⚠️ Low Stock"
+
+# ============================
+# Cart Messages
+# ============================
+
+msgid "cart_empty"
+msgstr "🛒 Your shopping cart is empty!"
+
+msgid "cart_title"
+msgstr "🛒 Shopping Cart"
+
+msgid "cart_subtotal"
+msgstr "💰 Subtotal"
+
+msgid "cart_total"
+msgstr "💎 Total"
+
+msgid "cart_updated"
+msgstr "✅ Cart updated"
+
+msgid "cart_cleared"
+msgstr "🗑️ Cart cleared"
+
+# ============================
+# Order Messages
+# ============================
+
+msgid "order_created"
+msgstr "✅ Your order has been created!"
+
+msgid "order_confirmed"
+msgstr "✅ Your order has been confirmed!"
+
+msgid "order_shipped"
+msgstr "🚚 Your order has been shipped!"
+
+msgid "order_delivered"
+msgstr "📦✅ Your order has been delivered!"
+
+msgid "order_cancelled"
+msgstr "❌ Your order has been cancelled"
+
+msgid "order_status_pending"
+msgstr "⏳ Pending"
+
+msgid "order_status_processing"
+msgstr "🔄 Processing"
+
+msgid "order_status_completed"
+msgstr "✅ Completed"
+
+# ============================
+# Payment Messages
+# ============================
+
+msgid "payment_success"
+msgstr "✅ Payment successful!"
+
+msgid "payment_failed"
+msgstr "❌ Payment failed. Please try again"
+
+msgid "payment_processing"
+msgstr "⏳ Processing your payment..."
+
+msgid "payment_method_selected"
+msgstr "✅ Payment method selected"
+
+# ============================
+# Error Messages
+# ============================
+
+msgid "error_general"
+msgstr "❌ An unexpected error occurred. Please try again later."
+
+msgid "error_network"
+msgstr "🌐 Network connection issue. Please check your connection."
+
+msgid "error_authentication"
+msgstr "🔒 Please login again."
+
+msgid "error_permission"
+msgstr "🚫 You don't have permission to perform this action."
+
+msgid "error_not_found"
+msgstr "🔍 What you're looking for was not found."
+
+# ============================
+# Button Labels
+# ============================
+
+msgid "btn_back"
+msgstr "🔙 Back"
+
+msgid "btn_next"
+msgstr "Next ▶️"
+
+msgid "btn_confirm"
+msgstr "✅ Confirm"
+
+msgid "btn_cancel"
+msgstr "❌ Cancel"
+
+msgid "btn_save"
+msgstr "💾 Save"
+
+msgid "btn_delete"
+msgstr "🗑️ Delete"
+
+msgid "btn_edit"
+msgstr "✏️ Edit"
+
+msgid "btn_search"
+msgstr "🔍 Search"
+
+msgid "btn_add_to_cart"
+msgstr "🛒 Add to Cart"
+
+msgid "btn_checkout"
+msgstr "✅ Checkout"
+
+msgid "btn_view_order"
+msgstr "📋 View Order"
+
+msgid "btn_track_order"
+msgstr "📍 Track Order"
+
+msgid "btn_contact_support"
+msgstr "💬 Contact Support"
+
+# ============================
+# Category Messages
+# ============================
+
+msgid "category_electronics"
+msgstr "Electronics"
+
+msgid "category_clothing"
+msgstr "Clothing"
+
+msgid "category_food"
+msgstr "Food"
+
+msgid "category_books"
+msgstr "Books"
+
+msgid "category_beauty"
+msgstr "Beauty"
+
+msgid "category_health"
+msgstr "Health"
+
+msgid "category_home"
+msgstr "Home"
+
+msgid "category_sports"
+msgstr "Sports"
+
+msgid "category_toys"
+msgstr "Toys"
+
+msgid "category_other"
+msgstr "Other"
