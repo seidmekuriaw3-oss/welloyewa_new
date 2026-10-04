@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Wolloyewa Store Bot
 
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
@@ -70,7 +69,7 @@ Payment providers -> signed webhook endpoints -> payment verification -> order u
 - Telegram bot token from [@BotFather](https://t.me/BotFather)
 - Public HTTPS for a Telegram Mini App and production webhooks
 
-Runtime versions are defined in `requirements.txt` and `pyproject.toml`. Always use the project virtual environment.
+Runtime versions are defined in `requirements.txt` and `pyproject.toml`. Use the active project Python environment.
 
 ## Local setup
 
@@ -119,9 +118,12 @@ Create `.env` from the required settings below. Never commit `.env` or share its
 | `CBE_BIRR_SECRET_KEY` | CBE Birr signing secret | Secret-managed value |
 | `JWT_SECRET_KEY` | JWT signing key | Strong random secret |
 | `ENCRYPTION_KEY` | Fernet encryption key | Valid Fernet key |
+| `TELEGRAM_WEBHOOK_SECRET` | Telegram webhook verification | Strong random secret |
 | `ADMIN_IDS` | Telegram admin IDs | Comma-separated IDs |
+| `CORS_ALLOWED_ORIGINS` | Browser origin allowlist | JSON list, e.g. `["https://store.example"]` |
+| `ALLOWED_HOSTS` | HTTP Host allowlist | JSON list, e.g. `["store.example"]` |
 
-Production must use `ENVIRONMENT=production`, `DEBUG=False`, unique secrets, a permanent HTTPS domain, restricted CORS/hosts, real payment credentials, and a secret manager.
+Production requires explicit database, Redis, encryption, JWT, application, and Telegram webhook secrets. Set `ENVIRONMENT=production`, `DEBUG=False`, unique secrets, a permanent HTTPS domain, restricted CORS/hosts, real payment credentials, and a secret manager. When `REPLIT_DOMAINS` or `WEB_APP_URL` is set, host and origin allowlists can be derived from that domain; otherwise configure both lists explicitly.
 
 Generate a Fernet key with:
 
@@ -131,24 +133,24 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 
 ## Run
 
-Start the API, web app, and local Telegram polling process:
+In this Replit workspace, start the API and local Redis with:
 
-```powershell
-python main.py
+```bash
+bash start.sh
 ```
 
-Open locally at:
+The Replit workflow serves port 5000. For a direct local run outside this workflow, `python main.py` uses the configured port (8000 by default). Open:
 
 ```text
-http://127.0.0.1:8080/app/
+http://127.0.0.1:5000/app/
 ```
 
-`0.0.0.0` is a server bind address, not a browser destination. For phone testing and Telegram Mini Apps, expose port 8080 with a public HTTPS tunnel:
+`0.0.0.0` is a server bind address, not a browser destination. For phone testing and Telegram Mini Apps, expose port 5000 with a public HTTPS tunnel:
 
-```powershell
-cloudflared tunnel --protocol http2 --url http://localhost:8080
-$env:WEB_APP_URL="https://your-name.trycloudflare.com/app/"
-python main.py
+```bash
+cloudflared tunnel --protocol http2 --url http://localhost:5000
+export WEB_APP_URL="https://your-name.trycloudflare.com/app/"
+bash start.sh
 ```
 
 Keep both processes running. Quick Tunnel URLs are temporary and must not be used for production.
@@ -229,10 +231,11 @@ API tests require the isolated test PostgreSQL database configured in `tests/con
 ## Deployment
 
 ```bash
+# Copy .env.example to .env and replace every CHANGE_ME value.
 docker compose up -d --build
 ```
 
-The container entrypoint waits for dependencies and runs migrations before starting the selected service. Verify `docker-compose.yml` and all production environment values first.
+Compose requires explicit production secrets and connects services on a private network. Database, Redis, app, Flower, Prometheus, and Grafana host ports are bound to loopback; only Nginx publishes public HTTP/HTTPS ports. The Compose app uses the production image and does not mount the source tree or enable reload.
 
 Before release:
 
@@ -255,11 +258,11 @@ Health endpoints: `/health`, `/ready`, and `/live`.
 - Review audit logs and failed authentication events.
 - Run dependency, secret, container, and static security scans before release.
 
-See `docs/security_audit.md` for the operational security checklist.
+See `docs/security_audit.md` for the operational security checklist. It is not an independent audit or compliance certification.
 
 ## Troubleshooting
 
-**Browser shows `ERR_ADDRESS_INVALID`:** use `http://127.0.0.1:8080/app/`, not `0.0.0.0`.
+**Browser shows `ERR_ADDRESS_INVALID`:** use `http://127.0.0.1:5000/app/` in this Replit workflow, not `0.0.0.0`.
 
 **Telegram does not respond:** confirm `Telegram bot polling started!` in logs, verify the token, ensure no second polling process is running, and check that `DISABLE_BOT_POLLING` is not enabled locally.
 
@@ -287,51 +290,3 @@ main.py                  FastAPI application and lifecycle entry point
 ## License
 
 This project is proprietary. See [LICENSE](LICENSE) for the applicable terms.
-=======
-# 🛍️ Wolloyewa Store Bot
-
-[![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.108-green.svg)](https://fastapi.tiangolo.com)
-[![Telegram Bot](https://img.shields.io/badge/Telegram-Bot-blue.svg)](https://core.telegram.org/bots)
-[![License](https://img.shields.io/badge/license-Proprietary-red.svg)](LICENSE)
-
-> **የኢትዮጵያ የመጀመሪያው ዘመናዊ የኢ-ኮሜርስ ቴሌግራም ቦት | Ethiopia's Premier E-commerce Telegram Bot**
-
-Wolloyewa Store Bot ለኢትዮጵያ ገበያ የተዘጋጀ ሙሉ በሙሉ የተዋሃደ የኢ-ኮሜርስ ቴሌግራም ቦት ነው። ብዙ ሻጮችን የሚደግፍ፣ የኢትዮጵያ የክፍያ ሥርዓቶችን (Chapa፣ Telebirr፣ CBE Birr) የተቀናጀ እና ለአነስተኛ እና መካከለኛ ንግዶች ተስማሚ ነው።
-
-## ✨ ዋና ዋና ባህሪያት
-
-### 📦 ለደንበኞች
-- 🛒 ምርቶችን መፈለግ እና መግዛት
-- 🔍 በምርት ስም፣ ምድብ እና ዋጋ መፈለግ
-- 🛍️ የግዢ ቅርጫት እና ትዕዛዝ ክትትል
-- 💳 በChapa፣ Telebirr እና CBE Birr መክፈል
-- ⭐ የምርት ግምገማ እና አስተያየት
-- 📍 የማድረሻ አድራሻ አስተዳደር
-- 🔔 የትዕዛዝ ሁኔታ ማሳወቂያዎች
-- ❤️ ተመራጭ ምርቶች (Wishlist)
-
-### 🏪 ለሻጮች
-- 📊 የሽያጭ ዳሽቦርድ እና አናሊቲክስ
-- 📦 የምርት አስተዳደር (CRUD)
-- 📈 የክምችት ክትትል እና ማስጠንቀቂያ
-- 💰 የክፍያ ሪፖርቶች እና ገቢ ማውጣት
-- 🎫 የደንበኛ ድጋፍ ቲኬት ሥርዓት
-
-### 👑 ለአስተዳዳሪዎች
-- 🎛️ ሙሉ የሥርዓት ኮንትሮል ፓነል
-- 👥 የተጠቃሚ እና ሻጭ አስተዳደር
-- 📋 የኦዲት ምዝግብ ማስታወሻዎች
-- 📊 አጠቃላይ የንግድ ሪፖርቶች
-- 🔧 የሥርዓት ውቅር አስተዳደር
-
-### 🔧 ቴክኒካል ባህሪያት
-- 🚀 ከፍተኛ አፈጻጸም (Async/Await)
-- 🔐 ደህንነት (JWT, Encryption, Rate Limiting)
-- 📊 ክትትል (Prometheus + Grafana)
-- 🔄 የራስ-ሰር መመለሻ (Auto-scaling)
-- 💾 የውሂብ ጎታ ምትኬ (Automated Backup)
-- 🌍 ባለብዙ ቋንቋ (አማርኛ፣ እንግሊዝኛ፣ ኦሮምኛ)
-
-## 🏗️ የሥርዓት መዋቅር
->>>>>>> 1b31a2b (Initial commit: Complete Wolloyewa Store Bot project)

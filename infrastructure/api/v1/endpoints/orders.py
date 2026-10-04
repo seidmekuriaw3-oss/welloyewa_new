@@ -10,6 +10,7 @@ from apps.common.schemas import PaginatedResponse
 from apps.orders.repository import OrderRepository
 from apps.orders.schemas import (
     OrderCreate,
+    OrderItemResponse,
     OrderResponse,
     OrderStatusUpdate,
     OrderTrackingResponse,
@@ -24,6 +25,26 @@ from core.dependencies import (
 from core.exceptions import InsufficientStockError, NotFoundError, PermissionError, ValidationError
 
 router = APIRouter()
+
+
+async def _serialize_vendor_order(
+    order,
+    order_service: OrderService,
+    vendor_id: int,
+) -> OrderResponse:
+    """Serialize only this vendor's line items from a potentially shared order."""
+    order_items = await order_service.order_item_repo.get_by_order(order.id)
+    vendor_items = [item for item in order_items if item.vendor_id == vendor_id]
+    if order.vendor_id == vendor_id:
+        vendor_items.extend(item for item in order_items if item.vendor_id is None)
+
+    fields = {
+        field_name: getattr(order, field_name)
+        for field_name in OrderResponse.model_fields
+        if field_name != "items"
+    }
+    fields["items"] = [OrderItemResponse.model_validate(item) for item in vendor_items]
+    return OrderResponse.model_validate(fields)
 
 
 # ============================
@@ -76,7 +97,10 @@ async def get_my_orders(
     )
 
     return PaginatedResponse.create(
-        items=[OrderResponse.model_validate(o) for o in orders],
+        items=[
+            await _serialize_vendor_order(o, order_service, current_user["vendor_id"])
+            for o in orders
+        ],
         total=total,
         page=page,
         page_size=page_size,
@@ -218,7 +242,7 @@ async def update_order_status(
         order = await order_service.update_vendor_order_status(
             order_id, current_user["vendor_id"], data, current_user["id"]
         )
-        return OrderResponse.model_validate(order)
+        return await _serialize_vendor_order(order, order_service, current_user["vendor_id"])
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except (ValidationError, PermissionError) as e:

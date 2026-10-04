@@ -282,9 +282,40 @@ class ProductService:
         min_price: float | None = None,
         max_price: float | None = None,
         limit: int = 20,
+        vendor_id: int | None = None,
+        offset: int = 0,
     ) -> list[Product]:
         """Search products by name, description, or tags."""
-        return await self.product_repo.search(query, category, min_price, max_price, limit)
+        return await self.product_repo.search(
+            query,
+            category,
+            min_price,
+            max_price,
+            limit,
+            vendor_id=vendor_id,
+            offset=offset,
+        )
+
+    async def search_products_with_count(
+        self,
+        query: str,
+        category: str | None = None,
+        min_price: float | None = None,
+        max_price: float | None = None,
+        limit: int = 20,
+        vendor_id: int | None = None,
+        offset: int = 0,
+    ) -> tuple[list[Product], int]:
+        """Search products with pagination and an accurate total count."""
+        return await self.product_repo.search_with_count(
+            query,
+            category,
+            min_price,
+            max_price,
+            limit,
+            vendor_id=vendor_id,
+            offset=offset,
+        )
 
     async def get_featured_products(self, limit: int = 10) -> list[Product]:
         """Get featured products."""

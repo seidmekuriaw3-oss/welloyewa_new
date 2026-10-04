@@ -6,6 +6,18 @@
 
 version: '3.9'
 
+x-common-app-env: &common-app-env
+  ENVIRONMENT: ${ENVIRONMENT:?Set ENVIRONMENT in .env}
+  DEBUG: ${DEBUG:?Set DEBUG in .env}
+  DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+  REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
+  SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+  JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env}
+  TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:?Set TELEGRAM_WEBHOOK_SECRET in .env}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Set CORS_ALLOWED_ORIGINS in .env}
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS:?Set ALLOWED_HOSTS in .env}
+
 services:
   # ============================
   # PostgreSQL Database
@@ -16,16 +28,16 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-@99Nameallah}
-      POSTGRES_DB: ${POSTGRES_DB:-welloyewadb}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-wolloyewa}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/backup.sh:/docker-entrypoint-initdb.d/backup.sh
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-welloyewadb}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-wolloyewa}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -44,13 +56,15 @@ services:
     image: redis:7-alpine
     container_name: wolloyewa_redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:${REDIS_HOST_PORT:-6380}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -69,23 +83,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: development
+      target: production
     container_name: wolloyewa_app
     restart: unless-stopped
     environment:
-      - ENVIRONMENT=${ENVIRONMENT:-development}
-      - DEBUG=${DEBUG:-True}
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-@99Nameallah}@postgres:5432/${POSTGRES_DB:-welloyewadb}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - ADMIN_IDS=${ADMIN_IDS}
+      <<: *common-app-env
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Set TELEGRAM_BOT_TOKEN in .env}
+      ADMIN_IDS: ${ADMIN_IDS:?Set ADMIN_IDS in .env}
     ports:
-      - "8000:8000"
-    volumes:
-      - ./:/app
-      - /app/__pycache__
-      - ./logs:/app/logs
-      - ./media:/app/media
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -98,7 +104,6 @@ services:
       retries: 3
     networks:
       - wolloyewa_network
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     logging:
       driver: "json-file"
       options:
@@ -112,17 +117,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: development
+      target: worker
     container_name: wolloyewa_celery
     restart: unless-stopped
     environment:
-      - ENVIRONMENT=${ENVIRONMENT:-development}
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-@99Nameallah}@postgres:5432/${POSTGRES_DB:-welloyewadb}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-    volumes:
-      - ./:/app
-      - ./logs:/app/logs
+      <<: *common-app-env
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Set TELEGRAM_BOT_TOKEN in .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -144,15 +144,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: development
+      target: beat
     container_name: wolloyewa_beat
     restart: unless-stopped
     environment:
-      - ENVIRONMENT=${ENVIRONMENT:-development}
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-@99Nameallah}@postgres:5432/${POSTGRES_DB:-welloyewadb}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
-    volumes:
-      - ./:/app
+      <<: *common-app-env
     depends_on:
       postgres:
         condition: service_healthy
@@ -175,16 +171,18 @@ services:
     container_name: wolloyewa_flower
     restart: unless-stopped
     environment:
-      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      <<: *common-app-env
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Set TELEGRAM_BOT_TOKEN in .env}
+      FLOWER_USER: ${FLOWER_USER:?Set FLOWER_USER in .env}
+      FLOWER_PASSWORD: ${FLOWER_PASSWORD:?Set FLOWER_PASSWORD in .env}
     ports:
-      - "5555:5555"
+      - "127.0.0.1:5555:5555"
     depends_on:
       - redis
       - celery_worker
     networks:
       - wolloyewa_network
-    command: celery --broker=redis://:${REDIS_PASSWORD:-}@redis:6379/0 flower --port=5555
+    command: celery --broker=${REDIS_URL:?Set REDIS_URL in .env} flower --port=5555 --basic_auth=$${FLOWER_USER}:$${FLOWER_PASSWORD}
     logging:
       driver: "json-file"
       options:
@@ -224,7 +222,7 @@ services:
     container_name: wolloyewa_prometheus
     restart: unless-stopped
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./devops/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -249,11 +247,11 @@ services:
     container_name: wolloyewa_grafana
     restart: unless-stopped
     environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:?Set GRAFANA_USER in .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?Set GRAFANA_PASSWORD in .env}
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./devops/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - grafana_data:/var/lib/grafana

@@ -40,8 +40,8 @@ class HealthCheckResult:
         return {
             "name": self.name,
             "status": self.status.value,
-            "message": self.message,
-            "details": self.details,
+            "message": None if settings.is_production else self.message,
+            "details": {} if settings.is_production else self.details,
             "response_time_ms": round(self.response_time_ms, 2),
             "timestamp": self.timestamp.isoformat(),
         }

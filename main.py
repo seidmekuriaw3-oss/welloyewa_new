@@ -21,6 +21,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from core.config import settings
 from core.exceptions import WolloyewaException
@@ -85,16 +86,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as schema_err:
             logger.warning(f"Schema auto-create skipped: {schema_err}")
     except Exception as e:
-        logger.warning(f"Database initialization failed (continuing): {e}")
+        logger.exception("Database initialization failed")
+        if settings.ENVIRONMENT == "production":
+            raise RuntimeError("Database initialization failed; refusing to start") from e
 
     # Redis (optional)
     try:
-        from infrastructure.redis.client import close_redis, init_redis
+        from core.rate_limiter import rate_limiter
+        from infrastructure.redis.client import close_redis, get_redis_client, init_redis
 
         await init_redis()
+        redis_wrapper = await get_redis_client()
+        rate_limiter.set_redis_client(await redis_wrapper.get_client())
         logger.info("Redis connection initialized")
     except Exception as e:
-        logger.warning(f"Redis initialization failed (continuing): {e}")
+        logger.warning(f"Redis initialization failed; using local rate limits: {e}")
 
     # Telegram Bot with retry
     try:
@@ -253,9 +259,12 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"],
-    expose_headers=["*"],
+    expose_headers=[],
     max_age=600,
 )
+
+# Reject requests with Host headers outside the configured allowlist.
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.ALLOWED_HOSTS)
 
 # Security headers middleware
 app.add_middleware(SecurityHeadersMiddleware)
@@ -268,8 +277,9 @@ async def health_check():
         from core.monitoring.health_checks import health_checker
 
         return await health_checker.check_all()
-    except Exception as e:
-        return {"status": "degraded", "error": str(e)}
+    except Exception:
+        logger.exception("Health check endpoint failed")
+        return {"status": "degraded"}
 
 
 @app.get("/")
@@ -404,10 +414,6 @@ def main() -> None:
         sys.exit(1)
 
 
-if __name__ == "__main__":
-    main()
-
-
 # Global exception handler — WolloyewaException subclasses (AuthenticationError,
 # PermissionError, NotFoundError, RateLimitError, etc.) carry their own status_code.
 # This handler must be registered BEFORE the generic Exception handler so FastAPI
@@ -420,7 +426,10 @@ async def wolloyewa_exception_handler(request, exc: WolloyewaException):
     logger.warning(f"Application error [{status_code}]: {exc.message}")
     return JSONResponse(
         status_code=status_code,
-        content={"detail": exc.message, "error": exc.code},
+        content={
+            "detail": exc.message if status_code < 500 else "Internal server error",
+            "error": exc.code,
+        },
     )
 
 
@@ -429,5 +438,9 @@ async def global_exception_handler(request, exc):
     logger.exception(f"Unhandled exception: {exc}")
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error", "error": str(exc)},
+        content={"detail": "Internal server error", "error": "INTERNAL_SERVER_ERROR"},
     )
+
+
+if __name__ == "__main__":
+    main()

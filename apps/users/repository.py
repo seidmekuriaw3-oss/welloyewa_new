@@ -6,11 +6,12 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.common.repository import BaseRepository
 from apps.users.models import User, Vendor
+from core.constants import UserRole, UserStatus
 
 
 class UserRepository(BaseRepository[User]):
@@ -110,6 +111,45 @@ class UserRepository(BaseRepository[User]):
 
         result = await self.db.execute(stmt)
         return result.scalars().all()
+
+    async def get_admin_users(
+        self,
+        role: UserRole | None = None,
+        status: UserStatus | None = None,
+        search: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[User], int]:
+        """Get non-deleted users with admin list filters and an accurate count."""
+        conditions = [User.is_deleted.is_(False)]
+        if role is not None:
+            conditions.append(User.role == role)
+        if status is not None:
+            conditions.append(User.status == status)
+        if search:
+            pattern = f"%{search.strip()}%"
+            conditions.append(
+                or_(
+                    User.first_name.ilike(pattern),
+                    User.last_name.ilike(pattern),
+                    User.email.ilike(pattern),
+                    User.username.ilike(pattern),
+                )
+            )
+
+        count_result = await self.db.execute(
+            select(func.count(User.id)).where(and_(*conditions))
+        )
+        total = count_result.scalar() or 0
+        query = (
+            select(User)
+            .where(and_(*conditions))
+            .order_by(User.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self.db.execute(query)
+        return result.scalars().all(), total
 
 
 class VendorRepository(BaseRepository[Vendor]):
