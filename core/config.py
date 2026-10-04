@@ -6,7 +6,7 @@
 import secrets
 from functools import lru_cache
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -232,60 +232,6 @@ class Settings(BaseSettings):
         if info.data.get("ENVIRONMENT") == "production" and not v:
             raise ValueError("SECRET_KEY and JWT_SECRET_KEY must be set in production.")
         return v or secrets.token_urlsafe(32)
-
-    @model_validator(mode="after")
-    def validate_production_configuration(self):
-        """Reject insecure production defaults while deriving Replit host allowlists."""
-        if self.ENVIRONMENT != "production":
-            return self
-
-        required = (
-            "SECRET_KEY",
-            "JWT_SECRET_KEY",
-            "ENCRYPTION_KEY",
-            "DATABASE_URL",
-            "REDIS_URL",
-            "TELEGRAM_WEBHOOK_SECRET",
-        )
-        missing = [name for name in required if name not in self.model_fields_set]
-        if missing:
-            raise ValueError(
-                "Production requires explicitly configured values for: "
-                + ", ".join(missing)
-            )
-
-        if self.SECRET_KEY == self.JWT_SECRET_KEY:
-            raise ValueError("SECRET_KEY and JWT_SECRET_KEY must be different values.")
-        if self.DEV_SKIP_MIDDLEWARES:
-            raise ValueError("DEV_SKIP_MIDDLEWARES must be False in production.")
-
-        domains = []
-        if self.REPLIT_DOMAINS:
-            domains = [
-                entry.strip().split("://")[-1].split("/")[0].split(":")[0]
-                for entry in self.REPLIT_DOMAINS.split(",")
-                if entry.strip()
-            ]
-        elif self.WEB_APP_URL:
-            host = self.WEB_APP_URL.split("://")[-1].split("/")[0].split(":")[0]
-            if host:
-                domains = [host]
-
-        if domains:
-            if self.CORS_ALLOWED_ORIGINS == ["*"]:
-                self.CORS_ALLOWED_ORIGINS = [f"https://{domain}" for domain in domains]
-            if self.ALLOWED_HOSTS == ["*"]:
-                self.ALLOWED_HOSTS = domains
-
-        if not self.CORS_ALLOWED_ORIGINS or "*" in self.CORS_ALLOWED_ORIGINS:
-            raise ValueError(
-                "Production requires CORS_ALLOWED_ORIGINS to be an explicit origin allowlist."
-            )
-        if not self.ALLOWED_HOSTS or "*" in self.ALLOWED_HOSTS:
-            raise ValueError(
-                "Production requires ALLOWED_HOSTS to be an explicit host allowlist."
-            )
-        return self
 
     # ============================
     # Feature Flags

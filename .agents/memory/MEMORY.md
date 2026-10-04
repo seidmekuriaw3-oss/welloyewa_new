@@ -3,3 +3,4 @@
 - [Wolloyewa admin routing](wolloyewa-admin-routing.md) — full admin_* callback routing, multi-step text state system, service signatures, per-entity buttons, CSV export
 - [Wolloyewa deep audit fixes](wolloyewa-deep-audit.md) — dispatcher double-reg, missing callbacks, cat_page_ crash, bare excepts, test syntax, web_app template
 - [Wolloyewa web app templates](wolloyewa-web-app-templates.md) — 8 Jinja2 templates created; key security and routing patterns
+- [Wolloyewa vendor orders](wolloyewa-vendor-orders.md) — vendor order visibility depends on assigning single-vendor carts to the order

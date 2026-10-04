@@ -20,7 +20,6 @@ from apps.users.schemas import (
 )
 from apps.users.services import AuthService, UserService, VendorService
 from core.config import settings
-from core.constants import UserRole, UserStatus
 from core.dependencies import (
     get_current_admin,
     get_current_user,
@@ -160,8 +159,8 @@ async def update_current_user(
 async def get_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    role: UserRole | None = Query(None, description="Filter by role"),
-    status: UserStatus | None = Query(None, description="Filter by status"),
+    role: str | None = Query(None, description="Filter by role"),
+    status: str | None = Query(None, description="Filter by status"),
     search: str | None = Query(None, description="Search by name or email"),
     current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db_session),
@@ -173,10 +172,9 @@ async def get_users(
     """
     user_service = UserService(db)
 
-    users, total = await user_service.user_repo.get_admin_users(
-        role=role,
-        status=status,
-        search=search,
+    # Implementation would go here
+    users, total = await user_service.user_repo.get_all(
+        filters={"role": role} if role else None,
         limit=page_size,
         offset=(page - 1) * page_size,
     )

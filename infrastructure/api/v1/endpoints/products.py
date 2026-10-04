@@ -55,15 +55,14 @@ async def get_products(
 
     # Search products if query provided
     if search:
-        products, total = await product_service.search_products_with_count(
+        products = await product_service.search_products(
             query=search,
             category=category,
             min_price=min_price,
             max_price=max_price,
             limit=page_size,
-            vendor_id=vendor_id,
-            offset=(page - 1) * page_size,
         )
+        total = len(products)
     else:
         filters = {}
         if category:

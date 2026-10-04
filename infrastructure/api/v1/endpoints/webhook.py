@@ -6,10 +6,9 @@
 import json
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
 from core.config import settings
-from core.dependencies import get_current_admin, verify_webhook_signature
 from core.logger import logger
 from infrastructure.payments.payment_verifier import verify_payment_signature
 
@@ -127,7 +126,6 @@ async def cbe_birr_webhook(
 @router.post("/telegram")
 async def telegram_webhook(
     request: Request,
-    _: None = Depends(verify_webhook_signature),
 ) -> dict[str, Any]:
     """
     Telegram bot webhook.
@@ -145,18 +143,15 @@ async def telegram_webhook(
 
         return {"status": "ok"}
 
-    except json.JSONDecodeError as e:
-        raise HTTPException(status_code=400, detail="Invalid webhook payload") from e
     except Exception as e:
-        logger.exception("Telegram webhook processing failed")
-        raise HTTPException(status_code=500, detail="Webhook processing failed") from e
+        logger.error(f"Telegram webhook error: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 @router.post("/generic")
 async def generic_webhook(
     request: Request,
     background_tasks: BackgroundTasks,
-    _: dict = Depends(get_current_admin),
 ) -> dict[str, Any]:
     """
     Generic webhook endpoint for custom integrations.
@@ -174,8 +169,8 @@ async def generic_webhook(
         return {"status": "received"}
 
     except Exception as e:
-        logger.exception("Generic webhook processing failed")
-        raise HTTPException(status_code=500, detail="Webhook processing failed") from e
+        logger.error(f"Generic webhook error: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ============================

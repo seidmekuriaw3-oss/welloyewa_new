@@ -41,7 +41,6 @@ class PaymentRefundResponse(BaseModel):
     success: bool
     refund_id: str | None = None
     status: str | None = None
-    amount: float | None = None
     message: str | None = None
 
 

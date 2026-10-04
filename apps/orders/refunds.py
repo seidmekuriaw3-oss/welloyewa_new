@@ -88,21 +88,16 @@ class RefundManager:
         if not order.can_refund():
             raise ValidationError(f"Order cannot be refunded in current status: {order.status}")
 
-        already_refunded = Decimal(str(order.refunded_amount or 0))
-        remaining = Decimal(str(order.total)) - already_refunded
+        # Check if already refunded
+        if order.refunded_amount > 0:
+            raise ValidationError("Order has already been refunded")
 
-        # Default to the remaining balance and allow multiple partial refunds.
+        # Set refund amount
         if amount is None:
-            amount = remaining
-        else:
-            amount = Decimal(str(amount))
-
-        if amount <= 0:
-            raise ValidationError("Refund amount must be greater than zero")
-        if amount > remaining:
+            amount = order.total
+        elif amount > order.total:
             raise ValidationError(
-                f"Refund amount cannot exceed the remaining refundable balance: "
-                f"{format_etb(remaining)}"
+                f"Refund amount cannot exceed order total: {format_etb(order.total)}"
             )
 
         # Create refund record
@@ -176,22 +171,20 @@ class RefundManager:
             refund.transaction_id = transaction_id
             refund.processed_at = datetime.utcnow()
 
-            # Update order only after the gateway confirms the refund.
-            refunded_total = Decimal(str(order.refunded_amount or 0)) + refund.amount
-            fully_refunded = refunded_total >= Decimal(str(order.total))
+            # Update order
             await self.order_repo.update(
                 refund.order_id,
                 {
-                    "refunded_amount": refunded_total,
+                    "refunded_amount": refund.amount,
                     "refunded_at": datetime.utcnow(),
                     "refund_transaction_id": transaction_id,
-                    "payment_status": "refunded" if fully_refunded else "paid",
-                    "status": "refunded" if fully_refunded else order.status,
+                    "payment_status": "refunded",
+                    "status": "refunded",
                 },
             )
 
-            if fully_refunded:
-                await self._restock_order_products(refund.order_id)
+            # Restock products
+            await self._restock_order_products(refund.order_id)
 
             logger.info(f"Refund processed: {refund_id} - {format_etb(refund.amount)}")
 

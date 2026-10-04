@@ -122,48 +122,8 @@ class ProductRepository(BaseRepository[Product]):
         min_price: float | None = None,
         max_price: float | None = None,
         limit: int = 20,
-        vendor_id: int | None = None,
-        offset: int = 0,
     ) -> list[Product]:
         """Search products by name, description, or tags."""
-        conditions = self._search_conditions(query, category, min_price, max_price, vendor_id)
-        stmt = select(Product).where(and_(*conditions))
-        stmt = stmt.order_by(Product.sales_count.desc()).offset(offset).limit(limit)
-
-        result = await self.db.execute(stmt)
-        return result.scalars().all()
-
-    async def search_with_count(
-        self,
-        query: str,
-        category: str | None = None,
-        min_price: float | None = None,
-        max_price: float | None = None,
-        limit: int = 20,
-        vendor_id: int | None = None,
-        offset: int = 0,
-    ) -> tuple[list[Product], int]:
-        """Search products and return the full matching count for pagination."""
-        conditions = self._search_conditions(query, category, min_price, max_price, vendor_id)
-        count_result = await self.db.execute(
-            select(func.count(Product.id)).where(and_(*conditions))
-        )
-        total = count_result.scalar() or 0
-
-        stmt = select(Product).where(and_(*conditions))
-        stmt = stmt.order_by(Product.sales_count.desc()).offset(offset).limit(limit)
-        result = await self.db.execute(stmt)
-        return result.scalars().all(), total
-
-    @staticmethod
-    def _search_conditions(
-        query: str,
-        category: str | None,
-        min_price: float | None,
-        max_price: float | None,
-        vendor_id: int | None,
-    ):
-        """Build shared filters for product search and its count query."""
         search_pattern = f"%{query}%"
 
         conditions = [
@@ -180,16 +140,17 @@ class ProductRepository(BaseRepository[Product]):
         if category:
             conditions.append(Product.category == category)
 
-        if vendor_id is not None:
-            conditions.append(Product.vendor_id == vendor_id)
-
         if min_price is not None:
             conditions.append(Product.price >= min_price)
 
         if max_price is not None:
             conditions.append(Product.price <= max_price)
 
-        return conditions
+        stmt = select(Product).where(and_(*conditions))
+        stmt = stmt.order_by(Product.sales_count.desc()).limit(limit)
+
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
 
     async def get_low_stock_products(
         self,
