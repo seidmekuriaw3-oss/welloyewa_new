@@ -29,22 +29,7 @@ def upgrade() -> None:
     # ENUM Types
     # ============================
     
-    # User related enums
-    op.execute("CREATE TYPE user_role AS ENUM ('customer', 'vendor', 'admin', 'super_admin')")
-    op.execute("CREATE TYPE user_status AS ENUM ('active', 'inactive', 'suspended', 'banned')")
-    op.execute("CREATE TYPE gender AS ENUM ('male', 'female', 'other')")
-    
-    # Order related enums
-    op.execute("CREATE TYPE order_status AS ENUM ('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded')")
-    op.execute("CREATE TYPE payment_status AS ENUM ('pending', 'paid', 'failed', 'refunded', 'partial')")
-    op.execute("CREATE TYPE payment_method AS ENUM ('chapa', 'telebirr', 'cbe_birr', 'cash_on_delivery')")
-    
-    # Product related enums
-    op.execute("CREATE TYPE product_status AS ENUM ('draft', 'active', 'out_of_stock', 'discontinued')")
-    op.execute("CREATE TYPE product_category AS ENUM ('electronics', 'clothing', 'food', 'books', 'beauty', 'health', 'home', 'sports', 'toys', 'other')")
-    
-    # Other enums
-    op.execute("CREATE TYPE shipping_method AS ENUM ('standard', 'express', 'pickup')")
+    # SQLAlchemy creates the enums used by table columns below.
     op.execute("CREATE TYPE notification_type AS ENUM ('email', 'sms', 'telegram', 'push')")
     
     # ============================

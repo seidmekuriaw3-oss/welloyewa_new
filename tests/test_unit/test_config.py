@@ -24,7 +24,17 @@ def test_environment_and_runtime_properties():
     assert testing.is_testing is True
 
 
-def test_production_requires_secrets_and_restricted_origins():
+def test_production_requires_secrets_and_restricted_origins(monkeypatch):
+    for name in (
+        "SECRET_KEY",
+        "JWT_SECRET_KEY",
+        "CORS_ALLOWED_ORIGINS",
+        "ALLOWED_HOSTS",
+        "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_WEBHOOK_SECRET",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
     try:
         Settings(ENVIRONMENT="production", DEBUG=False, _env_file=None)
     except ValidationError as error:
@@ -90,8 +100,26 @@ def test_database_url_builder_supports_raw_and_testing_values():
     testing = Settings(ENVIRONMENT="testing", DATABASE_URL=None)
     assert testing.DATABASE_URL.startswith("sqlite+aiosqlite:///")
 
+    compose = Settings(
+        DATABASE_URL="postgresql+asyncpg://user:pass@localhost/shop",
+        POSTGRES_HOST="postgres",
+        _env_file=None,
+    )
+    assert compose.DATABASE_URL == "postgresql+asyncpg://user:pass@postgres/shop"
 
-def test_redis_and_celery_url_builders():
+
+def test_redis_and_celery_url_builders(monkeypatch):
+    for name in (
+        "REDIS_URL",
+        "REDIS_PASSWORD",
+        "REDIS_HOST",
+        "REDIS_PORT",
+        "REDIS_DB",
+        "CELERY_BROKER_URL",
+        "CELERY_RESULT_BACKEND",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
     no_password = Settings(
         REDIS_URL=None,
         REDIS_HOST="cache",
@@ -99,15 +127,25 @@ def test_redis_and_celery_url_builders():
         REDIS_DB=3,
         CELERY_BROKER_URL=None,
         CELERY_RESULT_BACKEND=None,
+        _env_file=None,
     )
     assert no_password.REDIS_URL == "redis://cache:6380/3"
     assert no_password.CELERY_BROKER_URL == no_password.REDIS_URL
     assert no_password.CELERY_RESULT_BACKEND == no_password.REDIS_URL
 
+    compose = Settings(
+        REDIS_URL="redis://localhost:6379/0",
+        REDIS_HOST="redis",
+        REDIS_PASSWORD="p@ss/word",
+        _env_file=None,
+    )
+    assert compose.REDIS_URL == "redis://:p%40ss%2Fword@redis:6379/0"
+
     explicit = Settings(
         REDIS_URL="redis://explicit/1",
         CELERY_BROKER_URL="redis://broker/2",
         CELERY_RESULT_BACKEND="redis://backend/3",
+        _env_file=None,
     )
     assert explicit.REDIS_URL == "redis://explicit/1"
     assert explicit.CELERY_BROKER_URL == "redis://broker/2"

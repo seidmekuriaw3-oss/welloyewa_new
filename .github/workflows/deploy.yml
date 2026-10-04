@@ -86,6 +86,8 @@ jobs:
     needs: deploy-staging
     environment: production
     if: github.ref == 'refs/heads/main'
+    outputs:
+      previous_task_definition: ${{ steps.update-production.outputs.previous_task_definition }}
     
     steps:
       - name: Checkout code
@@ -118,12 +120,40 @@ jobs:
         run: |
           docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.build-production-image.outputs.image_tag }}
       
-      - name: Update ECS service (blue/green)
+      - name: Update ECS service
+        id: update-production
         run: |
-          aws deploy create-deployment \
-            --application-name wolloyewa \
-            --deployment-group-name production \
-            --image-revision ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.build-production-image.outputs.image_tag }}
+          set -euo pipefail
+          cluster="wolloyewa-production"
+          service="app"
+          image="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.build-production-image.outputs.image_tag }}"
+          previous_task_definition=$(aws ecs describe-services \
+            --cluster "$cluster" \
+            --services "$service" \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          aws ecs describe-task-definition \
+            --task-definition "$previous_task_definition" \
+            --query taskDefinition \
+            --output json > task-definition.json
+          if ! jq -e 'any(.containerDefinitions[]; .name == "app")' task-definition.json >/dev/null; then
+            echo "Task definition has no app container" >&2
+            exit 1
+          fi
+          jq --arg image "$image" '
+            .containerDefinitions |= map(if .name == "app" then .image = $image else . end)
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+          ' task-definition.json > new-task-definition.json
+          new_task_definition=$(aws ecs register-task-definition \
+            --cli-input-json file://new-task-definition.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "previous_task_definition=$previous_task_definition" >> "$GITHUB_OUTPUT"
+          aws ecs update-service \
+            --cluster "$cluster" \
+            --service "$service" \
+            --task-definition "$new_task_definition"
+          aws ecs wait services-stable --cluster "$cluster" --services "$service"
       
       - name: Run database migrations (maintenance mode)
         run: |
@@ -165,7 +195,8 @@ jobs:
     name: Rollback Deployment
     runs-on: ubuntu-latest
     environment: production
-    if: failure()
+    needs: deploy-production
+    if: failure() && github.ref == 'refs/heads/main'
     
     steps:
       - name: Configure AWS credentials
@@ -178,13 +209,20 @@ jobs:
       - name: Get previous stable version
         id: previous-version
         run: |
-          PREVIOUS_TAG=$(aws ecs describe-services --cluster wolloyewa-production --services app --query 'services[0].deployments[?status=="PRIMARY"].taskDefinition' --output text | cut -d':' -f2)
-          echo "PREVIOUS_TAG=${PREVIOUS_TAG}" >> $GITHUB_ENV
-          echo "previous_tag=${PREVIOUS_TAG}" >> $GITHUB_OUTPUT
+          previous_task_definition="${{ needs.deploy-production.outputs.previous_task_definition }}"
+          if [ -z "$previous_task_definition" ]; then
+            echo "Previous task definition was not captured; cannot roll back safely" >&2
+            exit 1
+          fi
+          echo "previous_task_definition=$previous_task_definition" >> "$GITHUB_OUTPUT"
       
       - name: Rollback ECS service
         run: |
-          aws ecs update-service --cluster wolloyewa-production --service app --task-definition wolloyewa:${PREVIOUS_TAG}
+          aws ecs update-service \
+            --cluster wolloyewa-production \
+            --service app \
+            --task-definition "${{ steps.previous-version.outputs.previous_task_definition }}"
+          aws ecs wait services-stable --cluster wolloyewa-production --services app
       
       - name: Notify rollback
         uses: appleboy/telegram-action@master
@@ -193,5 +231,5 @@ jobs:
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
             🔴 Production Rollback Executed!
-            Previous version: ${{ steps.previous-version.outputs.previous_tag }}
+            Previous task definition: ${{ steps.previous-version.outputs.previous_task_definition }}
             Reason: Deployment failure

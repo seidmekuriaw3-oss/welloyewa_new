@@ -110,7 +110,7 @@ Copy-Item .env.example .env
 | --- | --- | --- |
 | `ENVIRONMENT` | Runtime mode | `development` |
 | `DEBUG` | Development diagnostics | `True` locally, `False` in production |
-| `HOST` / `PORT` | HTTP bind address and port | `0.0.0.0` / `8080` |
+| `HOST` / `PORT` | HTTP bind address and port | `0.0.0.0` / `8000` |
 | `DATABASE_URL` | PostgreSQL connection | Secret-managed value |
 | `REDIS_URL` | Redis connection | `redis://localhost:6379/0` |
 | `TELEGRAM_BOT_TOKEN` | Telegram API token | Secret-managed value |
@@ -143,13 +143,13 @@ python main.py
 Open locally at:
 
 ```text
-http://127.0.0.1:8080/app/
+http://127.0.0.1:8000/app/
 ```
 
-`0.0.0.0` is a server bind address, not a browser destination. For phone testing and Telegram Mini Apps, expose port 8080 with a public HTTPS tunnel:
+`0.0.0.0` is a server bind address, not a browser destination. For phone testing and Telegram Mini Apps, expose port 8000 with a public HTTPS tunnel:
 
 ```powershell
-cloudflared tunnel --protocol http2 --url http://localhost:8080
+cloudflared tunnel --protocol http2 --url http://localhost:8000
 $env:WEB_APP_URL="https://your-name.trycloudflare.com/app/"
 python main.py
 ```
@@ -268,13 +268,13 @@ See `docs/security_audit.md` for the operational security checklist.
 
 ## Troubleshooting
 
-**Browser shows `ERR_ADDRESS_INVALID`:** use `http://127.0.0.1:8080/app/`, not `0.0.0.0`.
+**Browser shows `ERR_ADDRESS_INVALID`:** use `http://127.0.0.1:8000/app/`, not `0.0.0.0`.
 
 **Telegram does not respond:** confirm `Telegram bot polling started!` in logs, verify the token, ensure no second polling process is running, and check that `DISABLE_BOT_POLLING` is not enabled locally.
 
 **Telegram says the Web App URL is invalid:** `WEB_APP_URL` must be a reachable HTTPS URL. Restart the application after changing it.
 
-**Cloudflare returns 1033 or 502:** the tunnel stopped, its temporary URL changed, or the local app is not listening on port 8080. Restart both processes and update `WEB_APP_URL`.
+**Cloudflare returns 1033 or 502:** the tunnel stopped, its temporary URL changed, or the local app is not listening on port 8000. Restart both processes and update `WEB_APP_URL`.
 
 **Categories show but products are empty:** check `GET /app/api/products`, seed the development database, and restart the application so its database pool reloads the data.
 

@@ -8,6 +8,7 @@ from functools import lru_cache
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
 
 
 class Settings(BaseSettings):
@@ -75,7 +76,15 @@ class Settings(BaseSettings):
                 url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
             elif url.startswith("postgres://"):
                 url = url.replace("postgres://", "postgresql+asyncpg://", 1)
-            return url
+            parsed_url = make_url(url)
+            postgres_host = info.data.get("POSTGRES_HOST")
+            if parsed_url.host in {"localhost", "127.0.0.1"} and postgres_host not in {
+                None,
+                "localhost",
+                "127.0.0.1",
+            }:
+                parsed_url = parsed_url.set(host=postgres_host)
+            return parsed_url.render_as_string(hide_password=False)
 
         data = info.data
         environment = str(data.get("ENVIRONMENT", "development")).lower()
@@ -100,10 +109,27 @@ class Settings(BaseSettings):
     def build_redis_url(cls, v: str | None, info) -> str:
         """Build Redis URL from individual components if not provided."""
         if v:
-            return v
+            parsed_url = make_url(v)
+            redis_host = info.data.get("REDIS_HOST")
+            if parsed_url.host in {"localhost", "127.0.0.1"} and redis_host not in {
+                None,
+                "localhost",
+                "127.0.0.1",
+            }:
+                parsed_url = parsed_url.set(host=redis_host)
+            if not parsed_url.password and info.data.get("REDIS_PASSWORD"):
+                parsed_url = parsed_url.set(
+                    username=parsed_url.username or "",
+                    password=info.data["REDIS_PASSWORD"],
+                )
+            return parsed_url.render_as_string(hide_password=False)
         data = info.data
-        password = f":{data.get('REDIS_PASSWORD')}@" if data.get("REDIS_PASSWORD") else ""
-        return f"redis://{password}{data.get('REDIS_HOST')}:{data.get('REDIS_PORT')}/{data.get('REDIS_DB')}"
+        password = data.get("REDIS_PASSWORD")
+        return make_url(
+            f"redis://{data.get('REDIS_HOST')}:{data.get('REDIS_PORT')}/{data.get('REDIS_DB')}"
+        ).set(username="", password=password).render_as_string(hide_password=False) if password else (
+            f"redis://{data.get('REDIS_HOST')}:{data.get('REDIS_PORT')}/{data.get('REDIS_DB')}"
+        )
 
     # ============================
     # Telegram Bot

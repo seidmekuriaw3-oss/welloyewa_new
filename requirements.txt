@@ -3,6 +3,7 @@ uvicorn[standard]>=0.25.0
 gunicorn>=21.2.0,<24.0.0
 httptools>=0.6.0
 python-dotenv>=1.0.0
+python-json-logger>=2.0.7,<3.0.0
 pydantic>=2.5.2
 pydantic-settings>=2.1.0
 httpx>=0.27.0

@@ -23,7 +23,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/backup.sh:/docker-entrypoint-initdb.d/backup.sh
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-welloyewadb}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-wolloyewa}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -84,6 +84,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
       REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
@@ -140,8 +141,13 @@ services:
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-production}
       DEBUG: "False"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
       REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env}
@@ -154,6 +160,8 @@ services:
     depends_on:
       app:
         condition: service_healthy
+    healthcheck:
+      disable: true
     networks:
       - wolloyewa_network
     command: ["celery", "-A", "infrastructure.workers.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
@@ -176,8 +184,13 @@ services:
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-production}
       DEBUG: "False"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
       REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env}
@@ -187,9 +200,11 @@ services:
     depends_on:
       app:
         condition: service_healthy
+    healthcheck:
+      disable: true
     networks:
       - wolloyewa_network
-    command: ["celery", "-A", "infrastructure.workers.celery_app", "beat", "--loglevel=info"]
+    command: ["celery", "-A", "infrastructure.workers.celery_app", "beat", "--loglevel=info", "--schedule=/tmp/celerybeat-schedule"]
     logging:
       driver: "json-file"
       options:
@@ -204,8 +219,8 @@ services:
     container_name: wolloyewa_flower
     restart: unless-stopped
     environment:
-      CELERY_BROKER_URL: ${REDIS_URL:?Set REDIS_URL in .env}
-      CELERY_RESULT_BACKEND: ${REDIS_URL:?Set REDIS_URL in .env}
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379/0
       FLOWER_BASIC_AUTH: ${FLOWER_USER:-admin}:${FLOWER_PASSWORD:?Set FLOWER_PASSWORD in .env}
     ports:
       - "127.0.0.1:5555:5555"

@@ -96,9 +96,10 @@ class OrderService:
             )
 
         # Calculate totals
-        shipping_fee = Decimal(str(data.shipping_fee or 0))
+        shipping_fee = Decimal("0")
+        discount = Decimal("0")
         tax = subtotal * Decimal("0.15")  # 15% VAT
-        total = subtotal + shipping_fee + tax - Decimal(str(data.discount or 0))
+        total = subtotal + shipping_fee + tax - discount
 
         # Create order
         order_data = {
@@ -112,7 +113,7 @@ class OrderService:
             "subtotal": subtotal,
             "shipping_fee": shipping_fee,
             "tax": tax,
-            "discount": Decimal(str(data.discount or 0)),
+            "discount": discount,
             "total": total,
             "payment_method": data.payment_method,
             "payment_status": PaymentStatus.PENDING.value,
@@ -305,27 +306,29 @@ class OrderService:
                 raise OrderStatusError(item.vendor_status, data.status)
             item.vendor_status = data.status
         all_statuses = {item.vendor_status for item in items}
-        if all_statuses == {OrderStatus.DELIVERED.value}:
-            order.status = OrderStatus.DELIVERED.value
-        elif all_statuses and all_statuses.issubset(
-            {OrderStatus.SHIPPED.value, OrderStatus.DELIVERED.value}
-        ):
-            order.status = OrderStatus.SHIPPED.value
-        elif OrderStatus.PROCESSING.value in all_statuses:
-            order.status = OrderStatus.PROCESSING.value
-        elif all_statuses == {OrderStatus.CONFIRMED.value}:
-            order.status = OrderStatus.CONFIRMED.value
-        elif all_statuses == {OrderStatus.CANCELLED.value}:
-            order.status = OrderStatus.CANCELLED.value
-        elif data.status in {
-            OrderStatus.PROCESSING.value,
-            OrderStatus.SHIPPED.value,
-            OrderStatus.DELIVERED.value,
-        }:
-            order.status = data.status
+        aggregate_status = self._aggregate_vendor_status(all_statuses)
+        if aggregate_status is not None:
+            order.status = aggregate_status
         await self.db.flush()
         await self.db.commit()
         return order
+
+    @staticmethod
+    def _aggregate_vendor_status(statuses: set[str]) -> str | None:
+        """Return the shared order status only when item states support it."""
+        if not statuses:
+            return None
+        if statuses == {OrderStatus.DELIVERED.value}:
+            return OrderStatus.DELIVERED.value
+        if statuses.issubset({OrderStatus.SHIPPED.value, OrderStatus.DELIVERED.value}):
+            return OrderStatus.SHIPPED.value
+        if OrderStatus.PROCESSING.value in statuses:
+            return OrderStatus.PROCESSING.value
+        if statuses == {OrderStatus.CONFIRMED.value}:
+            return OrderStatus.CONFIRMED.value
+        if statuses == {OrderStatus.CANCELLED.value}:
+            return OrderStatus.CANCELLED.value
+        return None
 
     async def cancel_order(self, order_id: int, user_id: int, reason: str | None = None) -> Order:
         """Cancel an order."""

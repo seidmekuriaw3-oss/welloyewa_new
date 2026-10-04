@@ -8,7 +8,7 @@ import sys
 from contextvars import ContextVar
 from datetime import datetime
 
-from pythonjsonlogger.json import JsonFormatter
+from pythonjsonlogger.jsonlogger import JsonFormatter
 
 from core.config import settings
 

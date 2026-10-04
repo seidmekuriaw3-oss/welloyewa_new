@@ -60,6 +60,19 @@ class TestOrderEndpoints:
 
         assert response.status_code == 404
 
+    async def test_create_order_rejects_client_supplied_pricing(
+        self, client: AsyncClient, sample_user_data, sample_order_data, auth_token
+    ):
+        await client.post("/api/v1/users/register", json=sample_user_data)
+        headers = {"Authorization": f"Bearer {auth_token}"}
+        response = await client.post(
+            "/api/v1/orders/",
+            json={**sample_order_data, "discount": "1000", "shipping_fee": "0"},
+            headers=headers,
+        )
+
+        assert response.status_code == 422
+
     async def test_get_my_orders(
         self, client: AsyncClient, sample_user_data, sample_order_data, auth_token
     ):
@@ -158,6 +171,13 @@ class TestOrderTrackingEndpoints:
 
 class TestVendorOrderEndpoints:
     """Tests for vendor order endpoints."""
+
+    def test_global_status_waits_for_all_vendor_items(self):
+        from apps.orders.services import OrderService
+
+        assert OrderService._aggregate_vendor_status({"delivered", "pending"}) is None
+        assert OrderService._aggregate_vendor_status({"shipped", "delivered"}) == "shipped"
+        assert OrderService._aggregate_vendor_status({"delivered"}) == "delivered"
 
     async def test_get_vendor_orders(self, client: AsyncClient, sample_user_data, auth_token):
         """Test getting vendor's orders."""

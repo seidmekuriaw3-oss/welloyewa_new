@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from apps.common.schemas import BaseSchema, IdSchema, TimestampSchema
 from core.constants import OrderStatus, PaymentMethod, PaymentStatus, ShippingMethod
@@ -66,12 +66,12 @@ class OrderBase(BaseSchema):
     shipping_phone: str = Field(..., max_length=20, description="Shipping phone number")
     shipping_method: ShippingMethod = Field(ShippingMethod.STANDARD, description="Shipping method")
     customer_notes: str | None = Field(None, max_length=500, description="Customer notes")
-    discount: Decimal | None = Field(0, ge=0, description="Discount amount")
-    shipping_fee: Decimal | None = Field(0, ge=0, description="Shipping fee")
 
 
 class OrderCreate(OrderBase):
     """Schema for creating an order."""
+
+    model_config = ConfigDict(extra="forbid")
 
     items: list[OrderItemCreate] = Field(..., min_length=1, description="Order items")
 
@@ -99,6 +99,8 @@ class OrderResponse(OrderBase, IdSchema, TimestampSchema):
     order_number: str = Field(..., description="Unique order number")
     user_id: int = Field(..., description="User ID")
     vendor_id: int | None = Field(None, description="Vendor ID")
+    shipping_fee: Decimal = Field(0, description="Shipping fee")
+    discount: Decimal = Field(0, description="Discount applied")
     status: OrderStatus = Field(..., description="Order status")
     subtotal: Decimal = Field(..., description="Subtotal amount")
     tax: Decimal = Field(..., description="Tax amount")

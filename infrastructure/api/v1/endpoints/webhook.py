@@ -11,6 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from core.config import settings
 from core.exceptions import NotFoundError
 from core.logger import logger
+from core.security import verify_telegram_webhook
 from infrastructure.payments.payment_verifier import verify_payment_signature
 
 router = APIRouter(tags=["webhooks"])
@@ -133,6 +134,15 @@ async def telegram_webhook(
 
     Receives updates from Telegram Bot API.
     """
+    if not settings.TELEGRAM_WEBHOOK_SECRET:
+        raise HTTPException(status_code=503, detail="Telegram webhook is not configured")
+
+    token = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+    if not verify_telegram_webhook(
+        {"secret_token": token}, settings.TELEGRAM_WEBHOOK_SECRET
+    ):
+        raise HTTPException(status_code=403, detail="Invalid Telegram webhook token")
+
     try:
         body = await request.body()
         payload = json.loads(body)
