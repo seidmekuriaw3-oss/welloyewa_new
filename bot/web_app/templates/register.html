@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}ይመዝገቡ — ወሎዮ ሱቅ{% endblock %}
+
+{% block content %}
+<main class="auth-page">
+    <section class="auth-card">
+        <h1>መለያ ይፍጠሩ</h1>
+        <p class="auth-subtitle">በፍጥነት ይመዝገቡና መግዛት ይጀምሩ።</p>
+        <form id="registerForm">
+            <label for="registerName">ሙሉ ስም</label>
+            <input id="registerName" name="full_name" type="text" required autocomplete="name">
+            <label for="registerPhone">ስልክ ቁጥር</label>
+            <input id="registerPhone" name="phone" type="tel" inputmode="tel" required autocomplete="tel" placeholder="0912345678">
+            <label for="registerEmail">ኢሜይል (አማራጭ)</label>
+            <input id="registerEmail" name="email" type="email" autocomplete="email">
+            <label for="registerPassword">የይለፍ ቃል</label>
+            <input id="registerPassword" name="password" type="password" required minlength="6" autocomplete="new-password">
+            <p id="registerError" class="form-error" role="alert"></p>
+            <button class="btn-primary" type="submit">መለያ ፍጠር</button>
+        </form>
+        <p class="auth-link">ቀድሞ መለያ አለዎት? <a href="/app/login">ይግቡ</a></p>
+    </section>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('registerForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const error = document.getElementById('registerError');
+    error.textContent = '';
+    const response = await fetch('/app/api/web/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            full_name: form.full_name.value,
+            phone: form.phone.value,
+            email: form.email.value || null,
+            password: form.password.value,
+        }),
+    });
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        error.textContent = data.detail || 'መመዝገብ አልተቻለም።';
+        return;
+    }
+    const data = await response.json();
+    localStorage.setItem('wolloyewa_access_token', data.access_token);
+    window.location.href = '/app/dashboard';
+});
+</script>
+{% endblock %}

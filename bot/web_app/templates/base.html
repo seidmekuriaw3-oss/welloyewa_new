@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="am">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>{% block title %}ወሎዮ ሱቅ{% endblock %}</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/app/static/css/style.css">
+    <link rel="stylesheet" href="/app/static/css/nav.css">
+    {% block head %}{% endblock %}
+<style>
+/* ── Search autocomplete dropdown ── */
+.nav-search { position: relative; }
+
+.search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0; right: 0;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.13);
+  z-index: 500;
+  overflow: hidden;
+  display: none;
+  max-height: 340px;
+  overflow-y: auto;
+}
+.search-dropdown.open { display: block; }
+
+.sdrop-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+  color: var(--text);
+  transition: background 0.15s;
+}
+.sdrop-item:last-child { border-bottom: none; }
+.sdrop-item:hover,
+.sdrop-item.focused { background: var(--primary-light); }
+
+.sdrop-thumb {
+  width: 40px; height: 40px;
+  border-radius: 8px;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.sdrop-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+
+.sdrop-name  { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.sdrop-meta  { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+.sdrop-price { font-size: 13px; font-weight: 700; color: var(--primary); margin-left: auto; white-space: nowrap; }
+
+.sdrop-footer {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  text-align: center;
+  cursor: pointer;
+  border-top: 1px solid var(--border);
+  background: var(--primary-light);
+}
+.sdrop-footer:hover { background: #d4eddc; }
+
+.sdrop-empty {
+  padding: 20px 14px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ SIDE DRAWER ═══════════════════════════════ -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+
+<aside class="side-drawer" id="sideDrawer">
+    <div class="drawer-top">
+        <div class="drawer-user-info">
+            <div class="drawer-avatar" id="drawerAvatar">👤</div>
+            <div>
+                <div class="drawer-username" id="drawerName">ወሎዮ ሱቅ</div>
+                <div class="drawer-usub" id="drawerSub">Ethiopian Online Store</div>
+            </div>
+        </div>
+        <button class="drawer-close-btn" onclick="closeDrawer()">✕</button>
+    </div>
+
+    <nav class="drawer-nav">
+        <a href="/app/" class="drawer-item {% if page == 'home' %}active{% endif %}">
+            <span class="di-icon">🏠</span><span>ዋና ገጽ</span>
+        </a>
+        <a href="/app/categories" class="drawer-item {% if page == 'categories' %}active{% endif %}">
+            <span class="di-icon">📦</span><span>ምድቦቸ</span>
+        </a>
+        <a href="/app/cart" class="drawer-item {% if page == 'cart' %}active{% endif %}">
+            <span class="di-icon">🛒</span><span>ዕቃዎቼ</span>
+            <span class="drawer-cart-count" id="drawerCartCount" style="display:none">0</span>
+        </a>
+        <a href="/app/orders" class="drawer-item {% if page == 'orders' %}active{% endif %}">
+            <span class="di-icon">📋</span><span>ትዕዛዞቼ</span>
+        </a>
+        <a href="/app/dashboard" class="drawer-item {% if page == 'dashboard' %}active{% endif %}">
+            <span class="di-icon">👤</span><span>ገጽታ</span>
+        </a>
+        <div class="drawer-divider"></div>
+        <a href="/app/" class="drawer-item">
+            <span class="di-icon">ℹ️</span><span>ስለ ወሎዮ ሱቅ</span>
+        </a>
+        <a href="/app/" class="drawer-item">
+            <span class="di-icon">📞</span><span>ድጋፍ ያግኙ</span>
+        </a>
+    </nav>
+
+    <div class="drawer-social">
+        <a href="#" class="drawer-social-btn" title="Telegram">✈️</a>
+        <a href="#" class="drawer-social-btn" title="Facebook">📘</a>
+        <a href="#" class="drawer-social-btn" title="Instagram">📷</a>
+    </div>
+</aside>
+
+<!-- ═══════════════════════════════ TOP NAV ═══════════════════════════════ -->
+<nav class="nav">
+    <div class="nav-inner">
+        <button class="hamburger-btn" onclick="openDrawer()" aria-label="Menu">☰</button>
+        <a href="/app/" class="nav-logo">ወሎ<span>ዮ</span></a>
+        <div class="nav-search">
+            <span>🔍</span>
+            <input type="text" id="globalSearch" placeholder="ምርት ፈልጉ..."
+                   oninput="onGlobalSearch(this.value)"
+                   onkeydown="onSearchKeydown(event)"
+                   onfocus="if(this.value.trim()) sdropOpen()"
+                   autocomplete="off" spellcheck="false">
+            <div class="search-dropdown" id="searchDropdown"></div>
+        </div>
+        <a href="/app/cart" class="nav-cart-btn" aria-label="Cart">
+            🛒
+            <span class="cart-badge" id="navCartBadge" style="display:none">0</span>
+        </a>
+    </div>
+</nav>
+
+<!-- ═══════════════════════════════ PAGE CONTENT ═══════════════════════════════ -->
+<div id="app">
+    {% block content %}{% endblock %}
+</div>
+
+<!-- ═══════════════════════════════ FOOTER ═══════════════════════════════ -->
+{% block footer %}
+<footer class="site-footer">
+    <div class="footer-inner">
+        <div class="footer-grid">
+            <div class="footer-brand">
+                <div class="footer-logo">ወሎ<span>ዮ</span> ሱቅ</div>
+                <p>የኢትዮጵያ ምርቶቸ የሚሸጥ ሱቅ። ከብዙ ሻጭ ምርቶቸ ምርቶቸን ዳሰሳ ወደ ቤትዎ ያድርሱ።</p>
+                <div class="footer-payments">
+                    <span class="pay-badge">📱 Telebirr</span>
+                    <span class="pay-badge">🏛 CBE Birr</span>
+                    <span class="pay-badge">🏦 Chapa</span>
+                    <span class="pay-badge">💵 Cash</span>
+                </div>
+            </div>
+            <div class="footer-col">
+                <div class="footer-col-title">ስለ እኛ</div>
+                <a href="#">ማን ነን?</a>
+                <a href="#">አሰራ</a>
+                <a href="#">ስድናት</a>
+                <a href="#">እሙዎን</a>
+            </div>
+            <div class="footer-col">
+                <div class="footer-col-title">አገልግሎት</div>
+                <a href="#">ትዕዛዝ ክትትሎቸ</a>
+                <a href="#">ዲሊቨሪ</a>
+                <a href="#">መርዣ ሶፍትዌር</a>
+                <a href="#">ወሃ ስምምነት</a>
+            </div>
+            <div class="footer-col">
+                <div class="footer-col-title">ድጋፍ</div>
+                <a href="#">✈️ Telegram</a>
+                <a href="#">📧 ኢሜይል</a>
+                <a href="#">📞 ስልክ</a>
+                <a href="#">📍 አዲስ አበባ</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>© 2026 ወሎዮ ሱቅ. All Rights Reserved. 🇪🇹</p>
+            <div class="footer-social">
+                <a href="#" class="fsoc-btn">✈️ Telegram</a>
+                <a href="#" class="fsoc-btn">📘 Facebook</a>
+                <a href="#" class="fsoc-btn">📷 Instagram</a>
+            </div>
+        </div>
+    </div>
+</footer>
+{% endblock %}
+
+<!-- ═══════════════════════════════ BOTTOM NAV ═══════════════════════════════ -->
+<nav class="bottom-nav">
+    <a href="/app/" class="bnav-item {% if page == 'home' %}active{% endif %}">
+        <div class="bnav-icon-wrap">
+            <span class="bnav-icon">🏠</span>
+        </div>
+        <span class="bnav-label">ዋና</span>
+    </a>
+    <a href="/app/categories" class="bnav-item {% if page == 'categories' %}active{% endif %}">
+        <div class="bnav-icon-wrap">
+            <span class="bnav-icon">📦</span>
+        </div>
+        <span class="bnav-label">ምርቶቸ</span>
+    </a>
+    <a href="/app/dashboard" class="bnav-item {% if page == 'dashboard' %}active{% endif %}">
+        <div class="bnav-icon-wrap">
+            <span class="bnav-icon">👤</span>
+        </div>
+        <span class="bnav-label">ገጽታ</span>
+    </a>
+    <a href="/app/cart" class="bnav-item {% if page == 'cart' %}active{% endif %}">
+        <div class="bnav-icon-wrap">
+            <span class="bnav-icon">🛒</span>
+            <span class="bnav-badge" id="bnavCartBadge">0</span>
+        </div>
+        <span class="bnav-label">ዕቃዎቸ</span>
+    </a>
+</nav>
+
+<script src="/app/static/js/app.js"></script>
+
+<script>
+// ── Drawer ──────────────────────────────────────────────────
+function openDrawer() {
+    document.getElementById('sideDrawer').classList.add('open');
+    document.getElementById('drawerOverlay').classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+function closeDrawer() {
+    document.getElementById('sideDrawer').classList.remove('open');
+    document.getElementById('drawerOverlay').classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+// ── Cart badge (all badges in sync) ─────────────────────────
+function refreshAllBadges() {
+    const c = cart.count();
+    const navBadge = document.getElementById('navCartBadge');
+    const bnavBadge = document.getElementById('bnavCartBadge');
+    const drawerCount = document.getElementById('drawerCartCount');
+    if (navBadge) { navBadge.textContent = c; navBadge.style.display = c > 0 ? 'inline' : 'none'; }
+    if (bnavBadge) { bnavBadge.textContent = c; bnavBadge.classList.toggle('show', c > 0); }
+    if (drawerCount) { drawerCount.textContent = c; drawerCount.style.display = c > 0 ? 'inline' : 'none'; }
+}
+
+// ── Telegram user info in drawer ─────────────────────────────
+(function initTelegramUser() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+        const u = tg.initDataUnsafe.user;
+        const nameEl = document.getElementById('drawerName');
+        const subEl  = document.getElementById('drawerSub');
+        if (nameEl) nameEl.textContent = (u.first_name || '') + (u.last_name ? ' ' + u.last_name : '');
+        if (subEl && u.username) subEl.textContent = '@' + u.username;
+    }
+})();
+
+// ── Search autocomplete ──────────────────────────────────────
+const _sdrop = {
+    el:      null,
+    input:   null,
+    timer:   null,
+    items:   [],
+    focused: -1,
+
+    init() {
+        this.el    = document.getElementById('searchDropdown');
+        this.input = document.getElementById('globalSearch');
+        // Close when clicking outside
+        document.addEventListener('click', e => {
+            if (!this.el || !this.input) return;
+            if (!this.el.contains(e.target) && e.target !== this.input) {
+                this.close();
+            }
+        });
+    },
+
+    open()  { this.el && this.el.classList.add('open'); },
+    close() { this.el && this.el.classList.remove('open'); this.focused = -1; },
+
+    async fetch(q) {
+        try {
+            const data = await fetch(`/app/api/search?q=${encodeURIComponent(q)}&limit=6`).then(r => r.json());
+            return data.items || [];
+        } catch(e) { return []; }
+    },
+
+    render(items, q) {
+        this.items   = items;
+        this.focused = -1;
+        if (!items.length) {
+            this.el.innerHTML = `<div class="sdrop-empty">🔍 "${he(q)}" — ምንም ምርት አልተገኘም</div>`;
+        } else {
+            this.el.innerHTML =
+                items.map((p, i) => {
+                    const thumb = p.image_url
+                        ? `<img src="${safeUrl(p.image_url)}" alt="">`
+                        : '📦';
+                    const meta = [p.name_am, p.category].filter(Boolean).join(' · ');
+                    return `
+                    <a class="sdrop-item" href="/app/product/${p.id}" onclick="_sdrop.close()">
+                        <div class="sdrop-thumb">${thumb}</div>
+                        <div style="min-width:0;flex:1">
+                            <div class="sdrop-name">${he(p.name)}</div>
+                            ${meta ? `<div class="sdrop-meta">${he(meta)}</div>` : ''}
+                        </div>
+                        <div class="sdrop-price">ETB ${Number(p.price).toLocaleString()}</div>
+                    </a>`;
+                }).join('') +
+                `<div class="sdrop-footer" onclick="_sdrop.goSearch()">
+                    ሁሉንም ውጤቶቸ ይምልከቱ →
+                </div>`;
+        }
+        this.open();
+    },
+
+    navigate(dir) {
+        const rows = this.el ? this.el.querySelectorAll('.sdrop-item') : [];
+        if (!rows.length) return;
+        rows[this.focused]?.classList.remove('focused');
+        this.focused = Math.max(-1, Math.min(rows.length - 1, this.focused + dir));
+        rows[this.focused]?.classList.add('focused');
+        rows[this.focused]?.scrollIntoView({ block: 'nearest' });
+    },
+
+    selectFocused() {
+        const rows = this.el ? this.el.querySelectorAll('.sdrop-item') : [];
+        if (this.focused >= 0 && rows[this.focused]) {
+            rows[this.focused].click();
+        } else {
+            this.goSearch();
+        }
+    },
+
+    goSearch() {
+        const q = this.input ? this.input.value.trim() : '';
+        if (q) window.location.href = `/app/?q=${encodeURIComponent(q)}`;
+        this.close();
+    },
+};
+
+function onGlobalSearch(val) {
+    clearTimeout(_sdrop.timer);
+    const q = val.trim();
+    if (!q) { _sdrop.close(); return; }
+    _sdrop.timer = setTimeout(async () => {
+        const items = await _sdrop.fetch(q);
+        _sdrop.render(items, q);
+    }, 280);
+}
+
+function onSearchKeydown(e) {
+    const dd = document.getElementById('searchDropdown');
+    if (!dd || !dd.classList.contains('open')) {
+        if (e.key === 'Enter') _sdrop.goSearch();
+        return;
+    }
+    if (e.key === 'ArrowDown')  { e.preventDefault(); _sdrop.navigate(1); }
+    else if (e.key === 'ArrowUp')   { e.preventDefault(); _sdrop.navigate(-1); }
+    else if (e.key === 'Enter')     { e.preventDefault(); _sdrop.selectFocused(); }
+    else if (e.key === 'Escape')    { _sdrop.close(); }
+}
+
+function sdropOpen() { _sdrop.open(); }
+
+// Init all badges and autocomplete on load
+document.addEventListener('DOMContentLoaded', () => {
+    refreshAllBadges();
+    _sdrop.init();
+});
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

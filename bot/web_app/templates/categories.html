@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}ምድቦቸ — ወሎዮ ሱቅ{% endblock %}
+
+{% block content %}
+
+<div class="categories-hero">
+    <h1>📦 ምድቦቸ</h1>
+    <p>ምርቶቸ ምድቦቸ ከምርቶቸ ይፈልጉ</p>
+</div>
+
+<div class="cat-grid-full" id="catGridFull">
+    <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">እየጫናን ነው…</div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CAT_ICONS = {
+    'electronics':'📱','clothing':'👕','food':'🍎','food & drinks':'🍎',
+    'books':'📚','beauty':'💄','health':'💊','home':'🏠','home & living':'🏠',
+    'sports':'⚽','toys':'🧸','automotive':'🚗','agriculture':'🌾',
+};
+function catIcon(name) {
+    if (!name) return '🛍️';
+    const k = name.toLowerCase();
+    return CAT_ICONS[k] || Object.keys(CAT_ICONS).reduce((f, key) => (!f && k.includes(key)) ? CAT_ICONS[key] : f, '') || '🛍️';
+}
+
+async function loadCategories() {
+    const grid = document.getElementById('catGridFull');
+    try {
+        const cats = await fetch('/app/api/categories').then(r => r.json());
+        const all = [{ id: null, name: 'All Products', name_am: 'ሁሉ ምርቶቸ', product_count: '' }, ...cats];
+        grid.innerHTML = all.map(c => `
+            <a href="/app/?category=${c.id || ''}" class="cat-card-full">
+                <span class="ci">${catIcon(c.name)}</span>
+                <span class="cl">${he(c.name_am || c.name)}</span>
+                <span class="cc">${he(c.name)}${c.product_count ? ' · ' + c.product_count : ''}</span>
+            </a>
+        `).join('');
+    } catch(e) {
+        grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">ምድቦቸ መጫን አልተቻለም።</p>';
+    }
+}
+
+loadCategories();
+refreshAllBadges();
+</script>
+{% endblock %}

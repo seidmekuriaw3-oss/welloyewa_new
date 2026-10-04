@@ -1,0 +1,191 @@
+"""Focused tests for application settings and environment-derived values."""
+
+from pydantic import ValidationError
+
+from core.config import Settings, get_settings
+
+
+def test_environment_and_runtime_properties():
+    settings = Settings(
+        ENVIRONMENT="production",
+        DEBUG=False,
+        SECRET_KEY="s" * 32,
+        JWT_SECRET_KEY="j" * 32,
+        CORS_ALLOWED_ORIGINS=["https://store.example"],
+        ALLOWED_HOSTS=["store.example"],
+        _env_file=None,
+    )
+
+    assert settings.is_production is True
+    assert settings.is_development is False
+    assert settings.is_testing is False
+
+    testing = Settings(ENVIRONMENT="testing", DEBUG=False, _env_file=None)
+    assert testing.is_testing is True
+
+
+def test_production_requires_secrets_and_restricted_origins(monkeypatch):
+    for name in (
+        "SECRET_KEY",
+        "JWT_SECRET_KEY",
+        "CORS_ALLOWED_ORIGINS",
+        "ALLOWED_HOSTS",
+        "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_WEBHOOK_SECRET",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    try:
+        Settings(ENVIRONMENT="production", DEBUG=False, _env_file=None)
+    except ValidationError as error:
+        assert "SECRET_KEY" in str(error)
+    else:
+        raise AssertionError("Production must reject generated/missing security settings")
+
+    try:
+        Settings(
+            ENVIRONMENT="production",
+            DEBUG=False,
+            SECRET_KEY="s" * 32,
+            JWT_SECRET_KEY="j" * 32,
+            CORS_ALLOWED_ORIGINS=["*"],
+            ALLOWED_HOSTS=["store.example"],
+            _env_file=None,
+        )
+    except ValidationError as error:
+        assert "CORS_ALLOWED_ORIGINS" in str(error)
+    else:
+        raise AssertionError("Production must reject wildcard CORS origins")
+
+    try:
+        Settings(
+            ENVIRONMENT="production",
+            DEBUG=False,
+            SECRET_KEY="s" * 32,
+            JWT_SECRET_KEY="j" * 32,
+            TELEGRAM_BOT_TOKEN="configured-bot-token",
+            CORS_ALLOWED_ORIGINS=["https://store.example"],
+            ALLOWED_HOSTS=["store.example"],
+            _env_file=None,
+        )
+    except ValidationError as error:
+        assert "TELEGRAM_WEBHOOK_SECRET" in str(error)
+    else:
+        raise AssertionError("Production bots must use an explicit webhook secret")
+
+
+def test_invalid_environment_and_production_debug_are_rejected():
+    try:
+        Settings(ENVIRONMENT="invalid")
+    except ValidationError as error:
+        assert "ENVIRONMENT" in str(error)
+    else:
+        raise AssertionError("Invalid environment should fail validation")
+
+    try:
+        Settings(ENVIRONMENT="production", DEBUG=True)
+    except ValidationError as error:
+        assert "DEBUG must be False" in str(error)
+    else:
+        raise AssertionError("Production debug mode should fail validation")
+
+
+def test_database_url_builder_supports_raw_and_testing_values():
+    raw_postgresql = Settings(DATABASE_URL="postgresql://user:pass@db/shop")
+    assert raw_postgresql.DATABASE_URL == "postgresql+asyncpg://user:pass@db/shop"
+
+    raw_postgres = Settings(DATABASE_URL="postgres://user:pass@db/shop")
+    assert raw_postgres.DATABASE_URL == "postgresql+asyncpg://user:pass@db/shop"
+
+    testing = Settings(ENVIRONMENT="testing", DATABASE_URL=None)
+    assert testing.DATABASE_URL.startswith("sqlite+aiosqlite:///")
+
+    compose = Settings(
+        DATABASE_URL="postgresql+asyncpg://user:pass@localhost/shop",
+        POSTGRES_HOST="postgres",
+        _env_file=None,
+    )
+    assert compose.DATABASE_URL == "postgresql+asyncpg://user:pass@postgres/shop"
+
+
+def test_redis_and_celery_url_builders(monkeypatch):
+    for name in (
+        "REDIS_URL",
+        "REDIS_PASSWORD",
+        "REDIS_HOST",
+        "REDIS_PORT",
+        "REDIS_DB",
+        "CELERY_BROKER_URL",
+        "CELERY_RESULT_BACKEND",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    no_password = Settings(
+        REDIS_URL=None,
+        REDIS_HOST="cache",
+        REDIS_PORT=6380,
+        REDIS_DB=3,
+        CELERY_BROKER_URL=None,
+        CELERY_RESULT_BACKEND=None,
+        _env_file=None,
+    )
+    assert no_password.REDIS_URL == "redis://cache:6380/3"
+    assert no_password.CELERY_BROKER_URL == no_password.REDIS_URL
+    assert no_password.CELERY_RESULT_BACKEND == no_password.REDIS_URL
+
+    compose = Settings(
+        REDIS_URL="redis://localhost:6379/0",
+        REDIS_HOST="redis",
+        REDIS_PASSWORD="p@ss/word",
+        _env_file=None,
+    )
+    assert compose.REDIS_URL == "redis://:p%40ss%2Fword@redis:6379/0"
+
+    explicit = Settings(
+        REDIS_URL="redis://explicit/1",
+        CELERY_BROKER_URL="redis://broker/2",
+        CELERY_RESULT_BACKEND="redis://backend/3",
+        _env_file=None,
+    )
+    assert explicit.REDIS_URL == "redis://explicit/1"
+    assert explicit.CELERY_BROKER_URL == "redis://broker/2"
+    assert explicit.CELERY_RESULT_BACKEND == "redis://backend/3"
+
+
+def test_settings_parse_lists_and_admin_ids():
+    settings = Settings(
+        ADMIN_IDS="100, 200",
+        CORS_ALLOWED_ORIGINS="https://a.example, https://b.example",
+        ALLOWED_HOSTS="localhost, api.example.com",
+    )
+
+    assert settings.admin_ids_list == [100, 200]
+    assert settings.CORS_ALLOWED_ORIGINS == ["https://a.example", "https://b.example"]
+    assert settings.ALLOWED_HOSTS == ["localhost", "api.example.com"]
+
+
+def test_web_app_url_normalization_and_setter():
+    settings = Settings(WEB_APP_URL=" https://store.example/app/// ")
+    assert settings.web_app_url == "https://store.example/app/"
+
+    settings.web_app_url = "https://new.example/shop"
+    assert settings.web_app_url == "https://new.example/shop/"
+
+    settings.web_app_url = "http://localhost:8080/app/"
+    assert settings.web_app_url == ""
+
+    del settings.web_app_url
+    assert settings.web_app_url == ""
+
+
+def test_replit_domain_fallback_uses_first_domain():
+    settings = Settings(WEB_APP_URL=None, REPLIT_DOMAINS="first.example, second.example")
+
+    assert settings.web_app_url == "https://first.example/app/"
+
+
+def test_get_settings_is_cached():
+    first = get_settings()
+    second = get_settings()
+
+    assert first is second

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}ገጽታ — ወሎዮ ሱቅ{% endblock %}
+
+{% block content %}
+
+<!-- ── Hero ─────────────────────────────────────────────── -->
+<div class="dashboard-hero">
+    <div class="dash-avatar" id="dashAvatar">👤</div>
+    <div>
+        <div class="dash-name" id="dashName">ወሎዮ ሱቅ ደንበኛ</div>
+        <div class="dash-sub" id="dashRole">ደንበኛ</div>
+        <div class="dash-tg" id="dashUsername">@...</div>
+    </div>
+</div>
+
+<!-- ── Stats ─────────────────────────────────────────────── -->
+<div class="dash-stats">
+    <div class="stat-card">
+        <div class="stat-num" id="statOrders">0</div>
+        <div class="stat-lbl">ትዕዛዞቸ</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num" id="statCart">0</div>
+        <div class="stat-lbl">ዕቃዎቸ</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num">0</div>
+        <div class="stat-lbl">ተወዳጅት</div>
+    </div>
+</div>
+
+<!-- ── Actions ───────────────────────────────────────────── -->
+<div class="dash-actions" style="margin-top:24px">
+    <a href="/app/orders" class="dash-action-btn">
+        <span class="dash-action-icon">📋</span>
+        <div>
+            <div>ትዕዛዞቼ</div>
+            <div style="font-size:12px;font-weight:400;color:var(--text-muted)">ሌሎቸ ትዕዛዞቸ ይምልሱ</div>
+        </div>
+        <span class="dash-action-arrow">›</span>
+    </a>
+    <a href="/app/cart" class="dash-action-btn">
+        <span class="dash-action-icon">🛒</span>
+        <div>
+            <div>ዕቃዎቼ</div>
+            <div style="font-size:12px;font-weight:400;color:var(--text-muted)">ቅርጫት ደምሩ</div>
+        </div>
+        <span class="dash-action-arrow">›</span>
+    </a>
+    <a href="#" class="dash-action-btn">
+        <span class="dash-action-icon">⭐</span>
+        <div>
+            <div>Wishlist <span style="font-size:11px;color:var(--text-muted)">(ቅርቡ)</span></div>
+            <div style="font-size:12px;font-weight:400;color:var(--text-muted)">ተወዳጅ ምርቶቸ</div>
+        </div>
+        <span class="dash-action-arrow">›</span>
+    </a>
+    <a href="#" class="dash-action-btn">
+        <span class="dash-action-icon">🔔</span>
+        <div>
+            <div>Notifications <span style="font-size:11px;color:var(--text-muted)">(ቅርቡ)</span></div>
+            <div style="font-size:12px;font-weight:400;color:var(--text-muted)">ፅፅፅፅ</div>
+        </div>
+        <span class="dash-action-arrow">›</span>
+    </a>
+    <a href="#" class="dash-action-btn">
+        <span class="dash-action-icon">🤖</span>
+        <div>
+            <div>Telegram Bot</div>
+            <div style="font-size:12px;font-weight:400;color:var(--text-muted)">Bot ጁዘቸ</div>
+        </div>
+        <span class="dash-action-arrow">›</span>
+    </a>
+</div>
+
+<!-- ── Profile Info ──────────────────────────────────────── -->
+<div style="max-width:700px;margin:24px auto 0;padding:0 16px 40px">
+    <div style="background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden">
+        <div style="padding:14px 18px;border-bottom:1px solid var(--border);font-size:12px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">
+            ፕሮፋይል መረጃ
+        </div>
+        <div style="padding:16px 18px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border)">
+            <span style="font-size:14px;color:var(--text-muted)">ስም</span>
+            <span style="font-size:14px;font-weight:600" id="infoName">—</span>
+        </div>
+        <div style="padding:16px 18px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border)">
+            <span style="font-size:14px;color:var(--text-muted)">Username</span>
+            <span style="font-size:14px;font-weight:600" id="infoUsername">—</span>
+        </div>
+        <div style="padding:16px 18px;display:flex;justify-content:space-between">
+            <span style="font-size:14px;color:var(--text-muted)">Telegram ID</span>
+            <span style="font-size:14px;font-weight:600" id="infoTgId">—</span>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function initDashboard() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    let tgUser = null;
+    if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+        tgUser = tg.initDataUnsafe.user;
+    }
+
+    if (tgUser) {
+        const fullName = (tgUser.first_name || '') + (tgUser.last_name ? ' ' + tgUser.last_name : '');
+        const initials = (tgUser.first_name || '?').charAt(0).toUpperCase();
+        document.getElementById('dashAvatar').textContent = initials;
+        document.getElementById('dashName').textContent = fullName || 'ወሎዮ ሱቅ ደንበኛ';
+        if (tgUser.username) document.getElementById('dashUsername').textContent = '@' + tgUser.username;
+        document.getElementById('infoName').textContent = fullName || '—';
+        if (tgUser.username) document.getElementById('infoUsername').textContent = '@' + tgUser.username;
+        document.getElementById('infoTgId').textContent = tgUser.id || '—';
+    }
+
+    // Cart count in stats
+    document.getElementById('statCart').textContent = cart.count();
+})();
+
+// Load orders count
+(async function loadOrderCount() {
+    try {
+        const tg = window.Telegram && window.Telegram.WebApp;
+        const init_data = tg ? tg.initData : '';
+        const res = await fetch('/app/api/my-orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ init_data }),
+        });
+        if (res.ok) {
+            const data = await res.json();
+            document.getElementById('statOrders').textContent = data.total || 0;
+        }
+    } catch(e) {}
+})();
+
+refreshAllBadges();
+</script>
+{% endblock %}

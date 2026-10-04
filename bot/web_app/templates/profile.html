@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}ፕሮፋይል — ወሎዮ ሱቅ{% endblock %}
+
+{% block content %}
+<main class="profile-page">
+    <section class="profile-hero">
+        <div class="profile-avatar" id="profileAvatar">👤</div>
+        <div>
+            <h1 id="profileName">ወሎዮ ሱቅ ደንበኛ</h1>
+            <p id="profilePhone">የመለያ መረጃ</p>
+        </div>
+    </section>
+    <section class="profile-card">
+        <h2>የግል መረጃ</h2>
+        <dl>
+            <div><dt>ሙሉ ስም</dt><dd id="profileFullName">—</dd></div>
+            <div><dt>ስልክ</dt><dd id="profilePhoneValue">—</dd></div>
+            <div><dt>ኢሜይል</dt><dd id="profileEmail">—</dd></div>
+        </dl>
+        <p id="profileError" class="form-error" role="alert"></p>
+        <button class="btn-primary" type="button" onclick="window.location.href='/app/orders'">ትዕዛዞቼን ይመልከቱ</button>
+    </section>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(async function loadProfile() {
+    const token = localStorage.getItem('wolloyewa_access_token');
+    if (!token) return;
+    const response = await fetch('/app/api/user/profile', {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+        document.getElementById('profileError').textContent = 'የመለያ መረጃ መጫን አልተቻለም።';
+        return;
+    }
+    const user = await response.json();
+    const name = user.full_name || 'ወሎዮ ሱቅ ደንበኛ';
+    document.getElementById('profileName').textContent = name;
+    document.getElementById('profileFullName').textContent = name;
+    document.getElementById('profilePhone').textContent = user.phone || 'የመለያ መረጃ';
+    document.getElementById('profilePhoneValue').textContent = user.phone || '—';
+    document.getElementById('profileEmail').textContent = user.email || '—';
+    document.getElementById('profileAvatar').textContent = name.charAt(0).toUpperCase();
+})();
+refreshAllBadges();
+</script>
+{% endblock %}
