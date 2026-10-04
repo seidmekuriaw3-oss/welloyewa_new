@@ -5,7 +5,8 @@
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
+from prometheus_client import CONTENT_TYPE_LATEST
 
 from core.config import settings
 from core.monitoring.health_checks import health_checker
@@ -69,8 +70,8 @@ async def liveness_probe() -> dict[str, Any]:
     }
 
 
-@router.get("/metrics")
-async def get_metrics() -> dict[str, Any]:
+@router.get("/metrics", response_class=Response)
+async def get_metrics() -> Response:
     """
     Get basic service metrics.
 
@@ -78,12 +79,12 @@ async def get_metrics() -> dict[str, Any]:
         Service metrics
     """
 
-    # In production, this would return Prometheus metrics
-    return {
-        "service": settings.PROJECT_NAME,
-        "environment": settings.ENVIRONMENT,
-        "uptime_seconds": None,  # Would track actual uptime
-    }
+    from core.monitoring.metrics import get_metrics as get_prometheus_metrics
+
+    return Response(
+        content=get_prometheus_metrics(),
+        media_type=CONTENT_TYPE_LATEST,
+    )
 
 
 __all__ = ["router"]

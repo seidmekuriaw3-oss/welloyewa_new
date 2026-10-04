@@ -11,6 +11,14 @@ from httpx import AsyncClient
 class TestUserEndpoints:
     """Tests for user endpoints."""
 
+    async def test_register_rejects_telegram_id_not_signed_in_init_data(
+        self, client: AsyncClient, sample_user_data
+    ):
+        sample_user_data["telegram_id"] += 1
+        response = await client.post("/api/v1/users/register", json=sample_user_data)
+
+        assert response.status_code == 401
+
     async def test_register_user(self, client: AsyncClient, sample_user_data):
         """Test user registration."""
         response = await client.post("/api/v1/users/register", json=sample_user_data)
@@ -38,7 +46,7 @@ class TestUserEndpoints:
 
         # Login
         login_data = {
-            "telegram_id": sample_user_data["telegram_id"],
+            "init_data": sample_user_data["init_data"],
         }
         response = await client.post("/api/v1/users/login", json=login_data)
 
@@ -50,7 +58,9 @@ class TestUserEndpoints:
 
     async def test_login_invalid_user(self, client: AsyncClient):
         """Test login with invalid user."""
-        login_data = {"telegram_id": 999999999}
+        from tests.conftest import make_telegram_init_data
+
+        login_data = {"init_data": make_telegram_init_data(999999999)}
         response = await client.post("/api/v1/users/login", json=login_data)
 
         assert response.status_code == 401
@@ -84,22 +94,30 @@ class TestUserEndpoints:
         data = response.json()
         assert data["first_name"] == "UpdatedName"
 
-    async def test_change_password(self, client: AsyncClient, sample_user_data, auth_token):
+    async def test_change_password(self, client: AsyncClient):
         """Test changing user password."""
-        # Register user
-        await client.post("/api/v1/users/register", json=sample_user_data)
+        registration = await client.post(
+            "/app/api/web/register",
+            json={"full_name": "Test User", "phone": "0912345678", "password": "oldpassword"},
+        )
+        token = registration.json()["access_token"]
 
-        # Change password
         password_data = {
-            "current_password": "oldpassword",
+            "current_password": "wrong-password",
             "new_password": "newpassword123",
             "confirm_password": "newpassword123",
         }
-        headers = {"Authorization": f"Bearer {auth_token}"}
+        headers = {"Authorization": f"Bearer {token}"}
         response = await client.post(
             "/api/v1/users/change-password", json=password_data, headers=headers
         )
 
+        assert response.status_code == 401
+
+        password_data["current_password"] = "oldpassword"
+        response = await client.post(
+            "/api/v1/users/change-password", json=password_data, headers=headers
+        )
         assert response.status_code == 200
         data = response.json()
         assert "message" in data
@@ -107,6 +125,19 @@ class TestUserEndpoints:
 
 class TestAdminUserEndpoints:
     """Tests for admin user endpoints."""
+
+    async def test_database_role_overrides_admin_token_claim(
+        self, client: AsyncClient, sample_user_data
+    ):
+        from core.security import create_access_token
+
+        registered = await client.post("/api/v1/users/register", json=sample_user_data)
+        token = create_access_token({"sub": str(registered.json()["id"]), "role": "admin"})
+        response = await client.get(
+            "/api/v1/users/", headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 403
 
     async def test_get_all_users_admin(self, client: AsyncClient, sample_user_data, admin_token):
         """Test getting all users (admin only)."""

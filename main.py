@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -83,8 +84,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except StopIteration:
             pass
         except Exception as schema_err:
+            if settings.is_production:
+                raise
             logger.warning(f"Schema auto-create skipped: {schema_err}")
     except Exception as e:
+        if settings.is_production:
+            raise
         logger.warning(f"Database initialization failed (continuing): {e}")
 
     # Redis (optional)
@@ -94,6 +99,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await init_redis()
         logger.info("Redis connection initialized")
     except Exception as e:
+        if settings.is_production:
+            raise
         logger.warning(f"Redis initialization failed (continuing): {e}")
 
     # Telegram Bot with retry
@@ -142,7 +149,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     await asyncio.sleep(3)
             await asyncio.sleep(5)
             await application_instance.start()
-            await application_instance.updater.start_polling(
+            updater = application_instance.updater
+            if updater is None:
+                raise RuntimeError("Telegram polling updater is unavailable")
+            await updater.start_polling(
                 drop_pending_updates=True,
                 allowed_updates=["message", "callback_query", "inline_query"],
                 error_callback=lambda err: logger.warning(f"Polling error (will retry): {err}"),
@@ -256,6 +266,8 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=600,
 )
+if settings.is_production:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.ALLOWED_HOSTS)
 
 # Security headers middleware
 app.add_middleware(SecurityHeadersMiddleware)
@@ -283,6 +295,12 @@ async def detailed_health_check():
 @app.get("/health/ready")
 async def health_readiness_probe():
     """Health readiness endpoint."""
+    from fastapi import HTTPException
+
+    from core.monitoring.health_checks import health_checker
+
+    if not await health_checker.is_ready():
+        raise HTTPException(status_code=503, detail="Application dependencies are not ready")
     return {"ready": True, "service": settings.PROJECT_NAME}
 
 
@@ -463,5 +481,5 @@ async def global_exception_handler(request, exc):
     logger.exception(f"Unhandled exception: {exc}")
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error", "error": str(exc)},
+        content={"detail": "Internal server error", "error": "internal_error"},
     )

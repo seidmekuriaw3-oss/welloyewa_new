@@ -98,7 +98,11 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Create `.env` from the required settings below. Never commit `.env` or share its values in logs, screenshots, issues, or chat.
+Copy `.env.example` to `.env`, then replace every `CHANGE_ME` value and set the public domain/payment credentials you actually use. Never commit `.env` or share its values in logs, screenshots, issues, or chat.
+
+```powershell
+Copy-Item .env.example .env
+```
 
 ## Configuration
 
@@ -225,13 +229,19 @@ ruff check .
 
 API tests require the isolated test PostgreSQL database configured in `tests/conftest.py`. Never point tests at development or production data.
 
+The current repository-wide coverage baseline is 34.88%; CI enforces a 34.5% minimum so the gate reflects measured coverage instead of failing every run. Increase it as tests are added for the currently untested modules.
+
 ## Deployment
 
 ```bash
 docker compose up -d --build
 ```
 
-The container entrypoint waits for dependencies and runs migrations before starting the selected service. Verify `docker-compose.yml` and all production environment values first.
+Compose builds the production image, requires explicit database, Redis, application, and monitoring secrets, runs migrations before starting the API, and keeps internal services bound to localhost or the Docker network. Replace all example values and verify the public domain, HTTPS proxy, and payment credentials before deployment.
+
+PostgreSQL and Redis are exposed on `127.0.0.1:5433` and `127.0.0.1:6380` by default to avoid conflicts with local database services. Set `POSTGRES_HOST_PORT` or `REDIS_HOST_PORT` in `.env` if those host ports are occupied; containers continue to use `postgres:5432` and `redis:6379` internally.
+
+The API is available locally at `http://127.0.0.1:8000`. The Nginx TLS proxy is opt-in with `--profile tls-proxy` and requires valid certificate files in `devops/nginx/ssl/` before it can start.
 
 Before release:
 

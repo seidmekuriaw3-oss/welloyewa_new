@@ -28,6 +28,20 @@ class TestOrderEndpoints:
         assert "status" in data
         assert "total" in data
 
+    async def test_track_order_rejects_mismatched_contact(
+        self, client: AsyncClient, sample_user_data, sample_order_data, auth_token
+    ):
+        await client.post("/api/v1/users/register", json=sample_user_data)
+        headers = {"Authorization": f"Bearer {auth_token}"}
+        created = await client.post("/api/v1/orders/", json=sample_order_data, headers=headers)
+        order_number = created.json()["order_number"]
+
+        response = await client.get(
+            f"/api/v1/orders/track/{order_number}?email=attacker@example.com"
+        )
+
+        assert response.status_code == 404
+
     async def test_create_order_with_invalid_product(
         self, client: AsyncClient, sample_user_data, auth_token
     ):

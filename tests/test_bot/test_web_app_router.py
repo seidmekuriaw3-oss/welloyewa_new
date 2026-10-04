@@ -55,7 +55,7 @@ def test_verify_telegram_init_data_handles_missing_user_and_invalid_json():
     secret = hmac.new(b"WebAppData", b"test-token", hashlib.sha256).digest()
     values["hash"] = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
     no_user = urllib.parse.urlencode(values)
-    assert _verify_telegram_init_data(no_user, "test-token") == {}
+    assert _verify_telegram_init_data(no_user, "test-token") is None
 
     values = {"auth_date": str(int(time.time())), "user": "not-json"}
     check = "\n".join(f"{key}={value}" for key, value in sorted(values.items()))

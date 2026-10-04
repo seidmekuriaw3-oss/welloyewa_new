@@ -1,4 +1,5 @@
 from pathlib import Path
+
 p = Path('c:/Users/hp/Downloads/welloyewa_new-main/welloyewa_new-main/pytest_output.txt')
 raw = p.read_bytes()
 for enc in ('utf-16', 'utf-8', 'utf-8-sig', 'cp1252'):

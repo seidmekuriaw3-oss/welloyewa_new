@@ -9,8 +9,8 @@ from telegram.ext import ContextTypes
 
 from apps.products.services import CategoryService, ProductService
 from core.logger import logger
-from core.utils.currency import format_etb
 from core.utils.async_helpers import maybe_await
+from core.utils.currency import format_etb
 from infrastructure.database.session import get_db_session
 
 # Pagination settings

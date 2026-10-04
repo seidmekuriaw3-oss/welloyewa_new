@@ -189,6 +189,17 @@ class TestPaymentWebhookFlow:
         # For testing, we just check the function exists
         assert callable(verify_payment_signature)
 
+    async def test_chapa_signature_fails_when_secret_is_missing(self):
+        from infrastructure.payments.chapa import ChapaProvider
+
+        with patch("infrastructure.payments.chapa.settings") as mock_settings:
+            mock_settings.CHAPA_API_URL = "https://api.chapa.co/v1"
+            mock_settings.CHAPA_SECRET_KEY = "api-key"
+            mock_settings.CHAPA_WEBHOOK_SECRET = None
+            provider = ChapaProvider()
+
+        assert provider._verify_signature({"event": "charge.success"}, "unsigned") is False
+
 
 @pytest.mark.integration
 class TestPaymentRefundFlow:

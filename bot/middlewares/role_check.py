@@ -3,9 +3,9 @@
 # ============================
 """Role-based access control middleware for bot commands."""
 
+import inspect
 from collections.abc import Awaitable, Callable
 from functools import wraps
-import inspect
 
 from telegram import Update
 from telegram.ext import ContextTypes

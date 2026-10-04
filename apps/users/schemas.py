@@ -95,6 +95,7 @@ class UserRegister(BaseSchema):
     """Schema for user registration."""
 
     telegram_id: int = Field(..., description="Telegram user ID")
+    init_data: str = Field(..., min_length=1, description="Signed Telegram Mini App initData")
     username: str | None = Field(None, max_length=100)
     first_name: str = Field(..., max_length=100)
     last_name: str | None = Field(None, max_length=100)
@@ -117,15 +118,8 @@ class UserRegister(BaseSchema):
 class UserLogin(BaseSchema):
     """Schema for user login."""
 
-    telegram_id: int | None = Field(None, description="Telegram user ID")
-    phone_number: str | None = Field(None, max_length=20)
+    init_data: str = Field(..., min_length=1, description="Signed Telegram Mini App initData")
     ip_address: str | None = Field(None, description="Client IP address")
-
-    @model_validator(mode="after")
-    def validate_login_credentials(self):
-        if not self.telegram_id and not self.phone_number:
-            raise ValueError("Either telegram_id or phone_number is required")
-        return self
 
 
 class TokenResponse(BaseSchema):

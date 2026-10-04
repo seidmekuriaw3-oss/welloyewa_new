@@ -44,7 +44,8 @@ COPY pyproject.toml poetry.lock* ./
 RUN python -m venv /opt/venv && \
     /opt/venv/bin/pip install --upgrade pip && \
     poetry config virtualenvs.create false && \
-    poetry install --no-interaction --no-ansi --no-root --only main
+    VIRTUAL_ENV=/opt/venv PATH="/opt/venv/bin:$PATH" poetry install --no-interaction --no-ansi --no-root --only main && \
+    test -x /opt/venv/bin/alembic
 
 # ============================
 # STAGE 2: Development

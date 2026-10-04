@@ -72,7 +72,10 @@ async def test_event_bus_runs_high_priority_handlers_first_and_wildcards():
 @pytest.mark.asyncio
 async def test_event_bus_unsubscribe_removes_handler():
     bus = EventBus()
-    handler = lambda event: None
+
+    def handler(event):
+        return None
+
     bus.subscribe("demo", handler)
 
     bus.unsubscribe("demo", handler)

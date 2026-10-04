@@ -53,6 +53,8 @@ prof/
 .env
 .env.local
 .env.*.local
+.dev_encryption_key
+bot_data.json
 .secrets
 .secrets.*
 *.key

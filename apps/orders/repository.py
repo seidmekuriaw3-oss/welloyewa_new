@@ -39,6 +39,16 @@ class OrderRepository(BaseRepository[Order]):
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
+    async def get_by_payment_transaction_id(self, transaction_id: str) -> Order | None:
+        """Find an order by its recorded payment-provider transaction ID."""
+        query = (
+            select(Order)
+            .options(selectinload(Order.items), selectinload(Order.history))
+            .where(Order.payment_transaction_id == transaction_id)
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
     async def get_by_user(
         self,
         user_id: int,

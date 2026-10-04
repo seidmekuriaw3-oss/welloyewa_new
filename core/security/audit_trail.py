@@ -4,12 +4,13 @@
 """Audit logging for security and compliance tracking."""
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import StrEnum
 from functools import wraps
 from typing import Any
-from typing import Callable
+
 from core.config import settings
 from core.logger import logger
 

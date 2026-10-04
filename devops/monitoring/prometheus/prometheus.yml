@@ -172,11 +172,9 @@ scrape_configs:
   # Business Metrics
   - job_name: 'wolloyewa-business'
     scrape_interval: 60s
+    metrics_path: /api/v1/health/metrics
     static_configs:
-      - targets:
-          - 'api-1.wolloyewa.com:8000'
-        params:
-          metrics_path: ['/metrics/business']
+      - targets: ['app:8000']
         labels:
           service: 'business'
           type: 'revenue'

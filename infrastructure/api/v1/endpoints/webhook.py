@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
 from core.config import settings
+from core.exceptions import NotFoundError
 from core.logger import logger
 from infrastructure.payments.payment_verifier import verify_payment_signature
 
@@ -181,7 +182,6 @@ async def generic_webhook(
 async def process_chapa_webhook(payload: dict[str, Any]) -> None:
     """Process Chapa webhook in background."""
     from infrastructure.database.session import get_db_session
-    from infrastructure.payments.payment_verifier import verify_and_update_order_payment
 
     event = payload.get("event")
     data = payload.get("data", {})
@@ -197,7 +197,6 @@ async def process_chapa_webhook(payload: dict[str, Any]) -> None:
 async def process_telebirr_webhook(payload: dict[str, Any]) -> None:
     """Process Telebirr webhook in background."""
     from infrastructure.database.session import get_db_session
-    from infrastructure.payments.payment_verifier import verify_and_update_order_payment
 
     trade_status = payload.get("tradeStatus")
 
@@ -212,7 +211,6 @@ async def process_telebirr_webhook(payload: dict[str, Any]) -> None:
 async def process_cbe_birr_webhook(payload: dict[str, Any]) -> None:
     """Process CBE Birr webhook in background."""
     from infrastructure.database.session import get_db_session
-    from infrastructure.payments.payment_verifier import verify_and_update_order_payment
 
     transaction_status = payload.get("transactionStatus")
 
@@ -234,6 +232,13 @@ async def _verify_payment_reference(db, reference: str | None, method: str) -> b
         return False
 
     order_service = OrderService(db)
+    try:
+        order = await order_service.get_order_by_payment_transaction_id(reference)
+    except NotFoundError:
+        order = None
+    if order:
+        return await verify_and_update_order_payment(db, order.id, method, reference)
+
     order_id = extract_order_id_from_ref(reference)
     if order_id:
         return await verify_and_update_order_payment(db, order_id, method, reference)

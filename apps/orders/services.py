@@ -14,6 +14,7 @@ from apps.orders.models import Order, OrderHistory, OrderItem
 from apps.orders.repository import OrderItemRepository, OrderRepository
 from apps.orders.schemas import OrderCreate, OrderStatusUpdate
 from apps.products.services import ProductService
+from apps.users.models import User
 from apps.users.services import UserService
 from core.constants import OrderStatus, PaymentStatus
 from core.events import (
@@ -33,6 +34,7 @@ from core.exceptions import (
 )
 from core.logger import logger
 from core.utils.string_utils import generate_order_number
+from core.utils.validators import Validator
 
 
 class OrderService:
@@ -170,6 +172,24 @@ class OrderService:
         order = await self.order_repo.get_by_order_number(order_number)
         if not order:
             raise NotFoundError("Order", order_number)
+        return order
+
+    async def get_order_by_payment_transaction_id(self, transaction_id: str) -> Order:
+        """Get an order using the transaction ID recorded during payment initiation."""
+        order = await self.order_repo.get_by_payment_transaction_id(transaction_id)
+        if not order:
+            raise NotFoundError("Payment transaction", transaction_id)
+        return order
+
+    async def save_payment_transaction_id(self, order_id: int, transaction_id: str) -> Order:
+        """Persist the provider transaction reference while an order is still unpaid."""
+        order = await self.get_order(order_id)
+        if order.payment_status != PaymentStatus.PENDING.value:
+            raise ValidationError("Payment can only be initiated for an unpaid order")
+        order = await self.order_repo.update(
+            order_id, {"payment_transaction_id": transaction_id}
+        )
+        await self.db.commit()
         return order
 
     async def update_order_status(
@@ -389,14 +409,36 @@ class OrderTrackingService:
         self.db = db
         self.order_repo = OrderRepository(db)
 
-    async def track_order(self, order_number: str, email_or_phone: str) -> Order | None:
+    async def track_order(
+        self,
+        order_number: str,
+        email: str | None = None,
+        phone: str | None = None,
+    ) -> Order | None:
         """Track order by number and contact info."""
         order = await self.order_repo.get_by_order_number(order_number)
         if not order:
             return None
 
-        # Verify contact info (simplified)
-        return order
+        user = await self.db.get(User, order.user_id)
+        if not user:
+            return None
+
+        if email and user.email and email.strip().casefold() == user.email.strip().casefold():
+            return order
+
+        if phone:
+            is_valid, normalized_phone = Validator.phone(phone, normalize=True)
+            if is_valid and normalized_phone:
+                for stored_phone in (user.phone_number, order.shipping_phone):
+                    if stored_phone:
+                        stored_valid, normalized_stored = Validator.phone(
+                            stored_phone, normalize=True
+                        )
+                        if stored_valid and normalized_stored == normalized_phone:
+                            return order
+
+        return None
 
     async def get_tracking_status(self, order_id: int) -> dict[str, Any]:
         """Get detailed tracking information."""

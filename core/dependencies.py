@@ -4,7 +4,6 @@
 """FastAPI dependency injection for authentication, database, and common utilities."""
 
 from collections.abc import AsyncGenerator
-from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Depends, Header, Request
@@ -61,22 +60,7 @@ async def get_current_user(
     user_repo = UserRepository(db)
     user = await user_repo.get_by_id(int(user_id))
 
-    if not user:
-        if payload.get("role") in ["admin", "super_admin"]:
-            now = datetime.now(UTC)
-            return {
-                "id": int(user_id),
-                "telegram_id": payload.get("telegram_id"),
-                "role": payload["role"],
-                "username": None,
-                "first_name": "Admin",
-                "last_name": None,
-                "email": None,
-                "phone_number": None,
-                "status": "active",
-                "created_at": now,
-                "updated_at": now,
-            }
+    if not user or getattr(user, "is_deleted", False):
         raise AuthenticationError("User not found")
 
     if user.status != "active":
@@ -85,7 +69,7 @@ async def get_current_user(
     return {
         "id": user.id,
         "telegram_id": user.telegram_id,
-        "role": payload.get("role") or user.role,
+        "role": getattr(user.role, "value", user.role),
         "username": user.username,
         "first_name": user.first_name,
         "last_name": user.last_name,

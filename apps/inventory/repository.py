@@ -3,8 +3,8 @@
 # ============================
 """Database repositories for Inventory models."""
 
-from datetime import datetime
 import inspect
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import and_, case, func, select

@@ -270,7 +270,7 @@ class ChapaProvider(PaymentProvider):
     def _verify_signature(self, payload: dict, signature: str) -> bool:
         """Verify webhook signature."""
         if not self.webhook_secret:
-            return True
+            return False
 
         # Remove signature from payload for verification
         payload_copy = {k: v for k, v in payload.items() if k != "signature"}

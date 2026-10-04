@@ -402,6 +402,42 @@ class TestLocationHandler:
         mock_update.message.reply_text.assert_called_once()
 
 
+@pytest.mark.unit
+class TestDeepLinkHandler:
+    @pytest.mark.asyncio
+    async def test_ignores_update_without_effective_user(self):
+        from bot.handlers.deep_linking import deep_link_handler
+
+        update = Mock(spec=Update)
+        update.effective_user = None
+
+        await deep_link_handler(update, Mock(args=["product_1"]))
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("handler_name", "parameter"),
+        [
+            ("handle_product_deep_link", "product_1"),
+            ("handle_coupon_deep_link", "coupon_SAVE20"),
+        ],
+    )
+    async def test_empty_database_session_returns_not_found(self, handler_name, parameter):
+        from bot.handlers import deep_linking
+
+        async def empty_session():
+            if False:
+                yield None
+
+        update = Mock(spec=Update)
+        update.effective_message = Mock()
+        update.effective_message.reply_text = AsyncMock()
+
+        with patch("bot.handlers.deep_linking.get_db_session", empty_session):
+            await getattr(deep_linking, handler_name)(update, Mock(), parameter)
+
+        update.effective_message.reply_text.assert_awaited_once()
+
+
 __all__ = [
     "TestCartHandler",
     "TestCatalogHandler",

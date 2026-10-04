@@ -3,6 +3,7 @@
 # ============================
 """REST API endpoints for payment processing."""
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -57,7 +58,7 @@ async def initiate_payment(
     # Process payment
     try:
         response = await process_payment(
-            method=data.payment_method,
+            method=data.provider,
             amount=order.total,
             order_id=order.id,
             order_number=order.order_number,
@@ -67,6 +68,11 @@ async def initiate_payment(
             callback_url=data.callback_url,
             webhook_url=data.webhook_url,
         )
+
+        if response.success:
+            if not response.transaction_id:
+                raise PaymentError("Payment provider returned no transaction reference")
+            await order_service.save_payment_transaction_id(order.id, response.transaction_id)
 
         return PaymentInitiateResponse(
             success=response.success,
@@ -94,25 +100,43 @@ async def verify_payment(
 
     Checks the status of a payment transaction.
     """
+    order_service = OrderService(db)
+    try:
+        order = await order_service.get_order_by_payment_transaction_id(transaction_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found") from e
+
+    if order.user_id != current_user["id"]:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found")
+
+    stored_method = getattr(order.payment_method, "value", order.payment_method)
+    if stored_method != method:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Payment method mismatch")
+
     try:
         provider = await get_payment_provider(method)
         verification = await provider.verify_payment(transaction_id)
+        verified = (
+            verification.verified
+            and verification.transaction_id == transaction_id
+            and verification.amount == order.total
+            and verification.currency.upper() == "ETB"
+        )
 
-        # Update order payment status if verified
-        if verification.verified and verification.order_id:
-            order_service = OrderService(db)
+        if verified and order.payment_status != "paid":
             await order_service.update_payment_status(
-                order_id=verification.order_id,
+                order_id=order.id,
                 payment_status="paid",
                 transaction_id=transaction_id,
             )
 
         return PaymentVerifyResponse(
-            verified=verification.verified,
+            success=verified,
             status=verification.status.value if verification.status else "unknown",
-            amount=float(verification.amount) if verification.amount else 0,
-            transaction_id=verification.transaction_id,
-            message="Payment verified" if verification.verified else "Payment not verified",
+            amount=float(verification.amount) if verification.amount is not None else None,
+            currency=verification.currency,
+            transaction_id=transaction_id,
+            message="Payment verified" if verified else "Payment not verified",
         )
 
     except PaymentError as e:
@@ -138,7 +162,6 @@ async def process_refund(
     Refunds a payment for an order.
     """
     order_service = OrderService(db)
-    from apps.orders.refunds import RefundManager
 
     try:
         order = await order_service.get_order(data.order_id)
@@ -149,33 +172,36 @@ async def process_refund(
         if order.payment_status != "paid":
             raise ValidationError("Order is not in paid status")
 
-        # Process refund
-        refund_manager = RefundManager(db)
-        refund = await refund_manager.request_refund(
-            order_id=data.order_id,
-            amount=Decimal(str(data.amount)) if data.amount else None,
-            reason=data.reason,
-            notes=data.notes,
-        )
+        refund_amount = Decimal(str(data.amount)) if data.amount is not None else order.total
+        refundable_amount = order.total - (order.refunded_amount or Decimal("0"))
+        if refund_amount <= 0 or refund_amount > refundable_amount:
+            raise ValidationError("Refund amount exceeds the remaining refundable balance")
 
-        # Process through payment gateway
-        provider = await get_payment_provider(order.payment_method)
+        provider_name = getattr(order.payment_method, "value", order.payment_method)
+        provider = await get_payment_provider(provider_name)
         success = await provider.refund_payment(
             transaction_id=order.payment_transaction_id,
-            amount=Decimal(str(data.amount)) if data.amount else None,
+            amount=refund_amount,
             reason=data.reason,
         )
 
         if success:
+            order.refunded_amount = (order.refunded_amount or Decimal("0")) + refund_amount
+            order.refunded_at = datetime.now(UTC).replace(tzinfo=None)
+            if order.refunded_amount >= order.total:
+                order.payment_status = "refunded"
+                order.status = "refunded"
+            await db.commit()
             return PaymentRefundResponse(
                 success=True,
-                refund_id=refund.refund_id,
-                amount=data.amount or float(order.total),
+                amount=float(refund_amount),
+                status="completed",
                 message="Refund processed successfully",
             )
         else:
             return PaymentRefundResponse(
                 success=False,
+                status="failed",
                 message="Refund failed",
             )
 

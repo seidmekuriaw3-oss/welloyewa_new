@@ -26,7 +26,10 @@ async def deep_link_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     - Coupon deep links: start=coupon_SAVE20
     - Referral deep links: start=ref_12345
     """
-    user_id = update.effective_user.id
+    user = update.effective_user
+    if user is None:
+        return
+    user_id = user.id
     start_param = context.args[0] if context.args else None
 
     if not start_param:
@@ -59,28 +62,37 @@ async def handle_product_deep_link(
 
     Shows product details directly.
     """
+    message = update.effective_message
+    if message is None:
+        return
+
     try:
         product_id = int(param.split("_")[1])
     except (IndexError, ValueError):
-        await update.message.reply_text("❌ የማይሰራ ሊንክ።")
+        await message.reply_text("❌ የማይሰራ ሊንክ።")
         return
 
+    product = None
     async for db in get_db_session():
         product_service = ProductService(db)
 
         try:
             product = await product_service.get_product(product_id)
         except Exception:
-            await update.message.reply_text("❌ ምርቱ አልተገኘም።")
+            await message.reply_text("❌ ምርቱ አልተገኘም።")
             return
 
         break
+
+    if product is None:
+        await message.reply_text("❌ ምርቱ አልተገኘም።")
+        return
 
     # Build product detail message
     from core.utils.currency import format_etb
 
     price_text = format_etb(product.price)
-    if product.discounted_price:
+    if product.discounted_price and product.compare_price is not None:
         price_text = f"~~{format_etb(product.compare_price)}~~ {format_etb(product.price)}"
 
     stock_status = "✅ ክምችት አለ" if product.is_in_stock else "❌ ክምችት የለም"
@@ -103,7 +115,7 @@ async def handle_product_deep_link(
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
+    await message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
 
 
 async def handle_coupon_deep_link(
@@ -116,12 +128,17 @@ async def handle_coupon_deep_link(
 
     Applies coupon code automatically.
     """
+    message = update.effective_message
+    if message is None:
+        return
+
     try:
         coupon_code = param.split("_", 1)[1]
     except IndexError:
-        await update.message.reply_text("❌ የማይሰራ ሊንክ።")
+        await message.reply_text("❌ የማይሰራ ሊንክ።")
         return
 
+    coupon = None
     async for db in get_db_session():
         coupon_service = CouponService(db)
 
@@ -129,13 +146,18 @@ async def handle_coupon_deep_link(
         coupon = await coupon_service.get_coupon_by_code(coupon_code)
 
         if not coupon or not coupon.is_valid:
-            await update.message.reply_text(f"❌ ኩፖኑ '{coupon_code}' ልክ አይደለም ወይም ጊዜው አልፎበታል።")
+            await message.reply_text(f"❌ ኩፖኑ '{coupon_code}' ልክ አይደለም ወይም ጊዜው አልፎበታል።")
             return
 
         break
 
+    if coupon is None:
+        await message.reply_text("❌ ኩፖኑ አልተገኘም።")
+        return
+
     # Store coupon in user context
-    context.user_data["pending_coupon"] = coupon_code
+    if context.user_data is not None:
+        context.user_data["pending_coupon"] = coupon_code
 
     text = f"""
 🎫 *ኩፖን ተገኝቷል!*
@@ -155,7 +177,7 @@ async def handle_coupon_deep_link(
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
+    await message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
 
 
 async def handle_referral_deep_link(
@@ -168,17 +190,22 @@ async def handle_referral_deep_link(
 
     Tracks referral source.
     """
+    message = update.effective_message
+    user = update.effective_user
+    if message is None or user is None:
+        return
+
     try:
         referrer_id = int(param.split("_")[1])
     except (IndexError, ValueError):
-        await update.message.reply_text("❌ የማይሰራ ሊንክ።")
+        await message.reply_text("❌ የማይሰራ ሊንክ።")
         return
 
-    user_id = update.effective_user.id
+    user_id = user.id
 
     # Don't track self-referrals
     if referrer_id == user_id:
-        await update.message.reply_text("👋 እንኳን ደህና መጡ!")
+        await message.reply_text("👋 እንኳን ደህና መጡ!")
         return
 
     # Track referral
@@ -197,7 +224,7 @@ async def handle_referral_deep_link(
 /start ይጫኑ
     """
 
-    await update.message.reply_text(text, parse_mode="Markdown")
+    await message.reply_text(text, parse_mode="Markdown")
 
 
 async def handle_unknown_deep_link(
@@ -208,7 +235,10 @@ async def handle_unknown_deep_link(
     """
     Handle unknown deep link type.
     """
-    await update.message.reply_text(f"❌ የማይታወቅ ሊንክ: {param}\n\n" f"እባክዎ ትክክለኛ ሊንክ መጠቀምዎን ያረጋግጡ።")
+    message = update.effective_message
+    if message is None:
+        return
+    await message.reply_text(f"❌ የማይታወቅ ሊንክ: {param}\n\n" f"እባክዎ ትክክለኛ ሊንክ መጠቀምዎን ያረጋግጡ።")
 
 
 def discount_text(coupon) -> str:

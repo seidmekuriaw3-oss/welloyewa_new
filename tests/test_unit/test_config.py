@@ -6,14 +6,62 @@ from core.config import Settings, get_settings
 
 
 def test_environment_and_runtime_properties():
-    settings = Settings(ENVIRONMENT="production", DEBUG=False)
+    settings = Settings(
+        ENVIRONMENT="production",
+        DEBUG=False,
+        SECRET_KEY="s" * 32,
+        JWT_SECRET_KEY="j" * 32,
+        CORS_ALLOWED_ORIGINS=["https://store.example"],
+        ALLOWED_HOSTS=["store.example"],
+        _env_file=None,
+    )
 
     assert settings.is_production is True
     assert settings.is_development is False
     assert settings.is_testing is False
 
-    testing = Settings(ENVIRONMENT="testing", DEBUG=False)
+    testing = Settings(ENVIRONMENT="testing", DEBUG=False, _env_file=None)
     assert testing.is_testing is True
+
+
+def test_production_requires_secrets_and_restricted_origins():
+    try:
+        Settings(ENVIRONMENT="production", DEBUG=False, _env_file=None)
+    except ValidationError as error:
+        assert "SECRET_KEY" in str(error)
+    else:
+        raise AssertionError("Production must reject generated/missing security settings")
+
+    try:
+        Settings(
+            ENVIRONMENT="production",
+            DEBUG=False,
+            SECRET_KEY="s" * 32,
+            JWT_SECRET_KEY="j" * 32,
+            CORS_ALLOWED_ORIGINS=["*"],
+            ALLOWED_HOSTS=["store.example"],
+            _env_file=None,
+        )
+    except ValidationError as error:
+        assert "CORS_ALLOWED_ORIGINS" in str(error)
+    else:
+        raise AssertionError("Production must reject wildcard CORS origins")
+
+    try:
+        Settings(
+            ENVIRONMENT="production",
+            DEBUG=False,
+            SECRET_KEY="s" * 32,
+            JWT_SECRET_KEY="j" * 32,
+            TELEGRAM_BOT_TOKEN="configured-bot-token",
+            CORS_ALLOWED_ORIGINS=["https://store.example"],
+            ALLOWED_HOSTS=["store.example"],
+            _env_file=None,
+        )
+    except ValidationError as error:
+        assert "TELEGRAM_WEBHOOK_SECRET" in str(error)
+    else:
+        raise AssertionError("Production bots must use an explicit webhook secret")
 
 
 def test_invalid_environment_and_production_debug_are_rejected():

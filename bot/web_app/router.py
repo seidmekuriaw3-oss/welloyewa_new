@@ -3,10 +3,6 @@
 # ============================
 """FastAPI router for the Telegram Mini App web interface."""
 
-import hashlib
-import hmac
-import json
-import urllib.parse
 from decimal import Decimal
 from pathlib import Path
 
@@ -21,6 +17,7 @@ from apps.users.services import UserService
 from core.config import settings
 from core.dependencies import get_current_user, get_db_session
 from core.logger import logger
+from core.security.telegram import verify_telegram_init_data
 
 # Setup templates
 templates_dir = Path(__file__).parent / "templates"
@@ -33,9 +30,6 @@ web_app_router = APIRouter(prefix="/app", tags=["Web App"])
 # Telegram initData verification
 # ---------------------------------------------------------------------------
 
-_INIT_DATA_MAX_AGE_SECONDS = 3600  # reject initData older than 1 hour
-
-
 def _verify_telegram_init_data(init_data: str, bot_token: str) -> dict | None:
     """
     Verify Telegram Mini App initData using HMAC-SHA256.
@@ -43,41 +37,7 @@ def _verify_telegram_init_data(init_data: str, bot_token: str) -> dict | None:
     Returns the parsed user dict if valid, None otherwise.
     https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
     """
-    import time as _time
-
-    try:
-        params = dict(urllib.parse.parse_qsl(init_data, strict_parsing=True))
-    except Exception:
-        return None
-
-    received_hash = params.pop("hash", None)
-    if not received_hash:
-        return None
-
-    # Validate auth_date freshness
-    auth_date_str = params.get("auth_date")
-    if auth_date_str:
-        try:
-            auth_date = int(auth_date_str)
-            if abs(_time.time() - auth_date) > _INIT_DATA_MAX_AGE_SECONDS:
-                return None
-        except (ValueError, TypeError):
-            return None
-
-    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(params.items()))
-    secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
-    expected_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-
-    if not hmac.compare_digest(expected_hash, received_hash):
-        return None
-
-    user_str = params.get("user")
-    if user_str:
-        try:
-            return json.loads(user_str)
-        except Exception:
-            return None
-    return {}
+    return verify_telegram_init_data(init_data, bot_token)
 
 
 # ---------------------------------------------------------------------------
@@ -599,7 +559,7 @@ async def api_checkout(request: Request, body: CheckoutRequest, db=Depends(get_d
             Product.id.in_(product_ids), Product.is_deleted.is_(False)
         )
     )
-    current_prices = {product_id: price for product_id, price in result.all()}
+    current_prices = dict(result.all())
     if len(current_prices) != len(set(product_ids)):
         raise HTTPException(status_code=400, detail="One or more products are unavailable.")
 

@@ -6,7 +6,7 @@
 import secrets
 from functools import lru_cache
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     VERSION: str = Field(default="1.0.0")
     ENVIRONMENT: str = Field(default="development")
     DEBUG: bool = Field(default=True)
-    SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
+    SECRET_KEY: str = Field(default="")
     TIMEZONE: str = Field(default="Africa/Addis_Ababa")
     HOST: str = Field(default="0.0.0.0")
     PORT: int = Field(default=8000)
@@ -110,8 +110,8 @@ class Settings(BaseSettings):
     # ============================
     TELEGRAM_BOT_TOKEN: str = Field(default="")
     TELEGRAM_WEBHOOK_URL: str | None = Field(default=None)
-    TELEGRAM_WEBHOOK_SECRET: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
-    ADMIN_IDS: str = Field(default="5848843259")
+    TELEGRAM_WEBHOOK_SECRET: str = Field(default="")
+    ADMIN_IDS: str = Field(default="")
 
     @property
     def admin_ids_list(self) -> list[int]:
@@ -226,7 +226,7 @@ class Settings(BaseSettings):
     # ============================
     # Security
     # ============================
-    JWT_SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
+    JWT_SECRET_KEY: str = Field(default="")
     JWT_ALGORITHM: str = Field(default="HS256")
     JWT_EXPIRY_MINUTES: int = Field(default=1440)
     CORS_ALLOWED_ORIGINS: list[str] = Field(default_factory=lambda: ["*"])
@@ -252,13 +252,28 @@ class Settings(BaseSettings):
             return [host.strip() for host in v.split(",") if host.strip()]
         return v
 
-    @field_validator("SECRET_KEY", "JWT_SECRET_KEY", mode="before")
-    @classmethod
-    def validate_secret_keys(cls, v, info):
-        """Ensure critical secrets are set in production."""
-        if info.data.get("ENVIRONMENT") == "production" and not v:
-            raise ValueError("SECRET_KEY and JWT_SECRET_KEY must be set in production.")
-        return v or secrets.token_urlsafe(32)
+    @model_validator(mode="after")
+    def validate_production_security(self):
+        """Require explicit production secrets and narrowly scoped browser access."""
+        if self.is_production:
+            if not self.SECRET_KEY or not self.JWT_SECRET_KEY:
+                raise ValueError("SECRET_KEY and JWT_SECRET_KEY must be set in production")
+            if len(self.SECRET_KEY) < 32 or len(self.JWT_SECRET_KEY) < 32:
+                raise ValueError("Production SECRET_KEY values must be at least 32 characters")
+            if not self.CORS_ALLOWED_ORIGINS or "*" in self.CORS_ALLOWED_ORIGINS:
+                raise ValueError("Production CORS_ALLOWED_ORIGINS must list trusted origins")
+            if not self.ALLOWED_HOSTS or "*" in self.ALLOWED_HOSTS:
+                raise ValueError("Production ALLOWED_HOSTS must list trusted hosts")
+            if self.TELEGRAM_BOT_TOKEN and not self.TELEGRAM_WEBHOOK_SECRET:
+                raise ValueError("TELEGRAM_WEBHOOK_SECRET is required when a production bot is configured")
+        else:
+            if not self.SECRET_KEY:
+                self.SECRET_KEY = secrets.token_urlsafe(32)
+            if not self.JWT_SECRET_KEY:
+                self.JWT_SECRET_KEY = secrets.token_urlsafe(32)
+            if not self.TELEGRAM_WEBHOOK_SECRET:
+                self.TELEGRAM_WEBHOOK_SECRET = secrets.token_urlsafe(32)
+        return self
 
     # ============================
     # Feature Flags

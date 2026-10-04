@@ -388,7 +388,7 @@ class TestEthiopianCalendar:
 
     def test_reference_conversion_and_date_properties(self):
         """The reference date should round-trip and expose calendar properties."""
-        from core.utils.ethiopian_calendar import EthiopianDate, EthiopianCalendar
+        from core.utils.ethiopian_calendar import EthiopianCalendar, EthiopianDate
 
         reference = date(2007, 9, 11)
         et_date = EthiopianCalendar.from_gregorian(reference)

@@ -4,7 +4,12 @@
 """Pytest configuration and fixtures for testing."""
 
 import asyncio
+import hashlib
+import hmac
+import json
 import os
+import time
+import urllib.parse
 from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 
@@ -13,11 +18,11 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from apps.products.models import Product
 from core.config import settings
 from core.dependencies import get_db_session
 from infrastructure.database.base import Base
 from main import app
-from apps.products.models import Product
 
 # ============================
 # Test Database Setup
@@ -86,8 +91,9 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest.fixture
-async def client(test_engine) -> AsyncGenerator:
+async def client(test_engine, monkeypatch) -> AsyncGenerator:
     """Create test client for FastAPI app."""
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "test-token")
     test_sessionmaker = async_sessionmaker(
         test_engine,
         class_=AsyncSession,
@@ -136,11 +142,28 @@ async def client(test_engine) -> AsyncGenerator:
 # ============================
 
 
+def make_telegram_init_data(telegram_id: int, bot_token: str = "test-token") -> str:
+    """Build signed Telegram initData for API tests."""
+    auth_values = {
+        "auth_date": str(int(time.time())),
+        "query_id": "test-query",
+        "user": json.dumps({"id": telegram_id, "first_name": "Test"}, separators=(",", ":")),
+    }
+    check_string = "\n".join(f"{key}={value}" for key, value in sorted(auth_values.items()))
+    secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
+    auth_values["hash"] = hmac.new(
+        secret_key, check_string.encode(), hashlib.sha256
+    ).hexdigest()
+    return urllib.parse.urlencode(auth_values)
+
+
 @pytest.fixture
 def sample_user_data():
     """Sample user data for testing."""
+    telegram_id = 123456789
     return {
-        "telegram_id": 123456789,
+        "telegram_id": telegram_id,
+        "init_data": make_telegram_init_data(telegram_id),
         "username": "testuser",
         "first_name": "Test",
         "last_name": "User",
@@ -197,16 +220,26 @@ def auth_token():
 
 
 @pytest.fixture
-def admin_token():
+async def admin_token(db_session):
     """Sample admin JWT token for testing."""
+    from apps.users.models import User
     from core.security import create_access_token
 
+    admin = User(
+        telegram_id=999000001,
+        first_name="Test Admin",
+        role="admin",
+        status="active",
+    )
+    db_session.add(admin)
+    await db_session.flush()
     token_data = {
-        "sub": "1",
-        "telegram_id": 123456789,
+        "sub": str(admin.id),
         "role": "admin",
     }
-    return create_access_token(token_data)
+    token = create_access_token(token_data)
+    await db_session.commit()
+    return token
 
 
 # ============================

@@ -138,36 +138,51 @@ async def verify_and_update_order_payment(
     order = await order_service.get_order(order_id)
     verification = await verifier.verify_payment(method, transaction_id)
 
-    if verification.verified:
-        if verification.amount is not None and verification.amount != order.total:
-            logger.error(
-                "Payment amount mismatch for order %s: expected=%s received=%s",
-                order_id,
-                order.total,
-                verification.amount,
-            )
-            return False
+    order_method = getattr(order.payment_method, "value", order.payment_method)
+    if order_method != method or not verification.verified:
+        return False
 
-        # Update order payment status
-        await order_service.update_payment_status(
+    if verification.transaction_id != transaction_id:
+        logger.error("Payment transaction mismatch for order %s", order_id)
+        return False
+
+    if (
+        verification.amount is None
+        or verification.amount != order.total
+        or verification.currency.upper() != "ETB"
+    ):
+        logger.error(
+            "Payment amount or currency mismatch for order %s: expected=%s ETB received=%s %s",
+            order_id,
+            order.total,
+            verification.amount,
+            verification.currency,
+        )
+        return False
+
+    if order.payment_transaction_id and order.payment_transaction_id != transaction_id:
+        logger.error("Payment transaction does not match order %s", order_id)
+        return False
+
+    # Update order payment status
+    await order_service.update_payment_status(
+        order_id=order_id,
+        payment_status=PaymentStatus.PAID.value,
+        transaction_id=transaction_id,
+    )
+
+    # Update order status if not already confirmed
+    order = await order_service.get_order(order_id)
+    if order.status == OrderStatus.PENDING.value:
+        await order_service.update_order_status(
             order_id=order_id,
-            payment_status=PaymentStatus.PAID.value,
-            transaction_id=transaction_id,
+            data=OrderStatusUpdate(status=OrderStatus.CONFIRMED.value),
+            user_id=None,
         )
 
-        # Update order status if not already confirmed
-        order = await order_service.get_order(order_id)
-        if order.status == OrderStatus.PENDING.value:
-            await order_service.update_order_status(
-                order_id=order_id,
-                data=OrderStatusUpdate(status=OrderStatus.CONFIRMED.value),
-                user_id=None,
-            )
+    logger.info(f"Payment verified and order {order_id} updated")
+    return True
 
-        logger.info(f"Payment verified and order {order_id} updated")
-        return True
-
-    return False
 
 
 __all__ = [

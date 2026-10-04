@@ -4,7 +4,7 @@
 """Rate limiting middleware for bot commands."""
 
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -85,7 +85,7 @@ class ThrottlingMiddleware:
         Returns:
             Tuple of (is_allowed, retry_after_seconds)
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Get limits for this command
         if command and command in self._command_limits:
@@ -124,7 +124,7 @@ class ThrottlingMiddleware:
         if user_id not in self._user_requests:
             self._user_requests[user_id] = []
 
-        self._user_requests[user_id].append(datetime.now(timezone.utc))
+        self._user_requests[user_id].append(datetime.now(UTC))
         logger.debug(f"Rate limit: user {user_id} executed {command}")
 
     def reset_user(self, user_id: int) -> None:

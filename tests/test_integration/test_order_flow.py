@@ -117,6 +117,7 @@ class TestCartToOrderFlow:
         total = subtotal + tax + shipping
 
         assert tax == expected_tax
+        assert shipping == expected_shipping
         assert total == expected_total
 
 

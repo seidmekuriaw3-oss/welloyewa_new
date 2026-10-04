@@ -7,8 +7,6 @@ from pydantic import BaseModel, Field
 class PaymentInitiateRequest(BaseModel):
     order_id: int = Field(..., description="Order ID to pay for")
     provider: str = Field(..., description="Payment method (telebirr, cbe_birr, chapa, etc.)")
-    amount: Decimal | None = Field(None, description="Amount to pay")
-    currency: str = "ETB"
     callback_url: str | None = Field(None, description="Callback URL after payment")
     webhook_url: str | None = Field(None, description="Webhook URL for payment status updates")
     metadata: dict[str, Any] | None = None
@@ -32,14 +30,16 @@ class PaymentVerifyResponse(BaseModel):
 
 
 class PaymentRefundRequest(BaseModel):
-    transaction_id: str = Field(..., description="Transaction ID to refund")
-    amount: Decimal | None = Field(None, description="Amount to refund (full refund if None)")
+    order_id: int = Field(..., description="Order ID to refund")
+    amount: Decimal | None = Field(None, gt=0, description="Refund amount (full refund if None)")
     reason: str | None = Field(None, description="Reason for refund")
+    notes: str | None = Field(None, description="Additional refund notes")
 
 
 class PaymentRefundResponse(BaseModel):
     success: bool
     refund_id: str | None = None
+    amount: float | None = None
     status: str | None = None
     message: str | None = None
 

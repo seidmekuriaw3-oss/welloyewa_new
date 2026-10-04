@@ -19,6 +19,7 @@ from apps.users.schemas import (
     VendorCreate,
     VendorUpdate,
 )
+from core.config import settings
 from core.events import USER_LOGIN, USER_REGISTERED, USER_UPDATED, emit_event
 from core.exceptions import (
     AuthenticationError,
@@ -27,7 +28,8 @@ from core.exceptions import (
     ValidationError,
 )
 from core.logger import logger
-from core.security import create_access_token, hash_password
+from core.security import create_access_token, hash_password, verify_password
+from core.security.telegram import verify_telegram_init_data
 from core.utils.validators import Validator
 
 
@@ -52,13 +54,17 @@ class AuthService:
             ValidationError: If validation fails
             DuplicateRecordError: If user already exists
         """
+        telegram_user = verify_telegram_init_data(data.init_data, settings.TELEGRAM_BOT_TOKEN)
+        if not telegram_user or telegram_user.get("id") != data.telegram_id:
+            raise AuthenticationError("Invalid Telegram authentication data")
+
         # Validate phone number if provided
         phone = None
         if data.phone_number:
             try:
                 phone = Validator.phone(data.phone_number, normalize=True)
-            except ValueError:
-                raise ValidationError(f"Invalid phone number: {data.phone_number}")
+            except ValueError as exc:
+                raise ValidationError(f"Invalid phone number: {data.phone_number}") from exc
 
         # Check if user already exists
         if data.telegram_id:
@@ -119,14 +125,12 @@ class AuthService:
         Raises:
             AuthenticationError: If credentials are invalid
         """
-        # Find user by telegram_id or phone
-        user = None
-        if data.telegram_id:
-            user = await self.user_repo.get_by_telegram(data.telegram_id)
-        elif data.phone_number:
-            is_valid, normalized = Validator.phone(data.phone_number, normalize=True)
-            if is_valid:
-                user = await self.user_repo.get_by_phone(normalized)
+        telegram_user = verify_telegram_init_data(data.init_data, settings.TELEGRAM_BOT_TOKEN)
+        telegram_id = telegram_user.get("id") if telegram_user else None
+        if not isinstance(telegram_id, int):
+            raise AuthenticationError("Invalid Telegram authentication data")
+
+        user = await self.user_repo.get_by_telegram(telegram_id)
 
         if not user:
             raise AuthenticationError("Invalid credentials")
@@ -171,29 +175,32 @@ class AuthService:
         Returns:
             True if successful
         """
-        # In a real implementation, you would verify old password
-        # and hash the new password
+        user = await self.user_repo.get_by_id(user_id)
+        if not user or not user.password_hash or not verify_password(
+            data.current_password, user.password_hash
+        ):
+            raise AuthenticationError("Current password is incorrect")
+
         await self.user_repo.update(user_id, {"password_hash": hash_password(data.new_password)})
         logger.info(f"Password changed for user {user_id}")
         return True
 
-    async def verify_telegram_auth(self, auth_data: dict[str, Any]) -> User | None:
+    async def verify_telegram_auth(self, init_data: str) -> User | None:
         """
         Verify Telegram login authorization.
 
         Args:
-            auth_data: Telegram authentication data
+            init_data: Signed Telegram Mini App authentication data
 
         Returns:
             User if verification successful
         """
-        # Implement Telegram login verification
-        # https://core.telegram.org/widgets/login#checking-authorization
-        telegram_id = auth_data.get("id")
-        if not telegram_id:
+        telegram_user = verify_telegram_init_data(init_data, settings.TELEGRAM_BOT_TOKEN)
+        telegram_id = telegram_user.get("id") if telegram_user else None
+        if not isinstance(telegram_id, int):
             return None
 
-        user = await self.user_repo.get_by_telegram(int(telegram_id))
+        user = await self.user_repo.get_by_telegram(telegram_id)
         return user
 
 

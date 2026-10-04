@@ -154,7 +154,7 @@ async def track_order(
             detail="Either email or phone is required for tracking",
         )
 
-    order = await tracking_service.track_order(order_number, email or phone)
+    order = await tracking_service.track_order(order_number, email=email, phone=phone)
 
     if not order:
         raise HTTPException(
