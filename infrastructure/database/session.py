@@ -90,24 +90,17 @@ class DatabaseSessionManager:
         Yields:
             AsyncSession: Database session
         """
-        try:
-            if not self._initialized:
-                await self.initialize()
+        if not self._initialized:
+            await self.initialize()
 
-            if self._sessionmaker is None:
-                return
-
-            async with self._sessionmaker() as session:
-                try:
-                    yield session
-                except Exception:
-                    await session.rollback()
-                    raise
-                finally:
-                    await session.close()
-        except Exception as exc:
-            logger.warning("Database session unavailable; continuing without database access: %s", exc)
-            return
+        async with self._sessionmaker() as session:
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
 
     @asynccontextmanager
     async def transaction(self) -> AsyncGenerator[AsyncSession, None]:
@@ -115,27 +108,20 @@ class DatabaseSessionManager:
         Get a session with transaction management.
 
         Yields:
-            AsyncSession: Database session with transaction.
+            AsyncSession: Database session with transaction
         """
-        try:
-            if not self._initialized:
-                await self.initialize()
+        if not self._initialized:
+            await self.initialize()
 
-            if self._sessionmaker is None:
-                raise RuntimeError("Database session manager is not initialized")
-
-            async with self._sessionmaker() as session:
-                try:
-                    yield session
-                    await session.commit()
-                except Exception:
-                    await session.rollback()
-                    raise
-                finally:
-                    await session.close()
-        except Exception as exc:
-            logger.warning("Database transaction unavailable; continuing without database access: %s", exc)
-            raise
+        async with self._sessionmaker() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
 
     @property
     def is_initialized(self) -> bool:
@@ -164,12 +150,8 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     Yields:
         AsyncSession: Database session
     """
-    try:
-        async for session in _session_manager.get_session():
-            yield session
-    except Exception as exc:
-        logger.warning("Database session unavailable for request scope: %s", exc)
-        return
+    async for session in _session_manager.get_session():
+        yield session
 
 
 async def get_transaction_session() -> AsyncGenerator[AsyncSession, None]:
@@ -179,12 +161,8 @@ async def get_transaction_session() -> AsyncGenerator[AsyncSession, None]:
     Yields:
         AsyncSession: Database session with transaction
     """
-    try:
-        async with _session_manager.transaction() as session:
-            yield session
-    except Exception as exc:
-        logger.warning("Database transaction unavailable for request scope: %s", exc)
-        return
+    async with _session_manager.transaction() as session:
+        yield session
 
 
 AsyncSessionLocal = _session_manager._sessionmaker

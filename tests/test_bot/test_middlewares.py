@@ -167,30 +167,6 @@ class TestI18nMiddleware:
                 assert "t" in mock_context.user_data
                 next_handler.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_db_session_manager_gracefully_handles_unavailable_database(self):
-        from infrastructure.database.session import DatabaseSessionManager
-
-        manager = DatabaseSessionManager()
-        manager.initialize = AsyncMock(side_effect=OSError("getaddrinfo failed"))
-
-        collected = []
-        async for _ in manager.get_session():
-            collected.append(_)
-
-        assert collected == []
-
-    @pytest.mark.asyncio
-    async def test_db_transaction_manager_gracefully_handles_unavailable_database(self):
-        from infrastructure.database.session import DatabaseSessionManager
-
-        manager = DatabaseSessionManager()
-        manager.initialize = AsyncMock(side_effect=OSError("getaddrinfo failed"))
-
-        with pytest.raises(OSError):
-            async with manager.transaction():
-                pass
-
     def test_get_translator(self):
         """Test translator function."""
         from bot.middlewares.i18n import I18nMiddleware
