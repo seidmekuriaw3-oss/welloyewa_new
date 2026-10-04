@@ -154,6 +154,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 raise RuntimeError("Telegram polling updater is unavailable")
             await updater.start_polling(
                 drop_pending_updates=True,
+                  bootstrap_retries=5,
                 allowed_updates=["message", "callback_query", "inline_query"],
                 error_callback=lambda err: logger.warning(f"Polling error (will retry): {err}"),
             )
