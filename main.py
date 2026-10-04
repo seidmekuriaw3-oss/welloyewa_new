@@ -14,6 +14,7 @@ import logging
 import os
 import socket
 import sys
+import tempfile
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -121,7 +122,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 else:
                     raise net_err
 
-        # Start polling only in development mode (not when deployed) and avoid duplicate local sessions
+        # Start polling only in development mode, and only on the primary process to avoid
+        # duplicate local sessions when gunicorn runs multiple workers.
         _is_deployed = os.environ.get("REPLIT_DEPLOYMENT", "").strip() == "1"
         default_disable_polling = "0" if settings.ENVIRONMENT == "development" else "1"
         _disable_bot_polling = os.environ.get("DISABLE_BOT_POLLING", default_disable_polling).strip() in {
@@ -131,13 +133,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "yes",
             "y",
         }
-        if (
+        _is_primary_worker = (
+            os.environ.get("GUNICORN_WORKER_ID") == "0"
+            or os.environ.get("WEB_CONCURRENCY") is None
+            or os.environ.get("WEB_CONCURRENCY", "1") == "1"
+        )
+        should_start_polling = (
             settings.ENVIRONMENT == "development"
             and application_instance
             and not _is_deployed
             and not _disable_bot_polling
-        ):
-            logger.info("Starting Telegram bot in POLLING mode...")
+            and _is_primary_worker
+        )
+
+        if should_start_polling:
+            logger.info("Starting Telegram bot in POLLING mode on the primary worker...")
             await application_instance.initialize()
             for _attempt in range(5):
                 try:
@@ -147,20 +157,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 except Exception as wh_err:
                     logger.warning(f"Could not delete webhook (attempt {_attempt+1}): {wh_err}")
                     await asyncio.sleep(3)
-            await asyncio.sleep(5)
+            await asyncio.sleep(2)
             await application_instance.start()
             updater = application_instance.updater
             if updater is None:
                 raise RuntimeError("Telegram polling updater is unavailable")
             await updater.start_polling(
                 drop_pending_updates=True,
-                  bootstrap_retries=5,
+                bootstrap_retries=5,
                 allowed_updates=["message", "callback_query", "inline_query"],
                 error_callback=lambda err: logger.warning(f"Polling error (will retry): {err}"),
             )
             logger.info("Telegram bot polling started!")
         elif settings.ENVIRONMENT == "development" and application_instance and not _is_deployed:
-            logger.info("Bot polling disabled for local run to avoid duplicate Telegram sessions")
+            logger.info(
+                "Bot polling disabled or delegated to the primary worker to avoid duplicate Telegram sessions"
+            )
 
     except Exception as e:
         logger.warning(f"Telegram bot initialization failed (continuing): {e}")
