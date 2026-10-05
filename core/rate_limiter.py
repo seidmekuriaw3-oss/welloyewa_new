@@ -310,22 +310,34 @@ class RateLimiter:
 
             # Use Redis sorted set for sliding window
             if strategy == RateLimitStrategy.SLIDING_WINDOW:
-                # Remove old entries
-                await self._redis_client.zremrangebyscore(redis_key, 0, window_start)
-
-                # Count current requests
-                count = await self._redis_client.zcard(redis_key)
-
-                if count < limit:
-                    # Add current request
-                    await self._redis_client.zadd(redis_key, {str(current_time): current_time})
-                    await self._redis_client.expire(redis_key, window)
-                    return True, limit - count - 1, None
-
-                # Get oldest request time for retry after
-                oldest = await self._redis_client.zrange(redis_key, 0, 0, withscores=True)
-                retry_after = int((oldest[0][1] + window) - current_time) if oldest else window
-                return False, 0, max(1, retry_after)
+                script = """
+                    local now = tonumber(ARGV[1])
+                    local window = tonumber(ARGV[2])
+                    local limit = tonumber(ARGV[3])
+                    redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now - window)
+                    local count = redis.call('ZCARD', KEYS[1])
+                    if count < limit then
+                        redis.call('ZADD', KEYS[1], now, ARGV[4])
+                        redis.call('EXPIRE', KEYS[1], window)
+                        return {1, limit - count - 1, 0}
+                    end
+                    local oldest = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
+                    if #oldest == 0 then
+                        return {0, 0, window}
+                    end
+                    local retry_after = math.max(1, math.ceil(tonumber(oldest[2]) + window - now))
+                    return {0, 0, retry_after}
+                """
+                result = await self._redis_client.eval(
+                    script,
+                    1,
+                    redis_key,
+                    current_time,
+                    window,
+                    limit,
+                    str(time.time_ns()),
+                )
+                return bool(int(result[0])), int(result[1]), int(result[2]) or None
 
             # Simple counter for other strategies
             count = await self._redis_client.incr(redis_key)
@@ -339,7 +351,12 @@ class RateLimiter:
             return True, limit - count, None
 
         except Exception as e:
-            logger.error(f"Redis rate limit check failed: {e}, falling back to in-memory")
+            if settings.ENVIRONMENT == "production":
+                logger.error("Redis rate limit check failed (%s)", type(e).__name__)
+                raise RuntimeError("Distributed rate limiting is unavailable") from e
+            logger.warning(
+                "Redis rate limit check failed (%s); using local limits", type(e).__name__
+            )
             self._use_redis = False
             return await self.check(key, limit, window, strategy, burst_limit)
 

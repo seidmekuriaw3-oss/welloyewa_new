@@ -106,7 +106,7 @@ Create `.env` from the required settings below. Never commit `.env` or share its
 | --- | --- | --- |
 | `ENVIRONMENT` | Runtime mode | `development` |
 | `DEBUG` | Development diagnostics | `True` locally, `False` in production |
-| `HOST` / `PORT` | HTTP bind address and port | `0.0.0.0` / `8080` |
+| `HOST` / `PORT` | HTTP bind address and port | `0.0.0.0` / `8000` (workflow: `5000`) |
 | `DATABASE_URL` | PostgreSQL connection | Secret-managed value |
 | `REDIS_URL` | Redis connection | `redis://localhost:6379/0` |
 | `TELEGRAM_BOT_TOKEN` | Telegram API token | Secret-managed value |
@@ -264,7 +264,7 @@ See `docs/security_audit.md` for the operational security checklist.
 
 **Telegram says the Web App URL is invalid:** `WEB_APP_URL` must be a reachable HTTPS URL. Restart the application after changing it.
 
-**Cloudflare returns 1033 or 502:** the tunnel stopped, its temporary URL changed, or the local app is not listening on port 8080. Restart both processes and update `WEB_APP_URL`.
+**Cloudflare returns 1033 or 502:** the tunnel stopped, its temporary URL changed, or the local app is not listening on port 5000 in this workflow. Restart both processes and update `WEB_APP_URL`.
 
 **Categories show but products are empty:** check `GET /app/api/products`, seed the development database, and restart the application so its database pool reloads the data.
 
