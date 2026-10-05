@@ -13,17 +13,17 @@ Ethiopian e-commerce Telegram bot with multi-vendor support. Built with FastAPI 
 ## Running the app
 
 ```
-uvicorn main:app --host 0.0.0.0 --port 5000
+bash start.sh
 ```
 
-Workflow: **Start application** (port 5000, webview output).
+Workflow: **Start application** (port 5000, webview output). The script starts Redis and then runs Uvicorn.
 
 ## Required secrets / env vars
 
 | Key | Where | Notes |
 |-----|-------|-------|
-| `TELEGRAM_BOT_TOKEN` | Replit Secret | Full token from @BotFather, e.g. `1234567890:AAF...` |
-| `ENCRYPTION_KEY` | Replit Secret | Valid Fernet key — generate with `python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `TELEGRAM_BOT_TOKEN` | Replit Secret | Required to enable Telegram bot polling; the web storefront can load without it. |
+| `ENCRYPTION_KEY` | Replit Secret | Required in production. Development creates and persists a local key automatically. |
 
 ## Environment variables (shared)
 
@@ -53,7 +53,8 @@ alembic upgrade head
 
 - **Redis** — optional; app warns and continues if unavailable
 - **Celery / scheduler** — optional; `CELERY_TASK_ALWAYS_EAGER=True` runs tasks inline
-- **ENCRYPTION_KEY** — if invalid, app falls back to a per-session temporary key (development only)
+- **Telegram bot** — if `TELEGRAM_BOT_TOKEN` is absent, bot startup is skipped and the web storefront remains available.
+- **ENCRYPTION_KEY** — development uses a persistent local key; production requires a valid Fernet key.
 
 ## Key import fixes (previous session)
 

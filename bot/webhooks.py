@@ -46,12 +46,14 @@ async def telegram_webhook(
 
         return {"status": "ok"}
 
+    except HTTPException:
+        raise
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON in webhook: {e}")
         raise HTTPException(status_code=400, detail="Invalid JSON") from e
     except Exception as e:
-        logger.error(f"Webhook error: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        logger.exception("Webhook processing failed")
+        raise HTTPException(status_code=500, detail="Webhook processing failed") from e
 
 
 async def process_update(update_data: dict[str, Any]) -> None:

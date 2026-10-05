@@ -6,7 +6,7 @@
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import Depends, Header, Request
+from fastapi import Depends, Header, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -332,11 +332,14 @@ async def verify_webhook_signature(
     Raises:
         AuthenticationError: If signature verification fails
     """
+    if not settings.TELEGRAM_WEBHOOK_SECRET:
+        raise HTTPException(
+            status_code=503,
+            detail="Telegram webhook authentication is not configured",
+        )
+
     if settings.ENVIRONMENT == "development" and settings.DEV_SKIP_MIDDLEWARES:
         return
-
-    if not settings.TELEGRAM_WEBHOOK_SECRET:
-        raise AuthenticationError("Telegram webhook authentication is not configured")
 
     if not x_telegram_secret_token:
         raise AuthenticationError("Missing Telegram webhook secret token")
@@ -389,7 +392,6 @@ __all__ = [
     "get_logger_context",
     "get_optional_user",
     "get_pagination_params",
-    "get_redis_client",
     "get_request_id",
     "get_transaction_session",
     "verify_webhook_signature",

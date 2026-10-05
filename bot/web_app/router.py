@@ -43,6 +43,10 @@ def _verify_telegram_init_data(init_data: str, bot_token: str) -> dict | None:
     Returns the parsed user dict if valid, None otherwise.
     https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
     """
+    # An empty token is a publicly known key. Never verify client data against it.
+    if not bot_token:
+        return None
+
     import time as _time
 
     try:
@@ -54,15 +58,17 @@ def _verify_telegram_init_data(init_data: str, bot_token: str) -> dict | None:
     if not received_hash:
         return None
 
-    # Validate auth_date freshness
+    # Telegram initData must include a fresh auth_date; otherwise a signed payload
+    # could be replayed indefinitely.
     auth_date_str = params.get("auth_date")
-    if auth_date_str:
-        try:
-            auth_date = int(auth_date_str)
-            if abs(_time.time() - auth_date) > _INIT_DATA_MAX_AGE_SECONDS:
-                return None
-        except (ValueError, TypeError):
+    if not auth_date_str:
+        return None
+    try:
+        auth_date = int(auth_date_str)
+        if abs(_time.time() - auth_date) > _INIT_DATA_MAX_AGE_SECONDS:
             return None
+    except (ValueError, TypeError):
+        return None
 
     data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(params.items()))
     secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
@@ -72,12 +78,20 @@ def _verify_telegram_init_data(init_data: str, bot_token: str) -> dict | None:
         return None
 
     user_str = params.get("user")
-    if user_str:
-        try:
-            return json.loads(user_str)
-        except Exception:
-            return None
-    return {}
+    if not user_str:
+        return None
+    try:
+        user = json.loads(user_str)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if (
+        not isinstance(user, dict)
+        or isinstance(user.get("id"), bool)
+        or not isinstance(user.get("id"), int)
+        or user["id"] <= 0
+    ):
+        return None
+    return user
 
 
 # ---------------------------------------------------------------------------
@@ -533,7 +547,7 @@ async def api_checkout(request: Request, body: CheckoutRequest, db=Depends(get_d
     Accepts:
       1. Telegram initData (HMAC-verified) in body.init_data
       2. JWT Bearer token in Authorization header (web-registered users)
-      3. DEBUG fallback to first DB user
+      3. Test-only fallback to the first DB user when no auth token is supplied
     """
     from sqlalchemy import select
 
@@ -570,8 +584,9 @@ async def api_checkout(request: Request, body: CheckoutRequest, db=Depends(get_d
             )
             db_user = result.scalar_one_or_none()
 
-    # ── 3. DEBUG fallback ────────────────────────────────────────────────────
-    if not db_user and settings.DEBUG:
+    # Only allow the fixture fallback in automated tests. DEBUG is not a safe
+    # authentication boundary because development previews can be public.
+    if not db_user and not body.init_data and settings.ENVIRONMENT == "testing":
         result = await db.execute(select(User).limit(1))
         db_user = result.scalar_one_or_none()
 
@@ -599,7 +614,7 @@ async def api_checkout(request: Request, body: CheckoutRequest, db=Depends(get_d
             Product.id.in_(product_ids), Product.is_deleted.is_(False)
         )
     )
-    current_prices = {product_id: price for product_id, price in result.all()}
+    current_prices = dict(result.all())
     if len(current_prices) != len(set(product_ids)):
         raise HTTPException(status_code=400, detail="One or more products are unavailable.")
 
@@ -657,8 +672,8 @@ async def tg_auth(request: Request, db=Depends(get_db_session)):
     Authenticate a Telegram Mini App user via initData HMAC-SHA256 verification.
     Returns a short-lived JWT access token + basic user info.
 
-    In DEBUG mode with empty initData, falls back to the first DB user so the
-    flow is testable directly in the browser without a real Telegram session.
+    In automated tests only, empty initData may use a fixture user. Development
+    and production requests must provide valid Telegram initData.
     """
     try:
         body = await request.json()
@@ -682,8 +697,9 @@ async def tg_auth(request: Request, db=Depends(get_db_session)):
             first_name=tg_user.get("first_name") or "User",
             username=tg_user.get("username"),
         )
-    elif settings.DEBUG:
-        # Dev fallback: use first user in DB (seeded system vendor or real user)
+    elif settings.ENVIRONMENT == "testing":
+        # Test-only fallback; never authenticate public development previews
+        # as the first real user in the database.
         from sqlalchemy import select
 
         from apps.users.models import User
@@ -722,7 +738,7 @@ class MyOrdersRequest(BaseModel):
 async def api_my_orders(body: MyOrdersRequest, db=Depends(get_db_session)):
     """
     Return order history for the Telegram Mini App user.
-    Identifies the user via initData (HMAC-verified), with DEBUG fallback.
+    Identifies the user via initData (HMAC-verified).
     """
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
@@ -733,13 +749,15 @@ async def api_my_orders(body: MyOrdersRequest, db=Depends(get_db_session)):
     tg_user: dict | None = None
     if body.init_data:
         tg_user = _verify_telegram_init_data(body.init_data, settings.TELEGRAM_BOT_TOKEN)
+        if tg_user is None:
+            raise HTTPException(status_code=401, detail="Invalid Telegram auth data")
 
     db_user = None
     if tg_user and tg_user.get("id"):
         user_service = UserService(db)
         db_user = await user_service.get_user_by_telegram(int(tg_user["id"]))
 
-    if not db_user and settings.DEBUG:
+    if not db_user and not body.init_data and settings.ENVIRONMENT == "testing":
         result = await db.execute(select(User).limit(1))
         db_user = result.scalar_one_or_none()
 

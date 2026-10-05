@@ -110,19 +110,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         from bot.bot_instance import init_bot, shutdown_bot
 
-        for attempt in range(3):
-            try:
-                application_instance = await init_bot()
-                logger.info("Telegram bot initialized")
-                break
-            except Exception as net_err:
-                if attempt < 2:
-                    logger.warning(
-                        f"Bot init attempt {attempt + 1} failed, retrying in 3s: {net_err}"
-                    )
-                    await asyncio.sleep(3)
-                else:
-                    raise net_err
+        if not settings.TELEGRAM_BOT_TOKEN:
+            logger.warning(
+                "Telegram bot is disabled because TELEGRAM_BOT_TOKEN is not configured"
+            )
+        else:
+            for attempt in range(3):
+                try:
+                    application_instance = await init_bot()
+                    logger.info("Telegram bot initialized")
+                    break
+                except Exception as net_err:
+                    if attempt < 2:
+                        logger.warning(
+                            f"Bot init attempt {attempt + 1} failed, retrying in 3s: {net_err}"
+                        )
+                        await asyncio.sleep(3)
+                    else:
+                        raise net_err
 
         # Start polling only in development mode (not when deployed) and avoid duplicate local sessions
         _is_deployed = os.environ.get("REPLIT_DEPLOYMENT", "").strip() == "1"

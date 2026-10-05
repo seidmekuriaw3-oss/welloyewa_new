@@ -51,7 +51,14 @@ class TestInventoryService:
         from apps.inventory.services import InventoryService
 
         mock_db = AsyncMock()
-        mock_inventory = Mock(id=1, quantity=100, remove_stock=Mock(return_value=True))
+        mock_inventory = Mock(
+            id=1,
+            quantity=100,
+            available_quantity=100,
+            is_critical_stock=False,
+            is_low_stock=False,
+            remove_stock=Mock(return_value=True),
+        )
         mock_repo = AsyncMock()
         mock_repo.get_by_product.return_value = mock_inventory
 
@@ -109,7 +116,9 @@ class TestInventoryService:
         from apps.inventory.services import InventoryService
 
         mock_db = AsyncMock()
-        mock_reservation = Mock(id=1, inventory_id=1, quantity=10, cancel=Mock())
+        mock_reservation = Mock(
+            id=1, inventory_id=1, quantity=10, status="active", cancel=Mock()
+        )
         mock_inventory = Mock(id=1, reserved_quantity=10, release_reservation=Mock())
         mock_reservation_repo = AsyncMock()
         mock_reservation_repo.get_by_id.return_value = mock_reservation
@@ -162,8 +171,8 @@ class TestStockMovementService:
         mock_repo = AsyncMock()
         mock_movements = [
             Mock(quantity=10, movement_type="restock"),
-            Mock(quantity=5, movement_type="sale"),
-            Mock(quantity=3, movement_type="sale"),
+            Mock(quantity=-5, movement_type="sale"),
+            Mock(quantity=-3, movement_type="sale"),
         ]
         mock_repo.get_by_date_range.return_value = mock_movements
 
@@ -237,7 +246,7 @@ class TestInventoryRepository:
         from apps.inventory.repository import InventoryRepository
 
         mock_db = AsyncMock()
-        mock_result = AsyncMock()
+        mock_result = Mock()
         mock_result.scalars.return_value.all.return_value = []
         mock_db.execute.return_value = mock_result
 
@@ -252,7 +261,7 @@ class TestInventoryRepository:
         from apps.inventory.repository import InventoryRepository
 
         mock_db = AsyncMock()
-        mock_result = AsyncMock()
+        mock_result = Mock()
         mock_row = Mock(
             total_products=100,
             out_of_stock=10,
@@ -283,9 +292,11 @@ class TestInventoryMovementRepository:
         from apps.inventory.repository import InventoryMovementRepository
 
         mock_db = AsyncMock()
-        mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = []
-        mock_db.execute.return_value = mock_result
+        count_result = Mock()
+        count_result.scalar.return_value = 0
+        movement_result = Mock()
+        movement_result.scalars.return_value.all.return_value = []
+        mock_db.execute.side_effect = [count_result, movement_result]
 
         repo = InventoryMovementRepository(mock_db)
         movements, total = await repo.get_by_inventory(inventory_id=1)

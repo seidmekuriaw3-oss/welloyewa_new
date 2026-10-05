@@ -108,9 +108,18 @@ class InventoryRepository(BaseRepository[Inventory]):
 
         query = select(
             func.count().label("total_products"),
-            func.sum(case((Inventory.quantity == 0, 1), else_=0)).label("out_of_stock"),
+            func.sum(case((Inventory.quantity <= 0, 1), else_=0)).label("out_of_stock"),
             func.sum(
-                case((Inventory.quantity <= Inventory.low_stock_threshold, 1), else_=0)
+                case(
+                    (
+                        and_(
+                            Inventory.quantity > 0,
+                            Inventory.quantity <= Inventory.low_stock_threshold,
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
             ).label("low_stock"),
             func.sum(case((Inventory.quantity > 0, 1), else_=0)).label("in_stock"),
             func.sum(Inventory.quantity).label("total_units"),

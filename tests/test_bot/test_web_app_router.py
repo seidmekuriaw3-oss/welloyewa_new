@@ -5,7 +5,7 @@ import hmac
 import json
 import time
 import urllib.parse
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -33,6 +33,7 @@ def test_verify_telegram_init_data_accepts_valid_payload():
     payload = make_init_data(user={"id": 42, "first_name": "A"})
 
     assert _verify_telegram_init_data(payload, "test-token") == {"id": 42, "first_name": "A"}
+    assert _verify_telegram_init_data(payload, "") is None
 
 
 def test_verify_telegram_init_data_rejects_bad_hash_old_and_malformed_payloads():
@@ -61,6 +62,17 @@ def test_verify_telegram_init_data_handles_missing_user_and_invalid_json():
     check = "\n".join(f"{key}={value}" for key, value in sorted(values.items()))
     secret = hmac.new(b"WebAppData", b"test-token", hashlib.sha256).digest()
     values["hash"] = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
+    assert _verify_telegram_init_data(urllib.parse.urlencode(values), "test-token") is None
+
+
+def test_verify_telegram_init_data_rejects_missing_auth_date():
+    from bot.web_app.router import _verify_telegram_init_data
+
+    values = {"query_id": "query-1", "user": json.dumps({"id": 42})}
+    check = "\n".join(f"{key}={value}" for key, value in sorted(values.items()))
+    secret = hmac.new(b"WebAppData", b"test-token", hashlib.sha256).digest()
+    values["hash"] = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
+
     assert _verify_telegram_init_data(urllib.parse.urlencode(values), "test-token") is None
 
 
@@ -158,3 +170,65 @@ def test_web_auth_response_contains_token_and_user_summary():
     assert response["access_token"] == "jwt-token"
     assert response["user"]["full_name"] == "Test User"
     assert response["user"]["email"] == ""
+
+
+@pytest.mark.asyncio
+async def test_tg_auth_does_not_authenticate_as_first_database_user_in_development(monkeypatch):
+    from fastapi import HTTPException
+
+    from bot.web_app.router import tg_auth
+    from core.config import settings
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+    request = Mock()
+    request.json = AsyncMock(return_value={})
+    db = Mock()
+
+    with pytest.raises(HTTPException) as exc:
+        await tg_auth(request, db)
+
+    assert exc.value.status_code == 401
+    db.execute.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_checkout_requires_authentication_in_development(monkeypatch):
+    from fastapi import HTTPException
+
+    from bot.web_app.router import CartItemIn, CheckoutRequest, api_checkout
+    from core.config import settings
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+    request = Mock(headers={})
+    body = CheckoutRequest(
+        items=[CartItemIn(id=1, name="Phone", price=10, qty=1)],
+        full_name="Test User",
+        phone="0912345678",
+        city="Addis Ababa",
+        address="Main street",
+        payment_method="cod",
+    )
+    db = Mock()
+
+    with pytest.raises(HTTPException) as exc:
+        await api_checkout(request, body, db)
+
+    assert exc.value.status_code == 401
+    db.execute.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_my_orders_requires_telegram_authentication_in_development(monkeypatch):
+    from fastapi import HTTPException
+
+    from bot.web_app.router import MyOrdersRequest, api_my_orders
+    from core.config import settings
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+    db = Mock()
+
+    with pytest.raises(HTTPException) as exc:
+        await api_my_orders(MyOrdersRequest(), db)
+
+    assert exc.value.status_code == 401
+    db.execute.assert_not_called()

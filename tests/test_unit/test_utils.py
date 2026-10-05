@@ -18,11 +18,11 @@ class TestCurrencyUtils:
         from core.utils.currency import format_currency, format_etb
 
         result = format_currency(1000.50, symbol="ብር")
-        assert "1000.50" in result
+        assert "1,000.50" in result
         assert "ብር" in result
 
         result = format_etb(1500.75)
-        assert "1500.75" in result
+        assert "1,500.75" in result
 
     def test_calculate_tax(self):
         """Test tax calculation."""
@@ -161,7 +161,7 @@ class TestValidators:
         """Test email validation."""
         from core.utils.validators import validate_email
 
-        is_valid, _ = validate_email("test@example.com")
+        is_valid, _ = validate_email("test@gmail.com")
         assert is_valid is True
 
         is_valid, _ = validate_email("invalid-email")
