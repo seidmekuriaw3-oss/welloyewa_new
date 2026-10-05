@@ -152,6 +152,47 @@ class ProductRepository(BaseRepository[Product]):
         result = await self.db.execute(stmt)
         return result.scalars().all()
 
+    async def search_with_count(
+        self,
+        query: str,
+        category: str | None = None,
+        min_price: float | None = None,
+        max_price: float | None = None,
+        vendor_id: int | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Product], int]:
+        """Search products and return the filtered total before pagination."""
+        search_pattern = f"%{query}%"
+        conditions = [
+            Product.status == ProductStatus.ACTIVE.value,
+            Product.is_deleted.is_(False),
+            or_(
+                Product.name.ilike(search_pattern),
+                Product.name_am.ilike(search_pattern),
+                Product.description.ilike(search_pattern),
+                Product.tags.cast(String).ilike(search_pattern),
+            ),
+        ]
+        if category:
+            conditions.append(Product.category == category)
+        if min_price is not None:
+            conditions.append(Product.price >= min_price)
+        if max_price is not None:
+            conditions.append(Product.price <= max_price)
+        if vendor_id is not None:
+            conditions.append(Product.vendor_id == vendor_id)
+
+        filtered = select(Product).where(and_(*conditions))
+        count_result = await self.db.execute(
+            select(func.count(Product.id)).where(and_(*conditions))
+        )
+        total = count_result.scalar_one()
+        result = await self.db.execute(
+            filtered.order_by(Product.sales_count.desc()).offset(offset).limit(limit)
+        )
+        return result.scalars().all(), total
+
     async def get_low_stock_products(
         self,
         vendor_id: int | None = None,

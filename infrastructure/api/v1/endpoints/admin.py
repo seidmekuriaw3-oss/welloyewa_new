@@ -182,14 +182,10 @@ async def admin_get_users(
     """
     user_service = UserService(db)
 
-    filters = {}
-    if role:
-        filters["role"] = role
-    if status_filter:
-        filters["status"] = status_filter
-
-    users, total = await user_service.user_repo.get_all_with_count(
-        filters=filters,
+    users, total = await user_service.user_repo.list_with_filters(
+        role=role,
+        status=status_filter,
+        search=search,
         limit=page_size,
         offset=(page - 1) * page_size,
     )

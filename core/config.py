@@ -5,8 +5,10 @@
 
 import secrets
 from functools import lru_cache
+from urllib.parse import quote, urlsplit
 
-from pydantic import Field, field_validator
+from cryptography.fernet import Fernet
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -77,6 +79,8 @@ class Settings(BaseSettings):
                 url = url.replace("postgres://", "postgresql+asyncpg://", 1)
             return url
         data = info.data
+        if data.get("ENVIRONMENT") == "testing":
+            return "sqlite+aiosqlite:///./test.db"
         return f"postgresql+asyncpg://{data.get('POSTGRES_USER')}:{data.get('POSTGRES_PASSWORD')}@{data.get('POSTGRES_HOST')}:{data.get('POSTGRES_PORT')}/{data.get('POSTGRES_DB')}"
 
     # ============================
@@ -97,7 +101,8 @@ class Settings(BaseSettings):
         if v:
             return v
         data = info.data
-        password = f":{data.get('REDIS_PASSWORD')}@" if data.get("REDIS_PASSWORD") else ""
+        raw_password = data.get("REDIS_PASSWORD")
+        password = f":{quote(str(raw_password), safe='')}@" if raw_password else ""
         return f"redis://{password}{data.get('REDIS_HOST')}:{data.get('REDIS_PORT')}/{data.get('REDIS_DB')}"
 
     # ============================
@@ -148,11 +153,43 @@ class Settings(BaseSettings):
     def web_app_url(self) -> str:
         """Public URL for the Telegram Mini App store page."""
         if self.WEB_APP_URL:
-            return self.WEB_APP_URL.rstrip("/") + "/"
+            url = self.WEB_APP_URL.strip()
+            return url.rstrip("/") + "/" if url else ""
         if self.REPLIT_DOMAINS:
             domain = self.REPLIT_DOMAINS.split(",")[0].strip()
-            return f"https://{domain}/app/"
-        return f"http://localhost:{self.PORT}/app/"
+            return f"https://{domain}/app/" if domain else ""
+        return ""
+
+    @web_app_url.setter
+    def web_app_url(self, value: str | None) -> None:
+        normalized = value.strip() if value else ""
+        parsed = urlsplit(normalized)
+        if parsed.scheme != "https" or not parsed.netloc:
+            self.WEB_APP_URL = None
+            return
+        self.WEB_APP_URL = normalized.rstrip("/") + "/"
+
+    @web_app_url.deleter
+    def web_app_url(self) -> None:
+        self.WEB_APP_URL = None
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if name == "web_app_url":
+            normalized = value.strip() if isinstance(value, str) else ""
+            parsed = urlsplit(normalized)
+            self.WEB_APP_URL = (
+                normalized.rstrip("/") + "/"
+                if parsed.scheme == "https" and parsed.netloc
+                else None
+            )
+            return
+        super().__setattr__(name, value)
+
+    def __delattr__(self, name: str) -> None:
+        if name == "web_app_url":
+            self.WEB_APP_URL = None
+            return
+        super().__delattr__(name)
 
     # Cloudinary
     CLOUDINARY_CLOUD_NAME: str | None = Field(default=None)
@@ -192,8 +229,8 @@ class Settings(BaseSettings):
     # Rate Limiting
     # ============================
     RATE_LIMIT_ENABLED: bool = Field(default=True)
-    RATE_LIMIT_PER_MINUTE: int = Field(default=60)
-    RATE_LIMIT_PER_HOUR: int = Field(default=1000)
+    RATE_LIMIT_PER_MINUTE: int = Field(default=60, gt=0)
+    RATE_LIMIT_PER_HOUR: int = Field(default=1000, gt=0)
     RATE_LIMIT_STRATEGY: str = Field(default="sliding_window")
 
     # ============================
@@ -232,6 +269,95 @@ class Settings(BaseSettings):
         if info.data.get("ENVIRONMENT") == "production" and not v:
             raise ValueError("SECRET_KEY and JWT_SECRET_KEY must be set in production.")
         return v or secrets.token_urlsafe(32)
+
+    @model_validator(mode="after")
+    def validate_production_configuration(self):
+        """Reject insecure production defaults and derive allowlists from Replit domains."""
+        if self.ENVIRONMENT != "production":
+            return self
+
+        required = (
+            "SECRET_KEY",
+            "JWT_SECRET_KEY",
+            "ENCRYPTION_KEY",
+            "DATABASE_URL",
+            "REDIS_URL",
+            "TELEGRAM_BOT_TOKEN",
+            "TELEGRAM_WEBHOOK_SECRET",
+            "ADMIN_IDS",
+        )
+        missing = [
+            name
+            for name in required
+            if name not in self.model_fields_set or not getattr(self, name)
+        ]
+        if missing:
+            raise ValueError(
+                "Production requires non-empty, explicitly configured values for: "
+                + ", ".join(missing)
+            )
+
+        if self.SECRET_KEY == self.JWT_SECRET_KEY:
+            raise ValueError("SECRET_KEY and JWT_SECRET_KEY must be different values.")
+        if self.DEV_SKIP_MIDDLEWARES:
+            raise ValueError("DEV_SKIP_MIDDLEWARES must be False in production.")
+        if self.DEV_FAKE_PAYMENT or self.DEV_POPULATE_DUMMY_DATA:
+            raise ValueError(
+                "DEV_FAKE_PAYMENT and DEV_POPULATE_DUMMY_DATA must be False in production."
+            )
+        if not self.RATE_LIMIT_ENABLED:
+            raise ValueError("RATE_LIMIT_ENABLED must be True in production.")
+        try:
+            if not self.admin_ids_list:
+                raise ValueError("ADMIN_IDS must include at least one numeric administrator ID.")
+        except ValueError as exc:
+            raise ValueError("ADMIN_IDS must contain only comma-separated numeric IDs.") from exc
+
+        for name, value in (
+            ("SECRET_KEY", self.SECRET_KEY),
+            ("JWT_SECRET_KEY", self.JWT_SECRET_KEY),
+            ("TELEGRAM_WEBHOOK_SECRET", self.TELEGRAM_WEBHOOK_SECRET),
+            ("TELEGRAM_BOT_TOKEN", self.TELEGRAM_BOT_TOKEN),
+            ("DATABASE_URL", self.DATABASE_URL or ""),
+            ("REDIS_URL", self.REDIS_URL or ""),
+        ):
+            if not value or "CHANGE_ME" in value:
+                raise ValueError(f"{name} must be configured and cannot contain a CHANGE_ME placeholder.")
+            if name in {"SECRET_KEY", "JWT_SECRET_KEY", "TELEGRAM_WEBHOOK_SECRET"} and len(value) < 32:
+                raise ValueError(f"{name} must be at least 32 characters long.")
+
+        try:
+            Fernet(self.ENCRYPTION_KEY.encode("utf-8"))
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise ValueError("ENCRYPTION_KEY must be a valid Fernet key.") from exc
+
+        domains = []
+        if self.REPLIT_DOMAINS:
+            domains = [
+                entry.strip().split("://")[-1].split("/")[0].split(":")[0]
+                for entry in self.REPLIT_DOMAINS.split(",")
+                if entry.strip()
+            ]
+        elif self.WEB_APP_URL:
+            host = self.WEB_APP_URL.split("://")[-1].split("/")[0].split(":")[0]
+            if host:
+                domains = [host]
+
+        if domains:
+            if self.CORS_ALLOWED_ORIGINS == ["*"]:
+                self.CORS_ALLOWED_ORIGINS = [f"https://{domain}" for domain in domains]
+            if self.ALLOWED_HOSTS == ["*"]:
+                self.ALLOWED_HOSTS = domains
+
+        if not self.CORS_ALLOWED_ORIGINS or "*" in self.CORS_ALLOWED_ORIGINS:
+            raise ValueError(
+                "Production requires CORS_ALLOWED_ORIGINS to be an explicit origin allowlist."
+            )
+        if not self.ALLOWED_HOSTS or "*" in self.ALLOWED_HOSTS:
+            raise ValueError(
+                "Production requires ALLOWED_HOSTS to be an explicit host allowlist."
+            )
+        return self
 
     # ============================
     # Feature Flags
@@ -289,7 +415,7 @@ class Settings(BaseSettings):
     # Development Only
     # ============================
     DEV_FAKE_PAYMENT: bool = Field(default=False)
-    DEV_POPULATE_DUMMY_DATA: bool = Field(default=True)
+    DEV_POPULATE_DUMMY_DATA: bool = Field(default=False)
     DEV_SKIP_MIDDLEWARES: bool = Field(default=False)
 
     @property

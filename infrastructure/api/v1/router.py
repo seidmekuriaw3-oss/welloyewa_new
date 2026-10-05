@@ -3,7 +3,12 @@
 # ============================
 """Main API router aggregating all endpoint routers."""
 
-from fastapi import APIRouter
+from functools import partial
+
+from fastapi import APIRouter, Depends
+
+from core.config import settings
+from core.dependencies import check_rate_limit
 
 from infrastructure.api.v1.endpoints import (
     admin,
@@ -17,8 +22,27 @@ from infrastructure.api.v1.endpoints import (
     webhook,
 )
 
-# Create main API router
-api_router = APIRouter()
+# Apply shared, configured limits without exposing limits as caller-controlled query params.
+api_router = APIRouter(
+    dependencies=[
+        Depends(
+            partial(
+                check_rate_limit,
+                key_prefix="api:minute",
+                limit=settings.RATE_LIMIT_PER_MINUTE,
+                window=60,
+            )
+        ),
+        Depends(
+            partial(
+                check_rate_limit,
+                key_prefix="api:hour",
+                limit=settings.RATE_LIMIT_PER_HOUR,
+                window=3600,
+            )
+        ),
+    ]
+)
 
 # Include all endpoint routers
 api_router.include_router(health.router, prefix="/health", tags=["Health"])

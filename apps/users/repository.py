@@ -6,7 +6,7 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.common.repository import BaseRepository
@@ -110,6 +110,46 @@ class UserRepository(BaseRepository[User]):
 
         result = await self.db.execute(stmt)
         return result.scalars().all()
+
+    async def list_with_filters(
+        self,
+        *,
+        role: str | None = None,
+        status: str | None = None,
+        search: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[User], int]:
+        """List users with role/status/search filters and an accurate total."""
+        conditions = [User.is_deleted.is_(False)]
+        if role:
+            conditions.append(User.role == role)
+        if status:
+            conditions.append(User.status == status)
+        if search:
+            pattern = f"%{search.strip()}%"
+            conditions.append(
+                or_(
+                    User.first_name.ilike(pattern),
+                    User.last_name.ilike(pattern),
+                    User.username.ilike(pattern),
+                    User.phone_number.ilike(pattern),
+                    User.email.ilike(pattern),
+                )
+            )
+
+        count_result = await self.db.execute(
+            select(func.count(User.id)).where(and_(*conditions))
+        )
+        total = count_result.scalar_one()
+        result = await self.db.execute(
+            select(User)
+            .where(and_(*conditions))
+            .order_by(User.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return result.scalars().all(), total
 
 
 class VendorRepository(BaseRepository[Vendor]):

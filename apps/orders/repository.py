@@ -26,6 +26,12 @@ class OrderRepository(BaseRepository[Order]):
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
+    async def get_by_payment_transaction_id(self, transaction_id: str) -> Order | None:
+        """Get the order associated with a stored payment transaction."""
+        query = select(Order).where(Order.payment_transaction_id == transaction_id)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
     async def get_by_user(
         self,
         user_id: int,

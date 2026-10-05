@@ -26,6 +26,17 @@ from core.exceptions import InsufficientStockError, NotFoundError, PermissionErr
 router = APIRouter()
 
 
+def _serialize_vendor_order(order, vendor_id: int) -> OrderResponse:
+    """Serialize an order with only the authenticated vendor's line items."""
+    response = OrderResponse.model_validate(order)
+    response.items = [
+        serialized
+        for serialized, item in zip(response.items, order.items)
+        if item.vendor_id == vendor_id
+    ]
+    return response
+
+
 # ============================
 # Order Endpoints
 # ============================
@@ -76,7 +87,10 @@ async def get_my_orders(
     )
 
     return PaginatedResponse.create(
-        items=[OrderResponse.model_validate(o) for o in orders],
+        items=[
+            _serialize_vendor_order(order, current_user["vendor_id"])
+            for order in orders
+        ],
         total=total,
         page=page,
         page_size=page_size,
@@ -98,7 +112,7 @@ async def get_order(
 
     try:
         order = await order_service.get_order(order_id, current_user["id"])
-        return OrderResponse.model_validate(order)
+        return _serialize_vendor_order(order, current_user["vendor_id"])
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except PermissionError as e:
@@ -193,7 +207,10 @@ async def get_vendor_orders(
     )
 
     return PaginatedResponse.create(
-        items=[OrderResponse.model_validate(o) for o in orders],
+        items=[
+            _serialize_vendor_order(order, current_user["vendor_id"])
+            for order in orders
+        ],
         total=total,
         page=page,
         page_size=page_size,
@@ -218,7 +235,7 @@ async def update_order_status(
         order = await order_service.update_vendor_order_status(
             order_id, current_user["vendor_id"], data, current_user["id"]
         )
-        return OrderResponse.model_validate(order)
+        return _serialize_vendor_order(order, current_user["vendor_id"])
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except (ValidationError, PermissionError) as e:

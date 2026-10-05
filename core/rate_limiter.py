@@ -306,7 +306,6 @@ class RateLimiter:
         try:
             redis_key = f"rate_limit:{key}"
             current_time = time.time()
-            window_start = current_time - window
 
             # Use Redis sorted set for sliding window
             if strategy == RateLimitStrategy.SLIDING_WINDOW:

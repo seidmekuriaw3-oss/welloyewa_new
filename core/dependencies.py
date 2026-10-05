@@ -13,9 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import settings
 from core.exceptions import AuthenticationError, PermissionError, RateLimitError
 from core.logger import LoggerContext, request_id_var
+from core.rate_limiter import rate_limiter
 from core.security import verify_telegram_webhook, verify_token
 from infrastructure.database.session import get_db_session
-from infrastructure.redis.client import RedisClient, get_redis_client
 
 # ============================
 # Security Dependencies
@@ -241,17 +241,15 @@ async def get_logger_context(
 
 async def check_rate_limit(
     request: Request,
-    redis: RedisClient = Depends(get_redis_client),
     key_prefix: str = "rate_limit",
-    limit: int = 60,
-    window: int = 60,
+    limit: int | None = None,
+    window: int | None = None,
 ) -> None:
     """
     Check if request is within rate limits.
 
     Args:
         request: FastAPI request object
-        redis: Redis client
         key_prefix: Prefix for rate limit key
         limit: Maximum requests allowed
         window: Time window in seconds
@@ -263,19 +261,19 @@ async def check_rate_limit(
         return
 
     # Get client identifier (IP or user ID)
-    client_id = request.client.host
+    client_id = request.client.host if request.client else "unknown"
     if hasattr(request, "state") and hasattr(request.state, "user_id"):
         client_id = f"user_{request.state.user_id}"
 
     key = f"{key_prefix}:{client_id}"
 
-    # Use Redis for rate limiting
-    current = await redis.incr(key)
-    if current == 1:
-        await redis.expire(key, window)
-
-    if current > limit:
-        raise RateLimitError(retry_after=window)
+    allowed, _, retry_after = await rate_limiter.check(
+        key,
+        limit=limit or settings.RATE_LIMIT_PER_MINUTE,
+        window=window or 60,
+    )
+    if not allowed:
+        raise RateLimitError(retry_after=retry_after or window or 60)
 
 
 # ============================
@@ -338,7 +336,7 @@ async def verify_webhook_signature(
         return
 
     if not settings.TELEGRAM_WEBHOOK_SECRET:
-        return
+        raise AuthenticationError("Telegram webhook authentication is not configured")
 
     if not x_telegram_secret_token:
         raise AuthenticationError("Missing Telegram webhook secret token")

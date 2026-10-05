@@ -32,15 +32,19 @@ class PaymentVerifyResponse(BaseModel):
 
 
 class PaymentRefundRequest(BaseModel):
-    transaction_id: str = Field(..., description="Transaction ID to refund")
-    amount: Decimal | None = Field(None, description="Amount to refund (full refund if None)")
+    order_id: int = Field(..., description="Order ID to refund")
+    amount: Decimal | None = Field(
+        None, gt=0, description="Amount to refund (remaining balance if omitted)"
+    )
     reason: str | None = Field(None, description="Reason for refund")
+    notes: str | None = None
 
 
 class PaymentRefundResponse(BaseModel):
     success: bool
     refund_id: str | None = None
     status: str | None = None
+    amount: float | None = None
     message: str | None = None
 
 

@@ -4,17 +4,22 @@ from pydantic import ValidationError
 
 from core.config import Settings, get_settings
 
+PRODUCTION_VALUES = {
+    "SECRET_KEY": "s" * 32,
+    "JWT_SECRET_KEY": "j" * 32,
+    "ENCRYPTION_KEY": "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=",
+    "DATABASE_URL": "postgresql+asyncpg://app:password@db/store",
+    "REDIS_URL": "redis://cache:6379/0",
+    "TELEGRAM_BOT_TOKEN": "123456789:telegram-test-token-for-settings",
+    "TELEGRAM_WEBHOOK_SECRET": "t" * 32,
+    "ADMIN_IDS": "123456789",
+    "CORS_ALLOWED_ORIGINS": ["https://store.example"],
+    "ALLOWED_HOSTS": ["store.example"],
+}
+
 
 def test_environment_and_runtime_properties():
-    settings = Settings(
-        ENVIRONMENT="production",
-        DEBUG=False,
-        SECRET_KEY="s" * 32,
-        JWT_SECRET_KEY="j" * 32,
-        CORS_ALLOWED_ORIGINS=["https://store.example"],
-        ALLOWED_HOSTS=["store.example"],
-        _env_file=None,
-    )
+    settings = Settings(**PRODUCTION_VALUES, ENVIRONMENT="production", DEBUG=False, _env_file=None)
 
     assert settings.is_production is True
     assert settings.is_development is False
@@ -32,6 +37,12 @@ def test_production_requires_secrets_and_restricted_origins(monkeypatch):
         "ALLOWED_HOSTS",
         "TELEGRAM_BOT_TOKEN",
         "TELEGRAM_WEBHOOK_SECRET",
+        "ENCRYPTION_KEY",
+        "DATABASE_URL",
+        "REDIS_URL",
+        "ADMIN_IDS",
+        "REPLIT_DOMAINS",
+        "WEB_APP_URL",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -44,12 +55,12 @@ def test_production_requires_secrets_and_restricted_origins(monkeypatch):
 
     try:
         Settings(
+            **{
+                **PRODUCTION_VALUES,
+                "CORS_ALLOWED_ORIGINS": ["*"],
+            },
             ENVIRONMENT="production",
             DEBUG=False,
-            SECRET_KEY="s" * 32,
-            JWT_SECRET_KEY="j" * 32,
-            CORS_ALLOWED_ORIGINS=["*"],
-            ALLOWED_HOSTS=["store.example"],
             _env_file=None,
         )
     except ValidationError as error:
@@ -59,13 +70,13 @@ def test_production_requires_secrets_and_restricted_origins(monkeypatch):
 
     try:
         Settings(
+            **{
+                key: value
+                for key, value in PRODUCTION_VALUES.items()
+                if key != "TELEGRAM_WEBHOOK_SECRET"
+            },
             ENVIRONMENT="production",
             DEBUG=False,
-            SECRET_KEY="s" * 32,
-            JWT_SECRET_KEY="j" * 32,
-            TELEGRAM_BOT_TOKEN="configured-bot-token",
-            CORS_ALLOWED_ORIGINS=["https://store.example"],
-            ALLOWED_HOSTS=["store.example"],
             _env_file=None,
         )
     except ValidationError as error:
@@ -105,7 +116,7 @@ def test_database_url_builder_supports_raw_and_testing_values():
         POSTGRES_HOST="postgres",
         _env_file=None,
     )
-    assert compose.DATABASE_URL == "postgresql+asyncpg://user:pass@postgres/shop"
+    assert compose.DATABASE_URL == "postgresql+asyncpg://user:pass@localhost/shop"
 
 
 def test_redis_and_celery_url_builders(monkeypatch):
@@ -134,7 +145,7 @@ def test_redis_and_celery_url_builders(monkeypatch):
     assert no_password.CELERY_RESULT_BACKEND == no_password.REDIS_URL
 
     compose = Settings(
-        REDIS_URL="redis://localhost:6379/0",
+        REDIS_URL=None,
         REDIS_HOST="redis",
         REDIS_PASSWORD="p@ss/word",
         _env_file=None,
@@ -165,7 +176,11 @@ def test_settings_parse_lists_and_admin_ids():
 
 
 def test_web_app_url_normalization_and_setter():
-    settings = Settings(WEB_APP_URL=" https://store.example/app/// ")
+    settings = Settings(
+        WEB_APP_URL=" https://store.example/app/// ",
+        REPLIT_DOMAINS=None,
+        _env_file=None,
+    )
     assert settings.web_app_url == "https://store.example/app/"
 
     settings.web_app_url = "https://new.example/shop"

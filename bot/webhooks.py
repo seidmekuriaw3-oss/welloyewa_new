@@ -6,18 +6,19 @@
 import json
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from telegram import Update
 
 from bot.bot_instance import get_dispatcher
 from core.config import settings
+from core.dependencies import verify_webhook_signature
 from core.logger import logger
 from core.security import verify_telegram_webhook
 
 router = APIRouter()
 
 
-@router.post("/telegram")
+@router.post("/telegram", dependencies=[Depends(verify_webhook_signature)])
 async def telegram_webhook(
     request: Request,
     background_tasks: BackgroundTasks,
