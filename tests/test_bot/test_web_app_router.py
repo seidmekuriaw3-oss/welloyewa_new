@@ -134,6 +134,100 @@ async def test_product_page_includes_product_id():
     assert response.context["product_id"] == 17
 
 
+@pytest.mark.asyncio
+async def test_web_categories_returns_nested_tree_with_active_product_counts():
+    from types import SimpleNamespace
+
+    from bot.web_app.router import get_categories
+
+    root = SimpleNamespace(
+        id=1,
+        name="Home",
+        name_am="ቤት",
+        slug="home",
+        parent_id=None,
+        description=None,
+        description_am=None,
+        icon_url=None,
+        image_url=None,
+        is_featured=True,
+        display_order=1,
+    )
+    child = SimpleNamespace(
+        id=2,
+        name="Kitchen",
+        name_am="ወጥ ቤት",
+        slug="kitchen",
+        parent_id=1,
+        description=None,
+        description_am=None,
+        icon_url=None,
+        image_url="/images/kitchen.png",
+        is_featured=False,
+        display_order=2,
+    )
+    query_result = Mock()
+    query_result.all.return_value = [(root, 2), (child, 3)]
+    db = Mock()
+    db.execute = AsyncMock(return_value=query_result)
+
+    categories = await get_categories(db)
+
+    assert len(categories) == 1
+    assert categories[0]["id"] == 1
+    assert categories[0]["product_count"] == 5
+    assert categories[0]["direct_product_count"] == 2
+    assert categories[0]["children"][0]["id"] == 2
+    assert categories[0]["children"][0]["product_count"] == 3
+
+
+@pytest.mark.asyncio
+async def test_web_products_filter_category_includes_active_descendants():
+    from decimal import Decimal
+    from types import SimpleNamespace
+
+    from bot.web_app.router import get_products
+
+    categories_result = Mock()
+    categories_result.all.return_value = [
+        SimpleNamespace(id=1, parent_id=None),
+        SimpleNamespace(id=2, parent_id=1),
+        SimpleNamespace(id=3, parent_id=2),
+    ]
+    count_result = Mock()
+    count_result.scalar.return_value = 1
+    product_result = Mock()
+    product_result.scalars.return_value.all.return_value = [
+        SimpleNamespace(
+            id=17,
+            name="Kettle",
+            name_am="የውሃ ማፍያ",
+            slug="kettle",
+            description="",
+            price=Decimal("125.00"),
+            compare_price=None,
+            stock_quantity=4,
+            images=[],
+            status="active",
+            is_featured=False,
+            category_id=3,
+            category_type="",
+        )
+    ]
+    db = Mock()
+    db.execute = AsyncMock(side_effect=[categories_result, count_result, product_result])
+
+    response = await get_products(page=1, page_size=20, category_id=1, db=db)
+    payload = json.loads(response.body)
+    count_query = db.execute.await_args_list[1].args[0]
+    bound_values = count_query.compile().params.values()
+
+    assert payload["total"] == 1
+    assert payload["items"][0]["category_id"] == 3
+    assert [1, 2, 3] in bound_values
+    assert "active" in bound_values
+
+
 def test_bearer_user_parser_handles_valid_invalid_and_missing_tokens():
     from bot.web_app.router import _user_from_bearer
 

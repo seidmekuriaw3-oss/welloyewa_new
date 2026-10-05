@@ -9,8 +9,9 @@ import json
 import urllib.parse
 from decimal import Decimal
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -366,52 +367,104 @@ async def api_web_login(body: WebLoginRequest, db=Depends(get_db_session)):
 @web_app_router.get("/api/categories")
 async def get_categories(db=Depends(get_db_session)):
     """Get categories for web app with live product counts."""
-    from sqlalchemy import func, select
+    from sqlalchemy import and_, func, select
 
     from apps.products.models import Category, Product
+    from core.constants import ProductStatus
 
     result = await db.execute(
         select(
             Category,
             func.count(Product.id).label("live_count"),
         )
-        .outerjoin(Product, (Product.category_id == Category.id) & Product.is_deleted.is_(False))
-        .where(Category.is_active)
+        .outerjoin(
+            Product,
+            and_(
+                Product.category_id == Category.id,
+                Product.is_deleted.is_(False),
+                Product.status == ProductStatus.ACTIVE,
+            ),
+        )
+        .where(Category.is_active.is_(True))
         .group_by(Category.id)
-        .order_by(Category.name)
+        .order_by(Category.display_order, Category.name)
     )
     rows = result.all()
-    return [
-        {
-            "id": cat.id,
-            "name": cat.name,
-            "name_am": cat.name_am or "",
-            "slug": cat.slug or cat.name,
-            "icon_url": getattr(cat, "icon_url", "") or "",
-            "image_url": getattr(cat, "image_url", "") or "",
-            "product_count": count,
-            "is_featured": getattr(cat, "is_featured", False),
+
+    nodes = {}
+    ordered_ids = []
+    for category, direct_count in rows:
+        node = {
+            "id": category.id,
+            "name": category.name,
+            "name_am": category.name_am or "",
+            "slug": category.slug or category.name,
+            "parent_id": category.parent_id,
+            "description": category.description or "",
+            "description_am": category.description_am or "",
+            "icon_url": category.icon_url or "",
+            "image_url": category.image_url or "",
+            "direct_product_count": int(direct_count or 0),
+            "product_count": int(direct_count or 0),
+            "is_featured": category.is_featured,
+            "display_order": category.display_order,
+            "children": [],
         }
-        for cat, count in rows
-    ]
+        nodes[category.id] = node
+        ordered_ids.append(category.id)
+
+    roots = []
+    for category_id in ordered_ids:
+        node = nodes[category_id]
+        parent_id = node["parent_id"]
+        seen = {category_id}
+        ancestor_id = parent_id
+        has_cycle = False
+        while ancestor_id in nodes:
+            if ancestor_id in seen:
+                has_cycle = True
+                break
+            seen.add(ancestor_id)
+            ancestor_id = nodes[ancestor_id]["parent_id"]
+
+        if parent_id in nodes and not has_cycle:
+            nodes[parent_id]["children"].append(node)
+        else:
+            roots.append(node)
+
+    def add_child_counts(node: dict) -> int:
+        count = node["direct_product_count"] + sum(
+            add_child_counts(child) for child in node["children"]
+        )
+        node["product_count"] = count
+        return count
+
+    for root in roots:
+        add_child_counts(root)
+
+    return roots
 
 
 @web_app_router.get("/api/products")
 async def get_products(
-    page: int = 1,
-    page_size: int = 20,
-    q: str = "",
-    category_id: int | None = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+    q: Annotated[str, Query(max_length=120)] = "",
+    category_id: Annotated[int | None, Query(ge=1)] = None,
     db=Depends(get_db_session),
 ):
     """Get products for web app with optional search and category filter."""
     from fastapi.responses import JSONResponse
-    from sqlalchemy import func, or_, select
+    from sqlalchemy import false, func, or_, select
 
-    from apps.products.models import Product
+    from apps.products.models import Category, Product
+    from core.constants import ProductStatus
 
     q = q.strip()
-    conditions = [Product.is_deleted.is_(False)]
+    conditions = [
+        Product.is_deleted.is_(False),
+        Product.status == ProductStatus.ACTIVE,
+    ]
 
     if q:
         pattern = f"%{q}%"
@@ -422,7 +475,30 @@ async def get_products(
             )
         )
     if category_id is not None:
-        conditions.append(Product.category_id == category_id)
+        category_result = await db.execute(
+            select(Category.id, Category.parent_id).where(Category.is_active.is_(True))
+        )
+        category_rows = category_result.all()
+        active_parent_ids = {row.id: row.parent_id for row in category_rows}
+
+        if category_id not in active_parent_ids:
+            conditions.append(false())
+        else:
+            children_by_parent: dict[int, list[int]] = {}
+            for child_id, parent_id in active_parent_ids.items():
+                if parent_id is not None:
+                    children_by_parent.setdefault(parent_id, []).append(child_id)
+
+            category_ids = {category_id}
+            pending = [category_id]
+            while pending:
+                current_id = pending.pop()
+                for child_id in children_by_parent.get(current_id, []):
+                    if child_id not in category_ids:
+                        category_ids.add(child_id)
+                        pending.append(child_id)
+
+            conditions.append(Product.category_id.in_(sorted(category_ids)))
 
     count_stmt = select(func.count()).select_from(Product).where(*conditions)
     total_result = await db.execute(count_stmt)

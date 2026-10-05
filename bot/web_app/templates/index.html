@@ -24,8 +24,8 @@
 <!-- ── Categories Row ─────────────────────────────────────────── -->
 <div class="section" style="padding-bottom:0">
     <div class="section-title">
-        📦 ምድቦቸ
-        <a href="/app/categories" style="margin-left:auto;font-size:13px;font-weight:600;color:var(--primary);text-decoration:none">ሁሉ ምርቶቸ →</a>
+        📦 ምድቦች
+        <a href="/app/categories" style="margin-left:auto;font-size:13px;font-weight:600;color:var(--primary);text-decoration:none">ሁሉንም ምድቦች →</a>
     </div>
     <div class="category-grid" id="homeCatGrid">
         <div style="grid-column:1/-1;text-align:center;padding:12px;color:var(--text-muted);font-size:13px">እየጫናን…</div>
@@ -51,68 +51,116 @@
 
 {% block scripts %}
 <script>
-// ── Category icon map ────────────────────────────────────────────
 const CAT_ICONS = {
-    'electronics':'📱','clothing':'👕','food':'🍎','food & drinks':'🍎',
-    'books':'📚','beauty':'💄','health':'💊','home':'🏠','home & living':'🏠',
-    'sports':'⚽','toys':'🧸','automotive':'🚗','agriculture':'🌾',
+    electronics: '📱', clothing: '👕', food: '🍎', 'food & drinks': '🍎',
+    books: '📚', beauty: '💄', health: '💊', home: '🏠', 'home & living': '🏠',
+    sports: '⚽', toys: '🧸', automotive: '🚗', agriculture: '🌾',
 };
-function catIcon(name) {
-    if (!name) return '🛍️';
-    const k = name.toLowerCase();
-    return CAT_ICONS[k] || Object.keys(CAT_ICONS).reduce(
-        (f, key) => (!f && k.includes(key)) ? CAT_ICONS[key] : f, '') || '🛍️';
-}
+const PAGE_SIZE = 20;
+const urlParams = new URLSearchParams(window.location.search);
+const initialQuery = (urlParams.get('q') || '').trim();
+const rawCategoryId = urlParams.get('category');
+const numericCategoryId = Number(rawCategoryId);
 
-// ── State ────────────────────────────────────────────────────────
 let allProds = [];
 let filteredProds = [];
-let activeCatId = null;
-let displayPage = 1;
-const PAGE_SIZE = 20;
+let activeCatId = rawCategoryId && Number.isSafeInteger(numericCategoryId) && numericCategoryId > 0
+    ? numericCategoryId
+    : null;
+let currentSearch = initialQuery;
+let displayedPage = 0;
+let totalProducts = 0;
+let hasMoreProducts = false;
+let loadingMoreProducts = false;
+let productRequestId = 0;
+let productSearchTimer = null;
 
-// ── Read URL params ──────────────────────────────────────────────
-const _urlParams = new URLSearchParams(window.location.search);
-const _initQ   = (_urlParams.get('q') || '').trim();
-const _initCat = _urlParams.get('category') ? parseInt(_urlParams.get('category')) : null;
+function catIcon(name) {
+    const normalized = String(name || '').toLowerCase();
+    const match = Object.keys(CAT_ICONS).find(key => normalized.includes(key));
+    return CAT_ICONS[normalized] || (match ? CAT_ICONS[match] : '🛍️');
+}
 
-// ── Render product cards ─────────────────────────────────────────
-function renderProds(reset) {
-    if (reset) displayPage = 1;
+function flattenCategories(categories, depth = 0) {
+    return categories.flatMap(category => [
+        { ...category, depth },
+        ...flattenCategories(Array.isArray(category.children) ? category.children : [], depth + 1),
+    ]);
+}
+
+function syncBrowseUrl() {
+    const params = new URLSearchParams(window.location.search);
+    if (activeCatId === null) params.delete('category');
+    else params.set('category', String(activeCatId));
+    if (currentSearch) params.set('q', currentSearch);
+    else params.delete('q');
+    const query = params.toString();
+    window.history.replaceState(
+        {},
+        '',
+        `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`
+    );
+}
+
+function updateProductsTitle() {
+    const title = document.getElementById('productsSectionTitle');
+    if (!title) return;
+    if (currentSearch) title.textContent = `🔍 "${currentSearch}" የፍለጋ ውጤቶች`;
+    else if (activeCatId !== null) title.textContent = '🛒 በምድብ የተመረጡ ምርቶች';
+    else title.textContent = '🛒 ሁሉም ምርቶች';
+}
+
+function renderProds() {
     const grid = document.getElementById('productsGrid');
+    const loadMoreWrap = document.getElementById('loadMoreWrap');
+    const loadMoreButton = document.getElementById('loadMoreBtn');
 
     if (!filteredProds.length) {
+        const message = currentSearch
+            ? `ለ “${he(currentSearch)}” ምርት አልተገኘም`
+            : activeCatId !== null
+                ? 'በዚህ ምድብ ውስጥ ምርት አልተገኘም'
+                : 'ገና ምርት አልተጨመረም';
         grid.innerHTML = `
-            <div style="grid-column:1/-1;text-align:center;padding:56px 16px;color:var(--text-muted)">
+            <div style="grid-column:1/-1;text-align:center;padding:56px 16px;color:var(--text-muted)" role="status">
                 <div style="font-size:56px;margin-bottom:12px">🔍</div>
-                <p style="font-size:15px;font-weight:600;color:var(--text)">ምርቶቸ አልተገኙም</p>
-                <p style="font-size:13px;margin-top:6px">ሌሎቸ ምድቦቸ ይሞክሩ</p>
+                <p style="font-size:15px;font-weight:600;color:var(--text)">${message}</p>
+                ${currentSearch ? '<p style="font-size:13px;margin-top:6px">ሌላ የፍለጋ ቃል ይሞክሩ</p>' : ''}
             </div>`;
-        document.getElementById('loadMoreWrap').style.display = 'none';
+        loadMoreWrap.style.display = 'none';
         return;
     }
 
-    const slice = filteredProds.slice(0, displayPage * PAGE_SIZE);
-    grid.innerHTML = slice.map(p => {
-        const thumb = (p.images && p.images.length)
-            ? `<img src="${safeUrl(p.images[0])}" alt="" style="width:100%;height:100%;object-fit:cover">`
-            : `<span style="font-size:52px">📦</span>`;
-        const outOfStock = p.stock_quantity <= 0;
-        const nameAm = p.name_am ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">${he(p.name_am)}</div>` : '';
+    grid.innerHTML = filteredProds.map(product => {
+        const imageUrl = product.images && product.images.length
+            ? safeUrl(product.images[0])
+            : '';
+        const thumb = imageUrl
+            ? `<img src="${he(imageUrl)}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">`
+            : '<span style="font-size:52px" aria-hidden="true">📦</span>';
+        const outOfStock = Number(product.stock_quantity) <= 0;
+        const nameAm = product.name_am
+            ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">${he(product.name_am)}</div>`
+            : '';
+        const id = Number(product.id);
+        const price = Number(product.price) || 0;
+
         return `
-        <div class="product-card" onclick="window.location.href='/app/product/${p.id}'">
-            <div class="product-image" style="height:140px;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer">
+        <div class="product-card" data-product-card="${id}">
+            <a class="product-image" href="/app/product/${id}" aria-label="${he(product.name)}"
+               style="height:140px;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;text-decoration:none;color:inherit">
                 ${thumb}
-            </div>
+            </a>
             <div class="product-info" style="padding:10px 10px 12px">
                 ${nameAm}
-                <p class="product-name" style="font-size:13px;line-height:1.35;margin-bottom:6px">${he(p.name)}</p>
+                <a class="product-name" href="/app/product/${id}" style="font-size:13px;line-height:1.35;margin-bottom:6px;color:inherit;text-decoration:none">${he(product.name)}</a>
                 <div class="product-footer" style="gap:6px">
-                    <span class="product-price" style="font-size:14px">ETB ${Number(p.price).toLocaleString()}</span>
+                    <span class="product-price" style="font-size:14px">ETB ${price.toLocaleString()}</span>
                     ${outOfStock
-                        ? `<span style="font-size:10px;color:var(--danger);font-weight:600">አልቋል</span>`
+                        ? '<span style="font-size:10px;color:var(--danger);font-weight:600">አልቋል</span>'
                         : `<button class="btn-add" style="padding:5px 10px;font-size:11px"
-                              onclick="event.stopPropagation();addCard(${p.id},'${he(p.name).replace(/'/g,"\\'")}',${p.price})">
+                              data-add-product data-product-id="${id}"
+                              data-product-name="${he(product.name)}" data-product-price="${price}">
                               🛒 ጨምር
                            </button>`}
                 </div>
@@ -120,8 +168,9 @@ function renderProds(reset) {
         </div>`;
     }).join('');
 
-    document.getElementById('loadMoreWrap').style.display =
-        filteredProds.length > displayPage * PAGE_SIZE ? 'block' : 'none';
+    loadMoreWrap.style.display = hasMoreProducts ? 'block' : 'none';
+    loadMoreButton.disabled = loadingMoreProducts;
+    loadMoreButton.textContent = loadingMoreProducts ? 'እየጫነ ነው…' : 'ተጨማሪ ምርቶች';
 }
 
 function addCard(id, name, price) {
@@ -129,114 +178,172 @@ function addCard(id, name, price) {
     refreshAllBadges();
 }
 
-function loadMoreProds() {
-    displayPage++;
-    renderProds(false);
-}
+async function loadHomeProds(append = false) {
+    if (append && (!hasMoreProducts || loadingMoreProducts)) return;
 
-// ── Filter by category ───────────────────────────────────────────
-function filterByCat(catId, el) {
-    activeCatId = catId;
-    document.querySelectorAll('#homeCatGrid .category-card').forEach(c => c.classList.remove('active'));
-    if (el) el.classList.add('active');
+    const requestId = ++productRequestId;
+    const page = append ? displayedPage + 1 : 1;
+    const grid = document.getElementById('productsGrid');
+    const loadMoreWrap = document.getElementById('loadMoreWrap');
+    const loadMoreButton = document.getElementById('loadMoreBtn');
 
-    // Also clear search bar
-    const searchEl = document.getElementById('globalSearch');
-    if (searchEl) searchEl.value = '';
-    _sdrop.close();
-
-    applyFilters(null);
-}
-
-// ── Apply current search + category ────────────────────────────
-function applyFilters(q) {
-    const searchQ = (q !== null ? q : (document.getElementById('globalSearch')?.value || '')).trim().toLowerCase();
-    let base = activeCatId !== null
-        ? allProds.filter(p => p.category_id === activeCatId)
-        : allProds;
-    filteredProds = searchQ
-        ? base.filter(p => (p.name || '').toLowerCase().includes(searchQ) || (p.name_am || '').toLowerCase().includes(searchQ))
-        : base;
-    const title = document.getElementById('productsSectionTitle');
-    if (title) {
-        if (searchQ) title.textContent = `🔍 "${searchQ}" ውጤቶቸ`;
-        else if (activeCatId) title.textContent = '🛒 ምርቶቸ';
-        else title.textContent = '🛒 ሁሉ ምርቶቸ';
+    if (append) {
+        loadingMoreProducts = true;
+        loadMoreButton.disabled = true;
+        loadMoreButton.textContent = 'እየጫነ ነው…';
+    } else {
+        loadingMoreProducts = false;
+        displayedPage = 0;
+        totalProducts = 0;
+        hasMoreProducts = false;
+        allProds = [];
+        filteredProds = [];
+        loadMoreWrap.style.display = 'none';
+        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)" role="status">ምርቶች እየተጫኑ ነው…</div>';
     }
-    renderProds(true);
+
+    const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
+    if (activeCatId !== null) params.set('category_id', String(activeCatId));
+    if (currentSearch) params.set('q', currentSearch);
+
+    try {
+        const response = await fetch(`/app/api/products?${params.toString()}`, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (requestId !== productRequestId) return;
+
+        const items = Array.isArray(data.items) ? data.items : [];
+        allProds = append ? allProds.concat(items) : items;
+        filteredProds = allProds;
+        displayedPage = page;
+        totalProducts = Math.max(0, Number(data.total) || 0);
+        hasMoreProducts = allProds.length < totalProducts;
+        renderProds();
+    } catch (error) {
+        if (requestId !== productRequestId) return;
+        if (append) {
+            showToast('ተጨማሪ ምርቶችን መጫን አልተቻለም። እንደገና ይሞክሩ።');
+        } else {
+            grid.innerHTML = `
+                <div style="grid-column:1/-1;text-align:center;padding:40px 16px;color:var(--text-muted)" role="alert">
+                    <div style="font-size:48px;margin-bottom:12px">⚠️</div>
+                    <p style="font-size:14px;font-weight:600">ምርቶችን መጫን አልተቻለም</p>
+                    <button type="button" onclick="loadHomeProds()" class="btn-primary" style="margin-top:16px;width:auto;padding:10px 24px;font-size:14px">
+                        እንደገና ሞክር
+                    </button>
+                </div>`;
+        }
+    } finally {
+        if (requestId === productRequestId) {
+            loadingMoreProducts = false;
+            loadMoreButton.disabled = false;
+            loadMoreButton.textContent = 'ተጨማሪ ምርቶች';
+            if (append) loadMoreWrap.style.display = hasMoreProducts ? 'block' : 'none';
+        }
+    }
 }
 
-// ── Override global search for home page ────────────────────────
-function onGlobalSearch(val) {
+function loadMoreProds() {
+    loadHomeProds(true);
+}
+
+function filterByCat(catId) {
+    activeCatId = catId === null ? null : Number(catId);
+    currentSearch = '';
+    const searchInput = document.getElementById('globalSearch');
+    if (searchInput) searchInput.value = '';
+    clearTimeout(productSearchTimer);
     clearTimeout(_sdrop.timer);
     _sdrop.close();
-    applyFilters(val);
+    syncBrowseUrl();
+    document.querySelectorAll('#homeCatGrid .category-card').forEach(card => {
+        const cardId = card.dataset.categoryId === '' ? null : Number(card.dataset.categoryId);
+        card.classList.toggle('active', cardId === activeCatId);
+    });
+    updateProductsTitle();
+    loadHomeProds();
 }
 
-// ── Load categories mini-strip ──────────────────────────────────
+function onGlobalSearch(value) {
+    clearTimeout(_sdrop.timer);
+    _sdrop.close();
+    currentSearch = value.trim();
+    clearTimeout(productSearchTimer);
+    productSearchTimer = setTimeout(() => {
+        syncBrowseUrl();
+        updateProductsTitle();
+        loadHomeProds();
+    }, 250);
+}
+
 async function loadHomeCats() {
     const grid = document.getElementById('homeCatGrid');
     try {
-        const cats = await fetch('/app/api/categories').then(r => r.json());
-        const items = [{ id: null, name: 'ሁሉ', name_am: '' }, ...cats];
-        grid.innerHTML = items.map(c => {
-            const isAll = c.id === null;
-            const isActive = isAll ? activeCatId === null : c.id === activeCatId;
-            const label = isAll ? 'ሁሉ' : he(c.name_am || c.name);
-            const icon  = isAll ? '🛍️' : catIcon(c.name);
-            const cid   = isAll ? 'null' : c.id;
+        const response = await fetch('/app/api/categories', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const categories = await response.json();
+        if (!Array.isArray(categories)) throw new Error('Invalid category response');
+
+        const flatCategories = flattenCategories(categories);
+        const validIds = new Set(flatCategories.map(category => Number(category.id)));
+        if (activeCatId !== null && !validIds.has(activeCatId)) {
+            activeCatId = null;
+            syncBrowseUrl();
+        }
+
+        const items = [{ id: null, name: '', name_am: 'ሁሉም', depth: 0 }, ...flatCategories];
+        grid.innerHTML = items.map(category => {
+            const isAll = category.id === null;
+            const isActive = isAll ? activeCatId === null : Number(category.id) === activeCatId;
+            const label = isAll ? 'ሁሉም' : `${category.depth ? '↳ ' : ''}${he(category.name_am || category.name)}`;
+            const icon = isAll ? '🛍️' : catIcon(category.name);
+            const id = isAll ? '' : Number(category.id);
             return `
-            <div class="category-card${isActive ? ' active' : ''}" onclick="filterByCat(${cid},this)">
-                <div class="icon">${icon}</div>
-                <div class="label">${label}</div>
-            </div>`;
+                <div class="category-card${isActive ? ' active' : ''}"
+                     data-category-id="${id}" role="button" tabindex="0"
+                     onclick="filterByCat(${isAll ? 'null' : id})"
+                     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();filterByCat(${isAll ? 'null' : id})}">
+                    <div class="icon" aria-hidden="true">${icon}</div>
+                    <div class="label">${label}</div>
+                </div>`;
         }).join('');
-    } catch(e) {
-        grid.innerHTML = '';
-    }
-}
-
-// ── Load products ───────────────────────────────────────────────
-async function loadHomeProds() {
-    const grid = document.getElementById('productsGrid');
-    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">ምርቶቸ እየጫናን ነው…</div>';
-    try {
-        // Fetch all products (up to 200); let client handle filtering
-        const url = '/app/api/products?page_size=200&page=1';
-        const resp = await fetch(url, { cache: 'no-store' });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const data = await resp.json();
-        allProds = Array.isArray(data.items) ? data.items : [];
-
-        // Apply initial URL params
-        if (_initCat !== null) {
-            activeCatId = _initCat;
-            // Highlight the matching category card (if already rendered)
-            document.querySelectorAll('#homeCatGrid .category-card').forEach((el, i) => {
-                el.classList.toggle('active', i > 0 && /* rough match */ false);
-            });
-        }
-        if (_initQ) {
-            const searchEl = document.getElementById('globalSearch');
-            if (searchEl) searchEl.value = _initQ;
-        }
-        applyFilters(_initQ || null);
-    } catch(e) {
+    } catch (error) {
         grid.innerHTML = `
-            <div style="grid-column:1/-1;text-align:center;padding:40px 16px;color:var(--text-muted)">
-                <div style="font-size:48px;margin-bottom:12px">⚠️</div>
-                <p style="font-size:14px;font-weight:600">ምርቶቸ መጫን አልተቻለም</p>
-                <button onclick="loadHomeProds()" class="btn-primary" style="margin-top:16px;width:auto;padding:10px 24px;font-size:14px">
+            <div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text-muted)" role="alert">
+                <span>ምድቦችን መጫን አልተቻለም።</span>
+                <button type="button" onclick="loadHomeCats()" class="btn-primary" style="margin-left:8px;width:auto;padding:8px 16px;font-size:12px">
                     እንደገና ሞክር
                 </button>
             </div>`;
     }
 }
 
-// ── Boot ─────────────────────────────────────────────────────────
+const productsGrid = document.getElementById('productsGrid');
+productsGrid.addEventListener('click', event => {
+    const button = event.target.closest('[data-add-product]');
+    if (button) {
+        event.stopPropagation();
+        addCard(
+            Number(button.dataset.productId),
+            button.dataset.productName,
+            Number(button.dataset.productPrice)
+        );
+        return;
+    }
+    const card = event.target.closest('[data-product-card]');
+    if (card && !event.target.closest('a')) {
+        window.location.href = `/app/product/${Number(card.dataset.productCard)}`;
+    }
+});
+
 (async function boot() {
-    // Fetch categories and products in parallel
-    await Promise.all([loadHomeCats(), loadHomeProds()]);
+    if (currentSearch) {
+        const searchInput = document.getElementById('globalSearch');
+        if (searchInput) searchInput.value = currentSearch;
+    }
+    await loadHomeCats();
+    updateProductsTitle();
+    await loadHomeProds();
     refreshAllBadges();
 })();
 </script>

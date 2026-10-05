@@ -1,49 +1,157 @@
 {% extends "base.html" %}
-{% block title %}ምድቦቸ — ወሎዮ ሱቅ{% endblock %}
+{% block title %}ምድቦች — ወሎዮ ሱቅ{% endblock %}
 
 {% block content %}
+<header class="categories-hero">
+    <h1>📦 ምድቦች</h1>
+    <p>በምድብ በመምረጥ የሚፈልጉትን ምርት ያግኙ</p>
+</header>
 
-<div class="categories-hero">
-    <h1>📦 ምድቦቸ</h1>
-    <p>ምርቶቸ ምድቦቸ ከምርቶቸ ይፈልጉ</p>
+<div class="categories-tools" id="categoryTools" hidden>
+    <label class="category-search">
+        <span aria-hidden="true">🔍</span>
+        <input id="categorySearch" type="search" placeholder="ምድብ ፈልግ…" autocomplete="off">
+    </label>
 </div>
 
-<div class="cat-grid-full" id="catGridFull">
-    <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">እየጫናን ነው…</div>
+<div class="cat-grid-full" id="catGridFull" aria-live="polite">
+    <div class="cat-empty" role="status">
+        <span class="cat-empty-icon" aria-hidden="true">⏳</span>
+        <span>ምድቦች እየተጫኑ ነው…</span>
+    </div>
 </div>
-
 {% endblock %}
 
 {% block scripts %}
 <script>
 const CAT_ICONS = {
-    'electronics':'📱','clothing':'👕','food':'🍎','food & drinks':'🍎',
-    'books':'📚','beauty':'💄','health':'💊','home':'🏠','home & living':'🏠',
-    'sports':'⚽','toys':'🧸','automotive':'🚗','agriculture':'🌾',
+    electronics: '📱', clothing: '👕', food: '🍎', 'food & drinks': '🍎',
+    books: '📚', beauty: '💄', health: '💊', home: '🏠', 'home & living': '🏠',
+    sports: '⚽', toys: '🧸', automotive: '🚗', agriculture: '🌾',
 };
+let categoryTree = [];
+
 function catIcon(name) {
-    if (!name) return '🛍️';
-    const k = name.toLowerCase();
-    return CAT_ICONS[k] || Object.keys(CAT_ICONS).reduce((f, key) => (!f && k.includes(key)) ? CAT_ICONS[key] : f, '') || '🛍️';
+    const normalized = String(name || '').toLowerCase();
+    const match = Object.keys(CAT_ICONS).find(key => normalized.includes(key));
+    return CAT_ICONS[normalized] || (match ? CAT_ICONS[match] : '🛍️');
+}
+
+function allProductsCard() {
+    return `
+        <a href="/app/" class="cat-card-full cat-card-all">
+            <span class="ci" aria-hidden="true">🛍️</span>
+            <span class="cl">ሁሉም ምርቶች</span>
+            <span class="cc">ሁሉንም ምድቦች ይመልከቱ</span>
+        </a>`;
+}
+
+function categoryCountLabel(value) {
+    const count = Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0;
+    return `${count.toLocaleString()} ${count === 1 ? 'ምርት' : 'ምርቶች'}`;
+}
+
+function renderCategoryNode(category, depth = 0) {
+    const id = Number(category.id);
+    const imageUrl = safeUrl(category.icon_url || category.image_url);
+    const visual = imageUrl
+        ? `<img class="ci" src="${he(imageUrl)}" alt="" loading="lazy">`
+        : `<span class="ci" aria-hidden="true">${catIcon(category.name)}</span>`;
+    const children = Array.isArray(category.children) ? category.children : [];
+    const card = `
+        <a href="/app/?category=${encodeURIComponent(id)}"
+           class="cat-card-full${depth ? ' cat-card-child' : ''}"
+           aria-label="${he(category.name_am || category.name)} — ${categoryCountLabel(category.product_count)}">
+            ${visual}
+            <span class="cl">${he(category.name_am || category.name || category.slug)}</span>
+            <span class="cc">${he(category.name || category.slug)} · ${categoryCountLabel(category.product_count)}</span>
+        </a>`;
+    const childCards = children.length
+        ? `<div class="category-tree-children">${children.map(child => renderCategoryNode(child, depth + 1)).join('')}</div>`
+        : '';
+
+    return `<section class="category-tree-group">${card}${childCards}</section>`;
+}
+
+function filterCategoryTree(nodes, query) {
+    const term = query.toLocaleLowerCase();
+    return nodes.reduce((visible, category) => {
+        const children = filterCategoryTree(
+            Array.isArray(category.children) ? category.children : [],
+            query
+        );
+        const matches = [
+            category.name,
+            category.name_am,
+            category.slug,
+            category.description,
+            category.description_am,
+        ].some(value => String(value || '').toLocaleLowerCase().includes(term));
+        if (!term || matches || children.length) {
+            visible.push({
+                ...category,
+                children: !term || matches ? (category.children || []) : children,
+            });
+        }
+        return visible;
+    }, []);
+}
+
+function renderCategories() {
+    const grid = document.getElementById('catGridFull');
+    const query = document.getElementById('categorySearch').value.trim();
+    const visible = filterCategoryTree(categoryTree, query);
+    let message = '';
+
+    if (!categoryTree.length) {
+        message = `
+            <div class="cat-empty" role="status">
+                <span class="cat-empty-icon" aria-hidden="true">📂</span>
+                <strong>ገና ምድብ አልተጨመረም</strong>
+                <span>ሱቁ ምርቶችን ሲያክል እዚህ ይታያሉ።</span>
+            </div>`;
+    } else if (!visible.length) {
+        message = `
+            <div class="cat-empty" role="status">
+                <span class="cat-empty-icon" aria-hidden="true">🔎</span>
+                <strong>የሚዛመድ ምድብ አልተገኘም</strong>
+                <span>የፍለጋ ቃሉን ይቀይሩ ወይም ያጥፉት።</span>
+            </div>`;
+    }
+
+    grid.innerHTML = allProductsCard()
+        + (message || visible.map(category => renderCategoryNode(category)).join(''));
 }
 
 async function loadCategories() {
     const grid = document.getElementById('catGridFull');
+    const tools = document.getElementById('categoryTools');
     try {
-        const cats = await fetch('/app/api/categories').then(r => r.json());
-        const all = [{ id: null, name: 'All Products', name_am: 'ሁሉ ምርቶቸ', product_count: '' }, ...cats];
-        grid.innerHTML = all.map(c => `
-            <a href="/app/?category=${c.id || ''}" class="cat-card-full">
-                <span class="ci">${catIcon(c.name)}</span>
-                <span class="cl">${he(c.name_am || c.name)}</span>
-                <span class="cc">${he(c.name)}${c.product_count ? ' · ' + c.product_count : ''}</span>
+        const response = await fetch('/app/api/categories', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (!Array.isArray(data)) throw new Error('Invalid category response');
+
+        categoryTree = data;
+        tools.hidden = categoryTree.length === 0;
+        renderCategories();
+    } catch (error) {
+        tools.hidden = true;
+        grid.innerHTML = `
+            <a href="/app/" class="cat-card-full cat-card-all">
+                <span class="ci" aria-hidden="true">🛍️</span>
+                <span class="cl">ሁሉም ምርቶች</span>
+                <span class="cc">ወደ ሱቁ ይመለሱ</span>
             </a>
-        `).join('');
-    } catch(e) {
-        grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">ምድቦቸ መጫን አልተቻለም።</p>';
+            <div class="cat-empty" role="alert">
+                <span class="cat-empty-icon" aria-hidden="true">⚠️</span>
+                <strong>ምድቦችን መጫን አልተቻለም</strong>
+                <button type="button" class="cat-retry" onclick="loadCategories()">እንደገና ሞክር</button>
+            </div>`;
     }
 }
 
+document.getElementById('categorySearch').addEventListener('input', renderCategories);
 loadCategories();
 refreshAllBadges();
 </script>

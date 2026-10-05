@@ -9,7 +9,7 @@ description: Patterns, security rules, and routing for the Telegram Mini App HTM
 ## API routing rule
 Mini-app pages MUST use `/app/api/*` (web_app_router), NOT `/api/v1/*` directly.
 - Products list: `GET /app/api/products`
-- Categories: `GET /app/api/categories` (proxied in web_app router to CategoryService)
+- Categories: `GET /app/api/categories`
 - Single product: `GET /app/api/product/{id}`
 - Checkout: `POST /app/api/checkout`
 - Auth: `POST /app/api/auth`

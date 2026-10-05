@@ -7,7 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="/app/static/images/favicon.svg">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="/app/static/css/style.css">
-    <link rel="stylesheet" href="/app/static/css/nav.css">
+    <link rel="stylesheet" href="/app/static/css/nav.css?v=2">
     {% block head %}{% endblock %}
 <style>
 /* ── Search autocomplete dropdown ── */
@@ -101,7 +101,7 @@
             <span class="di-icon">🏠</span><span>ዋና ገጽ</span>
         </a>
         <a href="/app/categories" class="drawer-item {% if page == 'categories' %}active{% endif %}">
-            <span class="di-icon">📦</span><span>ምድቦቸ</span>
+            <span class="di-icon">📦</span><span>ምድቦች</span>
         </a>
         <a href="/app/cart" class="drawer-item {% if page == 'cart' %}active{% endif %}">
             <span class="di-icon">🛒</span><span>ዕቃዎቼ</span>
@@ -216,7 +216,7 @@
         <div class="bnav-icon-wrap">
             <span class="bnav-icon">📦</span>
         </div>
-        <span class="bnav-label">ምርቶቸ</span>
+        <span class="bnav-label">ምድቦች</span>
     </a>
     <a href="/app/dashboard" class="bnav-item {% if page == 'dashboard' %}active{% endif %}">
         <div class="bnav-icon-wrap">
