@@ -84,18 +84,24 @@ class TestUserEndpoints:
         data = response.json()
         assert data["first_name"] == "UpdatedName"
 
-    async def test_change_password(self, client: AsyncClient, sample_user_data, auth_token):
-        """Test changing user password."""
-        # Register user
-        await client.post("/api/v1/users/register", json=sample_user_data)
-
-        # Change password
+    async def test_change_password(self, client: AsyncClient):
+        """A web account can change its password only after proving the old one."""
+        registration = await client.post(
+            "/app/api/web/register",
+            json={
+                "full_name": "Password Test",
+                "phone": "0912345678",
+                "password": "oldpassword123",
+            },
+        )
+        assert registration.status_code == 200
+        token = registration.json()["access_token"]
         password_data = {
-            "current_password": "oldpassword",
+            "current_password": "oldpassword123",
             "new_password": "newpassword123",
             "confirm_password": "newpassword123",
         }
-        headers = {"Authorization": f"Bearer {auth_token}"}
+        headers = {"Authorization": f"Bearer {token}"}
         response = await client.post(
             "/api/v1/users/change-password", json=password_data, headers=headers
         )
@@ -103,6 +109,32 @@ class TestUserEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert "message" in data
+
+        password_data["current_password"] = "incorrect-current-password"
+        response = await client.post(
+            "/api/v1/users/change-password", json=password_data, headers=headers
+        )
+        assert response.status_code == 401
+
+    async def test_production_registration_requires_signed_telegram_data(
+        self, client: AsyncClient, sample_user_data, monkeypatch
+    ):
+        """Public registration cannot claim an arbitrary Telegram identity."""
+        from core.config import settings
+
+        monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+        response = await client.post("/api/v1/users/register", json=sample_user_data)
+        assert response.status_code == 401
+
+    async def test_production_login_requires_signed_telegram_data(
+        self, client: AsyncClient, monkeypatch
+    ):
+        """A bare Telegram ID is not an authentication factor."""
+        from core.config import settings
+
+        monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+        response = await client.post("/api/v1/users/login", json={"telegram_id": 123456789})
+        assert response.status_code == 401
 
 
 class TestAdminUserEndpoints:

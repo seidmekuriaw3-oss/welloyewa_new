@@ -328,7 +328,9 @@ async def init_bot() -> Application:
         )
         logger.info("Using Redis-based persistence for Telegram bot state")
     except Exception as exc:
-        logger.warning(f"Redis persistence unavailable, using JSON file: {exc}")
+        logger.warning(
+            "Redis persistence unavailable, using JSON file (%s)", type(exc).__name__
+        )
         persistence = JSONFilePersistence(filepath="bot_data.json")
 
     _application = (

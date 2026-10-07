@@ -15,28 +15,31 @@ class TestHealthEndpoints:
         """Test basic health check endpoint."""
         response = await client.get("/health")
 
-        assert response.status_code == 200
+        assert response.status_code in (200, 503)
         data = response.json()
         assert "status" in data
-        assert data["status"] == "healthy"
+        assert data["status"] in ("healthy", "degraded", "unhealthy", "unknown")
+        assert (response.status_code == 200) == (data["status"] == "healthy")
 
     async def test_detailed_health(self, client: AsyncClient):
         """Test detailed health check endpoint."""
         response = await client.get("/health/detailed")
 
-        assert response.status_code == 200
+        assert response.status_code in (200, 503)
         data = response.json()
         assert "status" in data
         assert "checks" in data
+        assert (response.status_code == 200) == (data["status"] == "healthy")
 
     async def test_readiness_probe(self, client: AsyncClient):
         """Test Kubernetes readiness probe."""
         response = await client.get("/health/ready")
 
-        assert response.status_code == 200
+        assert response.status_code in (200, 503)
         data = response.json()
         assert "ready" in data
         assert isinstance(data["ready"], bool)
+        assert (response.status_code == 200) == data["ready"]
 
     async def test_liveness_probe(self, client: AsyncClient):
         """Test Kubernetes liveness probe."""

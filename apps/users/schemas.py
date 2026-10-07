@@ -5,7 +5,7 @@
 
 from datetime import date, datetime
 
-from pydantic import EmailStr, Field, validator
+from pydantic import EmailStr, Field, model_validator, validator
 
 from apps.common.schemas import BaseSchema, IdSchema, TimestampSchema
 from core.constants import Gender, UserRole, UserStatus
@@ -96,6 +96,11 @@ class UserRegister(BaseSchema):
     """Schema for user registration."""
 
     telegram_id: int = Field(..., description="Telegram user ID")
+    init_data: str | None = Field(
+        None,
+        max_length=8192,
+        description="Telegram Mini App initData used to verify the Telegram identity",
+    )
     username: str | None = Field(None, max_length=100)
     first_name: str = Field(..., max_length=100)
     last_name: str | None = Field(None, max_length=100)
@@ -118,14 +123,26 @@ class UserLogin(BaseSchema):
     """Schema for user login."""
 
     telegram_id: int | None = Field(None, description="Telegram user ID")
+    init_data: str | None = Field(
+        None,
+        max_length=8192,
+        description="Signed Telegram Mini App initData",
+    )
     phone_number: str | None = Field(None, max_length=20)
+    password: str | None = Field(None, max_length=256)
     ip_address: str | None = Field(None, description="Client IP address")
 
-    @validator("telegram_id", "phone_number")
-    def validate_login_credentials(cls, v, values):
-        if not v and not values.get("telegram_id"):
+    @model_validator(mode="after")
+    def validate_login_credentials(self):
+        if not self.telegram_id and not self.phone_number:
             raise ValueError("Either telegram_id or phone_number is required")
-        return v
+        if self.telegram_id and self.phone_number:
+            raise ValueError("Use either Telegram login or phone login, not both")
+        if self.phone_number and not self.password:
+            raise ValueError("Password is required for phone login")
+        if self.telegram_id and self.password:
+            raise ValueError("Do not send a password with Telegram login")
+        return self
 
 
 class TokenResponse(BaseSchema):

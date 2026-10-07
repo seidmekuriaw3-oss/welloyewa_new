@@ -65,8 +65,11 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest.fixture
-async def client(test_engine) -> AsyncGenerator:
+async def client(test_engine, monkeypatch) -> AsyncGenerator:
     """Create test client for FastAPI app."""
+    # Test-only API authentication bypasses are never enabled in live deployments.
+    monkeypatch.setattr(settings, "ENVIRONMENT", "testing")
+
     test_sessionmaker = async_sessionmaker(
         test_engine,
         class_=AsyncSession,

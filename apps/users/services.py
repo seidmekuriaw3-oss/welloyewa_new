@@ -27,7 +27,7 @@ from core.exceptions import (
     ValidationError,
 )
 from core.logger import logger
-from core.security import create_access_token, hash_password
+from core.security import create_access_token, hash_password, verify_password
 from core.utils.validators import Validator
 
 
@@ -57,8 +57,8 @@ class AuthService:
         if data.phone_number:
             try:
                 phone = Validator.phone(data.phone_number, normalize=True)
-            except ValueError:
-                raise ValidationError(f"Invalid phone number: {data.phone_number}")
+            except ValueError as exc:
+                raise ValidationError(f"Invalid phone number: {data.phone_number}") from exc
 
         # Check if user already exists
         if data.telegram_id:
@@ -124,12 +124,23 @@ class AuthService:
         if data.telegram_id:
             user = await self.user_repo.get_by_telegram(data.telegram_id)
         elif data.phone_number:
-            is_valid, normalized = Validator.phone(data.phone_number, normalize=True)
-            if is_valid:
-                user = await self.user_repo.get_by_phone(normalized)
+            try:
+                normalized = Validator.phone(data.phone_number, normalize=True)
+            except ValueError as exc:
+                raise AuthenticationError("Invalid credentials") from exc
+            user = await self.user_repo.get_by_phone(normalized)
 
         if not user:
             raise AuthenticationError("Invalid credentials")
+
+        # Phone-based login must prove knowledge of the account password.
+        if data.phone_number:
+            if (
+                not data.password
+                or not user.password_hash
+                or not verify_password(data.password, user.password_hash)
+            ):
+                raise AuthenticationError("Invalid credentials")
 
         # Check if user is active
         if user.status != "active":
@@ -171,8 +182,14 @@ class AuthService:
         Returns:
             True if successful
         """
-        # In a real implementation, you would verify old password
-        # and hash the new password
+        user = await self.user_repo.get_by_id(user_id)
+        if not user:
+            raise NotFoundError("User", user_id)
+        if not user.password_hash:
+            raise AuthenticationError("Password is not configured for this account")
+        if not verify_password(data.current_password, user.password_hash):
+            raise AuthenticationError("Current password is incorrect")
+
         await self.user_repo.update(user_id, {"password_hash": hash_password(data.new_password)})
         logger.info(f"Password changed for user {user_id}")
         return True
@@ -219,10 +236,10 @@ class UserService:
         """Update user information."""
         # Validate phone if provided
         if data.phone_number:
-            is_valid, normalized = Validator.phone(data.phone_number, normalize=True)
-            if not is_valid:
-                raise ValidationError(f"Invalid phone number: {data.phone_number}")
-            data.phone_number = normalized
+            try:
+                data.phone_number = Validator.phone(data.phone_number, normalize=True)
+            except ValueError as exc:
+                raise ValidationError(f"Invalid phone number: {data.phone_number}") from exc
 
         user = await self.user_repo.update(user_id, data.dict(exclude_unset=True))
         if not user:

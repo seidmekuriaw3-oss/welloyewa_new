@@ -35,6 +35,16 @@ from core.exceptions import (
 router = APIRouter()
 
 
+def _verified_telegram_identity(init_data: str | None) -> dict | None:
+    """Validate signed Telegram Mini App data without exposing the bot token."""
+    if not init_data:
+        return None
+
+    from bot.web_app.router import _verify_telegram_init_data
+
+    return _verify_telegram_init_data(init_data, settings.TELEGRAM_BOT_TOKEN)
+
+
 # ============================
 # Authentication Endpoints
 # ============================
@@ -53,6 +63,22 @@ async def register_user(
     auth_service = AuthService(db)
 
     try:
+        if settings.ENVIRONMENT != "testing" or data.init_data:
+            telegram_user = _verified_telegram_identity(data.init_data)
+            if not telegram_user or telegram_user.get("id") != data.telegram_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Valid Telegram authentication is required",
+                )
+            # Use signed identity fields, not client-supplied profile values.
+            data = data.model_copy(
+                update={
+                    "username": telegram_user.get("username"),
+                    "first_name": telegram_user.get("first_name") or "User",
+                    "last_name": telegram_user.get("last_name"),
+                }
+            )
+
         user = await auth_service.register(data)
         return UserResponse.model_validate(user)
     except DuplicateRecordError as e:
@@ -79,6 +105,14 @@ async def login_user(
     data.ip_address = client_ip
 
     try:
+        if data.telegram_id and (settings.ENVIRONMENT != "testing" or data.init_data):
+            telegram_user = _verified_telegram_identity(data.init_data)
+            if not telegram_user or telegram_user.get("id") != data.telegram_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Valid Telegram authentication is required",
+                )
+
         user, token = await auth_service.login(data)
 
         return TokenResponse(
@@ -107,6 +141,10 @@ async def change_password(
     try:
         await auth_service.change_password(current_user["id"], data)
         return MessageResponse(message="Password changed successfully")
+    except AuthenticationError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)) from e
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except ValidationError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 

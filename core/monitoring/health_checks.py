@@ -209,7 +209,7 @@ class HealthChecker:
         results = await self.run_all_checks()
 
         for name in critical_checks:
-            if name in results and results[name].status != HealthStatus.HEALTHY:
+            if name not in results or results[name].status != HealthStatus.HEALTHY:
                 return False
         return True
 
@@ -352,7 +352,8 @@ async def check_telegram_bot() -> tuple:
             },
         )
     except Exception as e:
-        return False, f"Telegram bot connection failed: {e}", {"error": str(e)}
+        # SDK exceptions may include the Telegram request URL and its bot token.
+        return False, "Telegram bot connection failed", {"error": type(e).__name__}
 
 
 # Register default health checks

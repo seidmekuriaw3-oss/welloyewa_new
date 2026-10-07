@@ -123,7 +123,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 except Exception as net_err:
                     if attempt < 2:
                         logger.warning(
-                            f"Bot init attempt {attempt + 1} failed, retrying in 3s: {net_err}"
+                            "Bot init attempt %s failed, retrying in 3s (%s)",
+                            attempt + 1,
+                            type(net_err).__name__,
                         )
                         await asyncio.sleep(3)
                     else:
@@ -153,21 +155,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     logger.info("Webhook cleared, starting polling...")
                     break
                 except Exception as wh_err:
-                    logger.warning(f"Could not delete webhook (attempt {_attempt+1}): {wh_err}")
+                    logger.warning(
+                        "Could not delete Telegram webhook (attempt %s, %s)",
+                        _attempt + 1,
+                        type(wh_err).__name__,
+                    )
                     await asyncio.sleep(3)
             await asyncio.sleep(5)
             await application_instance.start()
             await application_instance.updater.start_polling(
                 drop_pending_updates=True,
                 allowed_updates=["message", "callback_query", "inline_query"],
-                error_callback=lambda err: logger.warning(f"Polling error (will retry): {err}"),
+                error_callback=lambda err: logger.warning(
+                    "Telegram polling error (will retry): %s", type(err).__name__
+                ),
             )
             logger.info("Telegram bot polling started!")
         elif settings.ENVIRONMENT == "development" and application_instance and not _is_deployed:
             logger.info("Bot polling disabled for local run to avoid duplicate Telegram sessions")
 
     except Exception as e:
-        logger.warning(f"Telegram bot initialization failed (continuing): {e}")
+        # Telegram SDK errors can include the full bot token in their request URL.
+        logger.warning("Telegram bot initialization failed (continuing): %s", type(e).__name__)
 
     # Scheduler
     try:
@@ -286,14 +295,21 @@ async def health_check():
         from core.monitoring.health_checks import health_checker
 
         result = await health_checker.check_all()
+        status_code = 200 if result.get("status") == "healthy" else 503
         if settings.ENVIRONMENT == "production":
-            return {"status": result.get("status", "unknown")}
-        return result
+            return JSONResponse(
+                status_code=status_code,
+                content={"status": result.get("status", "unknown")},
+            )
+        return JSONResponse(status_code=status_code, content=result)
     except Exception:
         logger.exception("Health check failed")
         if settings.ENVIRONMENT == "production":
-            return {"status": "degraded"}
-        return {"status": "degraded", "error": "Health check failed"}
+            return JSONResponse(status_code=503, content={"status": "degraded"})
+        return JSONResponse(
+            status_code=503,
+            content={"status": "degraded", "error": "Health check failed"},
+        )
 
 
 @app.get("/")

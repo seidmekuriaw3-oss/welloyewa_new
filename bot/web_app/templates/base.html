@@ -7,7 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="/app/static/images/favicon.svg">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="/app/static/css/style.css">
-    <link rel="stylesheet" href="/app/static/css/nav.css?v=2">
+    <link rel="stylesheet" href="/app/static/css/nav.css?v=3">
     {% block head %}{% endblock %}
 <style>
 /* ── Search autocomplete dropdown ── */
@@ -79,7 +79,7 @@
 }
 </style>
 </head>
-<body>
+<body class="page-{{ page|default('home') }}">
 
 <!-- ═══════════════════════════════ SIDE DRAWER ═══════════════════════════════ -->
 <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>

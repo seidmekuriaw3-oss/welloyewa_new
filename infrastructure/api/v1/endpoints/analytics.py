@@ -3,9 +3,13 @@
 # ============================
 """REST API endpoints for analytics and reporting."""
 
+import csv
+import io
+import json
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.analytics.schemas import (
@@ -300,15 +304,125 @@ async def export_sales_report(
     """
     analytics_service = AnalyticsService(db)
 
+    if start_date >= end_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start_date must be earlier than end_date",
+        )
+
     report = await analytics_service.generate_sales_report(start_date, end_date)
 
     if format == "json":
         return report
-    elif format == "csv":
-        # Convert to CSV
-        return {"message": "CSV export not implemented yet"}
-    else:
-        return {"message": "Excel export not implemented yet"}
+    if format == "csv":
+        output = io.StringIO(newline="")
+        writer = csv.writer(output)
+        writer.writerow(["Sales report"])
+        writer.writerow(["Start date", report["period"]["start_date"]])
+        writer.writerow(["End date", report["period"]["end_date"]])
+        _write_csv_section(writer, "Summary", report.get("summary", {}))
+        _write_csv_section(writer, "Daily breakdown", report.get("daily_breakdown", []))
+        _write_csv_section(writer, "Top products", report.get("top_products", []))
+        content = output.getvalue().encode("utf-8-sig")
+        return StreamingResponse(
+            iter([content]),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="sales-report.csv"'},
+        )
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    workbook = Workbook()
+    summary_sheet = workbook.active
+    summary_sheet.title = "Summary"
+    summary_rows = [
+        ("Start date", report["period"]["start_date"]),
+        ("End date", report["period"]["end_date"]),
+    ]
+    summary_rows.extend(_flatten_report(report.get("summary", {})).items())
+    _write_excel_rows(summary_sheet, ["Metric", "Value"], summary_rows)
+    _write_excel_table(
+        workbook.create_sheet("Daily breakdown"),
+        report.get("daily_breakdown", []),
+    )
+    _write_excel_table(
+        workbook.create_sheet("Top products"),
+        report.get("top_products", []),
+    )
+    for sheet in workbook.worksheets:
+        sheet.freeze_panes = "A2"
+        for cell in sheet[1]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="285943")
+        for column in sheet.columns:
+            width = min(max(max(len(str(cell.value or "")) for cell in column) + 2, 12), 48)
+            sheet.column_dimensions[column[0].column_letter].width = width
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    return StreamingResponse(
+        iter([buffer.getvalue()]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="sales-report.xlsx"'},
+    )
+
+
+def _spreadsheet_safe(value):
+    """Prevent untrusted text cells from being interpreted as spreadsheet formulas."""
+    if isinstance(value, (dict, list, tuple)):
+        value = json.dumps(value, ensure_ascii=False, default=str)
+    if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
+        return "'" + value
+    return value
+
+
+def _flatten_report(value: dict, prefix: str = "") -> dict[str, object]:
+    """Flatten nested summary metrics for tabular export."""
+    flattened = {}
+    for key, item in value.items():
+        name = f"{prefix}.{key}" if prefix else str(key)
+        if isinstance(item, dict):
+            flattened.update(_flatten_report(item, name))
+        else:
+            flattened[name] = item
+    return flattened
+
+
+def _write_csv_section(writer, title: str, rows) -> None:
+    writer.writerow([])
+    writer.writerow([title])
+    if isinstance(rows, dict):
+        rows = _flatten_report(rows).items()
+        for key, value in rows:
+            writer.writerow([_spreadsheet_safe(key), _spreadsheet_safe(value)])
+        return
+    if not rows:
+        writer.writerow(["No data"])
+        return
+    columns = list(dict.fromkeys(key for row in rows for key in row))
+    writer.writerow([_spreadsheet_safe(key) for key in columns])
+    for row in rows:
+        writer.writerow([_spreadsheet_safe(row.get(key, "")) for key in columns])
+
+
+def _write_excel_rows(sheet, headers, rows) -> None:
+    sheet.append([_spreadsheet_safe(value) for value in headers])
+    for row in rows:
+        sheet.append([_spreadsheet_safe(value) for value in row])
+
+
+def _write_excel_table(sheet, rows) -> None:
+    if not rows:
+        sheet.append(["No data"])
+        return
+    columns = list(dict.fromkeys(key for row in rows for key in row))
+    _write_excel_rows(
+        sheet,
+        columns,
+        ([row.get(key, "") for key in columns] for row in rows),
+    )
 
 
 __all__ = ["router"]
