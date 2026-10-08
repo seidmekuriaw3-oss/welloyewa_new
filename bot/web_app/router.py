@@ -198,6 +198,13 @@ async def register_page(request: Request):
     return templates.TemplateResponse(request, "register.html", {**_BASE_CTX, "page": "register"})
 
 
+@web_app_router.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_page(request: Request):
+    return templates.TemplateResponse(
+        request, "forgot_password.html", {**_BASE_CTX, "page": "forgot-password"}
+    )
+
+
 @web_app_router.get("/categories", response_class=HTMLResponse)
 async def categories_page(request: Request):
     return templates.TemplateResponse(

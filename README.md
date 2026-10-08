@@ -223,7 +223,15 @@ python -m pip check
 ruff check .
 ```
 
-API tests require the isolated test PostgreSQL database configured in `tests/conftest.py`. Never point tests at development or production data.
+Database-backed tests are skipped unless both `TEST_DATABASE_URL` and
+`ALLOW_TEST_DB_RESET=1` are set. The URL must point to a dedicated disposable
+PostgreSQL database whose name contains a `test` segment; fixtures may drop and
+recreate tables only in that database. Never point tests at development or
+production data. Coverage is a separate, explicit check:
+`python -m pytest --cov=. --cov-report=term-missing --cov-fail-under=70`.
+
+Mobile API authentication requirements and examples are documented in
+[`docs/mobile_api_auth.md`](docs/mobile_api_auth.md).
 
 ## Deployment
 

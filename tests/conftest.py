@@ -4,9 +4,12 @@
 """Pytest configuration and fixtures for testing."""
 
 import asyncio
+import os
+import re
 from collections.abc import AsyncGenerator, Generator
 
 import pytest
+from sqlalchemy.engine import make_url
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -19,8 +22,37 @@ from main import app
 # Test Database Setup
 # ============================
 
-# Test database URL (uses separate test database)
-TEST_DATABASE_URL = "postgresql+asyncpg://postgres:testpass@localhost:5432/test_db"
+def _validated_test_database_url() -> str | None:
+    """Only allow destructive fixtures against an explicitly opted-in test database."""
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    reset_allowed = os.environ.get("ALLOW_TEST_DB_RESET") == "1"
+    if not database_url or not reset_allowed:
+        return None
+
+    try:
+        target = make_url(database_url)
+    except Exception as exc:
+        raise pytest.UsageError("TEST_DATABASE_URL is not a valid SQLAlchemy URL") from exc
+
+    if not target.database or not re.search(r"(^|[_-])test([_-]|$)", target.database, re.I):
+        raise pytest.UsageError(
+            "TEST_DATABASE_URL must target a dedicated database whose name contains a test segment"
+        )
+
+    runtime_url = os.environ.get("DATABASE_URL")
+    if runtime_url:
+        try:
+            runtime = make_url(runtime_url)
+        except Exception:
+            runtime = None
+        if runtime and (
+            target.host,
+            target.port,
+            target.database,
+        ) == (runtime.host, runtime.port, runtime.database):
+            raise pytest.UsageError("The test database must be different from the runtime database")
+
+    return database_url
 
 
 @pytest.fixture(scope="session")
@@ -33,8 +65,15 @@ def event_loop() -> Generator:
 
 @pytest.fixture(scope="session")
 async def test_engine():
-    """Create test database engine."""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    """Create a disposable test database only after explicit opt-in."""
+    database_url = _validated_test_database_url()
+    if not database_url:
+        pytest.skip(
+            "Database tests require TEST_DATABASE_URL and ALLOW_TEST_DB_RESET=1; "
+            "the test database must be separate and named with a test segment."
+        )
+
+    engine = create_async_engine(database_url, echo=False)
 
     # Create tables
     async with engine.begin() as conn:

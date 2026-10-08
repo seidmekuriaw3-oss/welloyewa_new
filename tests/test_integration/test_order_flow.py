@@ -99,13 +99,13 @@ class TestCartToOrderFlow:
     async def test_cart_checkout_flow(self):
         """Test cart checkout flow."""
         cart_items = [
-            {"product_id": 1, "name": "Product 1", "price": 50.00, "quantity": 2},
-            {"product_id": 2, "name": "Product 2", "price": 30.00, "quantity": 1},
+            {"product_id": 1, "name": "Product 1", "price": Decimal("50.00"), "quantity": 2},
+            {"product_id": 2, "name": "Product 2", "price": Decimal("30.00"), "quantity": 1},
         ]
 
-        expected_subtotal = 50 * 2 + 30 * 1  # 130
-        expected_tax = expected_subtotal * 0.15  # 19.5
-        expected_shipping = 0 if expected_subtotal >= 1000 else 50  # 50
+        expected_subtotal = Decimal("50.00") * 2 + Decimal("30.00")  # 130
+        expected_tax = expected_subtotal * Decimal("0.15")  # 19.5
+        expected_shipping = Decimal("0") if expected_subtotal >= 1000 else Decimal("50")  # 50
         expected_total = expected_subtotal + expected_tax + expected_shipping  # 199.5
 
         # Validate cart calculations
@@ -113,11 +113,11 @@ class TestCartToOrderFlow:
         assert subtotal == expected_subtotal
 
         tax = subtotal * Decimal("0.15")
-        shipping = Decimal("0") if subtotal >= 1000 else Decimal("50")
+        shipping = expected_shipping
         total = subtotal + tax + shipping
 
-        assert float(tax) == expected_tax
-        assert float(total) == expected_total
+        assert tax == expected_tax
+        assert total == expected_total
 
 
 @pytest.mark.integration

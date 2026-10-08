@@ -241,10 +241,6 @@ addopts = [
     "--strict-markers",
     "--strict-config",
     "--tb=short",
-    "--cov=.",
-    "--cov-report=html",
-    "--cov-report=term-missing",
-    "--cov-fail-under=70",
     "-p", "no:cacheprovider",
 ]
 markers = [
@@ -304,7 +300,7 @@ confidence = "medium"
 [tool.taskipy.tasks]
 dev = "uvicorn main:app --reload --host 0.0.0.0 --port 8000"
 test = "pytest"
-test-cov = "pytest --cov=. --cov-report=html"
+test-cov = "pytest --cov=. --cov-report=html --cov-report=term-missing --cov-fail-under=70"
 lint = "ruff check . && flake8 ."
 format = "black . && isort ."
 typecheck = "mypy ."

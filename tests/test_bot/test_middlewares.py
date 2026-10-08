@@ -16,7 +16,7 @@ class TestAuthMiddleware:
     @pytest.mark.asyncio
     async def test_auth_middleware_existing_user(self):
         """Test auth middleware with existing user."""
-        from bot.middlewares.auth import auth_middleware
+        from bot.middlewares.auth import auth_middleware, ensure_user_registered
 
         mock_update = Mock(spec=Update)
         mock_user = User(id=123456789, first_name="Test", username="testuser", is_bot=False)
@@ -24,37 +24,34 @@ class TestAuthMiddleware:
         mock_context = Mock()
         mock_context.user_data = {}
 
-        next_handler = AsyncMock()
+        user_data = {"id": 1, "role": "customer", "telegram_id": mock_user.id}
+        with patch.object(
+            auth_middleware,
+            "get_or_create_user",
+            new_callable=AsyncMock,
+            return_value=user_data,
+        ) as load_user:
+            await ensure_user_registered(mock_update, mock_context)
 
-        with patch("bot.middlewares.auth.get_db_session") as mock_db:
-            mock_session = AsyncMock()
-            mock_db.return_value.__aiter__.return_value = [mock_session]
-
-            with patch("bot.middlewares.auth.UserService") as mock_user_service:
-                mock_service = AsyncMock()
-                mock_user_service.return_value = mock_service
-                mock_service.get_or_create_user.return_value = Mock(id=1, role="customer")
-
-                await auth_middleware(mock_update, mock_context, next_handler)
-
-                assert "user_id" in mock_context.user_data
-                assert "user_role" in mock_context.user_data
-                next_handler.assert_called_once()
+        load_user.assert_awaited_once()
+        assert mock_context.user_data["user_id"] == 1
+        assert mock_context.user_data["user_role"] == "customer"
 
     @pytest.mark.asyncio
     async def test_auth_middleware_no_user(self):
         """Test auth middleware with no user."""
-        from bot.middlewares.auth import auth_middleware
+        from bot.middlewares.auth import ensure_user_registered
 
         mock_update = Mock(spec=Update)
         mock_update.effective_user = None
         mock_context = Mock()
+        mock_context.user_data = {}
         next_handler = AsyncMock()
 
-        await auth_middleware(mock_update, mock_context, next_handler)
+        await ensure_user_registered(mock_update, mock_context)
 
-        # Should still call next handler
-        next_handler.assert_called_once()
+        next_handler.assert_not_awaited()
+        assert mock_context.user_data == {}
 
 
 @pytest.mark.unit
@@ -70,6 +67,8 @@ class TestThrottlingMiddleware:
         mock_user = User(id=123456789, first_name="Test", is_bot=False)
         mock_update.effective_user = mock_user
         mock_update.message = Mock()
+        mock_update.message.text = "/search"
+        mock_update.message.reply_text = AsyncMock()
         mock_update.message.text = "/start"
         mock_context = Mock()
         next_handler = AsyncMock()
@@ -87,6 +86,7 @@ class TestThrottlingMiddleware:
         mock_user = User(id=123456789, first_name="Test", is_bot=False)
         mock_update.effective_user = mock_user
         mock_update.message = Mock()
+        mock_update.message.reply_text = AsyncMock()
         mock_update.message.text = "/search"
         mock_context = Mock()
         next_handler = AsyncMock()
@@ -215,6 +215,7 @@ class TestRoleCheckMiddleware:
         mock_user = User(id=123456789, first_name="User", is_bot=False)
         mock_update.effective_user = mock_user
         mock_update.message = Mock()
+        mock_update.message.reply_text = AsyncMock()
         mock_context = Mock()
 
         @admin_only

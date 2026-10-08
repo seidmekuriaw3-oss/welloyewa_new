@@ -30,24 +30,28 @@ document.getElementById('registerForm').addEventListener('submit', async (event)
     const form = event.currentTarget;
     const error = document.getElementById('registerError');
     error.textContent = '';
-    const response = await fetch('/app/api/web/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            full_name: form.full_name.value,
-            phone: form.phone.value,
-            email: form.email.value || null,
-            password: form.password.value,
-        }),
-    });
-    if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        error.textContent = data.detail || 'መመዝገብ አልተቻለም።';
-        return;
+    try {
+        const response = await fetch('/app/api/web/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                full_name: form.full_name.value,
+                phone: form.phone.value,
+                email: form.email.value || null,
+                password: form.password.value,
+            }),
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            error.textContent = data.detail || 'መመዝገብ አልተቻለም።';
+            return;
+        }
+        const data = await response.json();
+        localStorage.setItem('wolloyewa_access_token', data.access_token);
+        window.location.href = '/app/dashboard';
+    } catch {
+        error.textContent = 'ከአገልጋዩ ጋር መገናኘት አልተቻለም። እንደገና ይሞክሩ።';
     }
-    const data = await response.json();
-    localStorage.setItem('wolloyewa_access_token', data.access_token);
-    window.location.href = '/app/dashboard';
 });
 </script>
 {% endblock %}

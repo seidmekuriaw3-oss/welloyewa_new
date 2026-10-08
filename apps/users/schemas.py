@@ -5,7 +5,7 @@
 
 from datetime import date, datetime
 
-from pydantic import EmailStr, Field, model_validator, validator
+from pydantic import EmailStr, Field, field_validator, model_validator, validator
 
 from apps.common.schemas import BaseSchema, IdSchema, TimestampSchema
 from core.constants import Gender, UserRole, UserStatus
@@ -168,13 +168,41 @@ class ChangePasswordRequest(BaseSchema):
         return v
 
 
+class PasswordResetStartRequest(BaseSchema):
+    """Start password recovery for a registered Ethiopian phone number."""
+
+    phone_number: str = Field(..., min_length=10, max_length=20)
+
+    @field_validator("phone_number")
+    @classmethod
+    def normalize_phone_number(cls, value):
+        from core.utils.validators import Validator
+
+        try:
+            return Validator.phone(value, normalize=True)
+        except ValueError as exc:
+            raise ValueError("Invalid Ethiopian phone number") from exc
+
+
 class ResetPasswordRequest(BaseSchema):
     """Schema for password reset request."""
 
-    phone_number: str = Field(..., description="Registered phone number")
-    otp: str = Field(..., description="One-time password")
+    phone_number: str = Field(
+        ..., min_length=10, max_length=20, description="Registered Ethiopian phone number"
+    )
+    otp: str = Field(..., pattern=r"^\d{6}$", description="Six-digit one-time password")
     new_password: str = Field(..., min_length=6, description="New password")
     confirm_password: str = Field(..., min_length=6, description="Confirm new password")
+
+    @field_validator("phone_number")
+    @classmethod
+    def normalize_phone_number(cls, value):
+        from core.utils.validators import Validator
+
+        try:
+            return Validator.phone(value, normalize=True)
+        except ValueError as exc:
+            raise ValueError("Invalid Ethiopian phone number") from exc
 
     @validator("confirm_password")
     def passwords_match(cls, v, values):
@@ -344,6 +372,8 @@ __all__ = [
     "AddressResponse",
     "AddressUpdate",
     "ChangePasswordRequest",
+    "PasswordResetStartRequest",
+    "ResetPasswordRequest",
     "PreferencesBase",
     "PreferencesResponse",
     "PreferencesUpdate",

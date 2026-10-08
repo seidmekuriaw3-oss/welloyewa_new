@@ -4,10 +4,34 @@
 """Tests for Telegram bot handlers."""
 
 from unittest.mock import AsyncMock, Mock, patch
+from datetime import datetime
+from types import SimpleNamespace
 
 import pytest
-from telegram import Update, User
-from telegram.ext import ContextTypes
+from telegram import User
+
+
+def _message(text=None):
+    message = Mock()
+    message.text = text
+    message.reply_text = AsyncMock()
+    message.edit_text = AsyncMock()
+    return message
+
+
+def _update(user=None, text=None):
+    message = _message(text)
+    return SimpleNamespace(
+        effective_user=user,
+        effective_chat=SimpleNamespace(id=getattr(user, "id", 123456789)),
+        effective_message=message,
+        message=message,
+        callback_query=None,
+    )
+
+
+def _context():
+    return SimpleNamespace(user_data={}, args=[], bot=Mock())
 
 
 @pytest.mark.unit
@@ -20,14 +44,11 @@ class TestStartHandler:
         from bot.handlers.start import start_command
 
         # Create mock update
-        mock_update = Mock(spec=Update)
         mock_user = User(id=123456789, first_name="Test", username="testuser", is_bot=False)
-        mock_update.effective_user = mock_user
-        mock_update.effective_chat = Mock(id=123456789)
-        mock_update.message = Mock()
+        mock_update = _update(mock_user, "/start")
 
         # Create mock context
-        mock_context = Mock(spec=ContextTypes.DEFAULT_TYPE)
+        mock_context = _context()
 
         # Mock database
         with patch("bot.handlers.start.get_db_session") as mock_db:
@@ -49,9 +70,8 @@ class TestStartHandler:
         """Test help command."""
         from bot.handlers.start import help_command
 
-        mock_update = Mock(spec=Update)
-        mock_update.message = Mock()
-        mock_context = Mock()
+        mock_update = _update(text="/help")
+        mock_context = _context()
 
         await help_command(mock_update, mock_context)
 
@@ -67,9 +87,8 @@ class TestCatalogHandler:
         """Test menu command."""
         from bot.handlers.catalog import menu_command
 
-        mock_update = Mock(spec=Update)
-        mock_update.message = Mock()
-        mock_context = Mock()
+        mock_update = _update(text="/menu")
+        mock_context = _context()
 
         with patch("bot.handlers.catalog.get_db_session") as mock_db:
             mock_session = AsyncMock()
@@ -89,13 +108,18 @@ class TestCatalogHandler:
         """Test category selection callback."""
         from bot.handlers.catalog import category_callback
 
-        mock_update = Mock(spec=Update)
-        mock_query = Mock()
-        mock_query.data = "cat_1"
+        mock_update = _update()
+        mock_query = SimpleNamespace(
+            answer=AsyncMock(),
+            message=_message(),
+            data="cat_1",
+        )
         mock_update.callback_query = mock_query
-        mock_context = Mock()
+        mock_context = _context()
 
-        with patch("bot.handlers.catalog.show_category_products") as mock_show:
+        with patch(
+            "bot.handlers.catalog.show_category_products", new_callable=AsyncMock
+        ) as mock_show:
             await category_callback(mock_update, mock_context)
 
             mock_query.answer.assert_called_once()
@@ -111,10 +135,8 @@ class TestCartHandler:
         """Test cart command when cart is empty."""
         from bot.handlers.cart import cart_command
 
-        mock_update = Mock(spec=Update)
-        mock_update.effective_user = Mock(id=123456789)
-        mock_update.message = Mock()
-        mock_context = Mock()
+        mock_update = _update(SimpleNamespace(id=123456789), "/cart")
+        mock_context = _context()
 
         with patch("bot.handlers.cart.get_user_cart", return_value=[]):
             await cart_command(mock_update, mock_context)
@@ -126,14 +148,10 @@ class TestCartHandler:
         """Test adding product to cart."""
         from bot.handlers.cart import add_to_cart
 
-        with patch("bot.handlers.cart.get_redis_client") as mock_redis:
-            mock_redis_instance = AsyncMock()
-            mock_redis.return_value = mock_redis_instance
-            mock_redis_instance.get.return_value = None
+        context = _context()
+        await add_to_cart(123456789, 1, context)
 
-            await add_to_cart(123456789, 1, Mock())
-
-            mock_redis_instance.setex.assert_called_once()
+        assert context.user_data["cart"] == [{"product_id": 1, "quantity": 1}]
 
 
 @pytest.mark.unit
@@ -145,10 +163,8 @@ class TestProfileHandler:
         """Test profile command."""
         from bot.handlers.profile import profile_command
 
-        mock_update = Mock(spec=Update)
-        mock_update.effective_user = Mock(id=123456789)
-        mock_update.message = Mock()
-        mock_context = Mock()
+        mock_update = _update(SimpleNamespace(id=123456789), "/profile")
+        mock_context = _context()
 
         with patch("bot.handlers.profile.get_db_session") as mock_db:
             mock_session = AsyncMock()
@@ -157,7 +173,16 @@ class TestProfileHandler:
             with patch("bot.handlers.profile.UserService") as mock_user_service:
                 mock_service = AsyncMock()
                 mock_user_service.return_value = mock_service
-                mock_user = Mock(id=1, full_name="Test User", username="testuser")
+                mock_user = SimpleNamespace(
+                    id=1,
+                    full_name="Test User",
+                    first_name="Test",
+                    username="testuser",
+                    phone_number=None,
+                    email=None,
+                    role="customer",
+                    created_at=datetime.utcnow(),
+                )
                 mock_service.get_user_by_telegram.return_value = mock_user
                 mock_service.get_user_stats.return_value = {"total_orders": 0, "total_spent": 0}
 
@@ -175,9 +200,8 @@ class TestSearchHandler:
         """Test search command."""
         from bot.handlers.search import search_command
 
-        mock_update = Mock(spec=Update)
-        mock_update.message = Mock()
-        mock_context = Mock()
+        mock_update = _update(text="/search")
+        mock_context = _context()
 
         await search_command(mock_update, mock_context)
 
@@ -193,15 +217,12 @@ class TestWishlistHandler:
         """Test wishlist command when empty."""
         from bot.handlers.wishlist import wishlist_command
 
-        mock_update = Mock(spec=Update)
-        mock_update.effective_user = Mock(id=123456789)
-        mock_update.message = Mock()
-        mock_context = Mock()
+        mock_update = _update(SimpleNamespace(id=123456789), "/wishlist")
+        mock_context = _context()
 
-        with patch("bot.handlers.wishlist.get_user_wishlist", return_value=[]):
-            await wishlist_command(mock_update, mock_context)
+        await wishlist_command(mock_update, mock_context)
 
-            mock_update.message.reply_text.assert_called_once()
+        mock_update.message.reply_text.assert_called_once()
 
 
 @pytest.mark.unit
@@ -213,13 +234,12 @@ class TestFeedbackHandler:
         """Test feedback command."""
         from bot.handlers.feedback import feedback_command
 
-        mock_update = Mock(spec=Update)
-        mock_update.message = Mock()
-        mock_context = Mock()
+        mock_update = _update(text="/feedback")
+        mock_context = _context()
 
         await feedback_command(mock_update, mock_context)
 
-        mock_update.message.reply_text.assert_called_once()
+        assert mock_update.message.reply_text.await_count == 2
 
 
 @pytest.mark.unit
@@ -231,9 +251,8 @@ class TestLocationHandler:
         """Test location command."""
         from bot.handlers.location import location_command
 
-        mock_update = Mock(spec=Update)
-        mock_update.message = Mock()
-        mock_context = Mock()
+        mock_update = _update(text="/location")
+        mock_context = _context()
 
         await location_command(mock_update, mock_context)
 

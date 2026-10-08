@@ -66,8 +66,21 @@ class SMSGateway(NotificationProvider):
                 status="failed",
             )
 
+        if self.provider not in self._providers:
+            return NotificationResponse(
+                success=False,
+                error="Unsupported SMS provider",
+                status="failed",
+            )
+        if self.provider != "twilio" and not self.api_key:
+            return NotificationResponse(
+                success=False,
+                error="SMS provider is not configured",
+                status="failed",
+            )
+
         # Get provider function
-        send_func = self._providers.get(self.provider, self._send_via_african_talking)
+        send_func = self._providers[self.provider]
 
         try:
             result = await send_func(phone, request.content or "")
@@ -86,10 +99,10 @@ class SMSGateway(NotificationProvider):
                 )
 
         except Exception as e:
-            logger.error(f"SMS sending failed: {e}")
+            logger.error("SMS sending failed (%s)", type(e).__name__)
             return NotificationResponse(
                 success=False,
-                error=str(e),
+                error="SMS delivery failed",
                 status="failed",
             )
 
@@ -152,8 +165,8 @@ class SMSGateway(NotificationProvider):
                     }
 
         except Exception as e:
-            logger.error(f"Ethio Telecom SMS failed: {e}")
-            return {"success": False, "error": str(e)}
+            logger.error("Ethio Telecom SMS failed (%s)", type(e).__name__)
+            return {"success": False, "error": "SMS delivery failed"}
 
     async def _send_via_african_talking(self, phone: str, message: str) -> dict[str, Any]:
         """
@@ -193,8 +206,8 @@ class SMSGateway(NotificationProvider):
                 return {"success": False, "error": "Failed to send"}
 
         except Exception as e:
-            logger.error(f"African's Talking SMS failed: {e}")
-            return {"success": False, "error": str(e)}
+            logger.error("Africa's Talking SMS failed (%s)", type(e).__name__)
+            return {"success": False, "error": "SMS delivery failed"}
 
     async def _send_via_twilio(self, phone: str, message: str) -> dict[str, Any]:
         """

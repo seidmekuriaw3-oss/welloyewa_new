@@ -354,14 +354,26 @@
 }
 .auth-link a { color: var(--primary); font-weight: 700; text-decoration: none; }
 .auth-link a:hover { text-decoration: underline; }
+.auth-forgot { margin: 1px 0 5px; text-align: right; }
+.auth-notice {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.auth-card button:disabled { cursor: wait; opacity: .7; }
 .page-login,
-.page-register { padding-bottom: 0; }
+.page-register,
+.page-forgot-password { padding-bottom: 0; }
 .page-login .site-footer,
 .page-register .site-footer,
+.page-forgot-password .site-footer,
 .page-login .bottom-nav,
-.page-register .bottom-nav { display: none; }
+.page-register .bottom-nav,
+.page-forgot-password .bottom-nav { display: none; }
 .page-login .auth-page,
-.page-register .auth-page { min-height: calc(100vh - 56px); }
+.page-register .auth-page,
+.page-forgot-password .auth-page { min-height: calc(100vh - 56px); }
 
 @media (max-width: 400px) {
   .auth-card { padding: 23px 19px; border-radius: 14px; }

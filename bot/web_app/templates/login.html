@@ -11,6 +11,7 @@
             <input id="loginPhone" name="phone" type="tel" inputmode="tel" required autocomplete="tel" placeholder="0912345678">
             <label for="loginPassword">የይለፍ ቃል</label>
             <input id="loginPassword" name="password" type="password" required autocomplete="current-password">
+            <p class="auth-link auth-forgot"><a href="/app/forgot-password">የይለፍ ቃል ረሱ?</a></p>
             <p id="loginError" class="form-error" role="alert"></p>
             <button class="btn-primary" type="submit">ግባ</button>
         </form>
@@ -26,19 +27,23 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
     const form = event.currentTarget;
     const error = document.getElementById('loginError');
     error.textContent = '';
-    const response = await fetch('/app/api/web/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: form.phone.value, password: form.password.value }),
-    });
-    if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        error.textContent = data.detail || 'መግባት አልተቻለም።';
-        return;
+    try {
+        const response = await fetch('/app/api/web/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: form.phone.value, password: form.password.value }),
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            error.textContent = data.detail || 'መግባት አልተቻለም።';
+            return;
+        }
+        const data = await response.json();
+        localStorage.setItem('wolloyewa_access_token', data.access_token);
+        window.location.href = '/app/dashboard';
+    } catch {
+        error.textContent = 'ከአገልጋዩ ጋር መገናኘት አልተቻለም። እንደገና ይሞክሩ።';
     }
-    const data = await response.json();
-    localStorage.setItem('wolloyewa_access_token', data.access_token);
-    window.location.href = '/app/dashboard';
 });
 </script>
 {% endblock %}

@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.common.schemas import MessageResponse, PaginatedResponse
 from apps.users.schemas import (
     ChangePasswordRequest,
+    PasswordResetStartRequest,
+    ResetPasswordRequest,
     TokenResponse,
     UserLogin,
     UserRegister,
@@ -18,8 +20,10 @@ from apps.users.schemas import (
     VendorResponse,
     VendorUpdate,
 )
+from apps.users.password_recovery import PasswordRecoveryService
 from apps.users.services import AuthService, UserService, VendorService
 from core.config import settings
+from core.logger import logger
 from core.dependencies import (
     get_current_admin,
     get_current_user,
@@ -48,6 +52,57 @@ def _verified_telegram_identity(init_data: str | None) -> dict | None:
 # ============================
 # Authentication Endpoints
 # ============================
+
+
+@router.post(
+    "/password-reset/request",
+    response_model=MessageResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def request_password_reset(
+    data: PasswordResetStartRequest,
+    db: AsyncSession = Depends(get_db_session),
+) -> MessageResponse:
+    """Request an OTP; the response does not disclose whether the phone is registered."""
+    try:
+        await PasswordRecoveryService(db).request_code(data.phone_number)
+    except Exception as exc:
+        logger.warning("Password recovery request unavailable (%s)", type(exc).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Password recovery is temporarily unavailable",
+        ) from exc
+
+    return MessageResponse(
+        message="If the phone number is registered and SMS delivery is available, a code will be sent."
+    )
+
+
+@router.post("/password-reset/confirm", response_model=MessageResponse)
+async def confirm_password_reset(
+    data: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db_session),
+) -> MessageResponse:
+    """Verify a single-use OTP and set a new password."""
+    try:
+        await PasswordRecoveryService(db).reset_password(
+            data.phone_number,
+            data.otp,
+            data.new_password,
+        )
+    except AuthenticationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired recovery code",
+        ) from exc
+    except Exception as exc:
+        logger.warning("Password recovery confirmation unavailable (%s)", type(exc).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Password recovery is temporarily unavailable",
+        ) from exc
+
+    return MessageResponse(message="Password updated. You can now log in.")
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)

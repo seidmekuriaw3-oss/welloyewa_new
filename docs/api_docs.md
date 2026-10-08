@@ -32,9 +32,12 @@ POST /users/login
 ```json
 {
   "telegram_id": 123456789,
-  "phone_number": "0912345678"
+  "init_data": "<raw Telegram.WebApp.initData>"
 }
 ```
+Send `{"phone_number":"0912345678","password":"..."}` instead for a
+phone/password account. A Telegram ID by itself is not accepted as proof of
+identity.
 
 **Response:**
 ```json
@@ -64,6 +67,7 @@ POST /users/register
 ```json
 {
   "telegram_id": 123456789,
+  "init_data": "<raw Telegram.WebApp.initData>",
   "username": "john_doe",
   "first_name": "John",
   "last_name": "Doe",
@@ -295,10 +299,19 @@ POST /webhook/telegram
 ```python
 import requests
 
-# Login
+def login_with_telegram(telegram_user_id, raw_init_data):
+    # Pass the exact initData string from Telegram.WebApp.initData.
+    response = requests.post(
+        "https://api.wolloyewa.com/api/v1/users/login",
+        json={"telegram_id": telegram_user_id, "init_data": raw_init_data},
+    )
+    response.raise_for_status()
+    return response.json()["access_token"]
+
+# For phone/password accounts, use this instead:
 response = requests.post(
     "https://api.wolloyewa.com/api/v1/users/login",
-    json={"telegram_id": 123456789}
+    json={"phone_number": "0912345678", "password": user_password},
 )
 token = response.json()["access_token"]
 
@@ -312,11 +325,19 @@ products = requests.get(
 
 ### JavaScript
 ```javascript
-// Login
+// Telegram Mini App login: pass Telegram's raw signed initData unchanged.
+const webApp = window.Telegram?.WebApp;
+const telegramUserId = webApp?.initDataUnsafe?.user?.id;
+if (!webApp?.initData || !telegramUserId) {
+  throw new Error('Open the store inside Telegram to sign in.');
+}
 const response = await fetch('https://api.wolloyewa.com/api/v1/users/login', {
   method: 'POST',
   headers: {'Content-Type': 'application/json'},
-  body: JSON.stringify({telegram_id: 123456789})
+  body: JSON.stringify({
+    telegram_id: telegramUserId,
+    init_data: webApp.initData
+  })
 });
 const {access_token} = await response.json();
 
@@ -325,6 +346,12 @@ const products = await fetch('https://api.wolloyewa.com/api/v1/products', {
   headers: {'Authorization': `Bearer ${access_token}`}
 });
 ```
+
+Phone/password login uses the same endpoint with
+`{"phone_number":"0912345678","password":"..."}`. A bare Telegram ID is
+rejected. Password recovery uses
+`POST /api/v1/users/password-reset/request` followed by
+`POST /api/v1/users/password-reset/confirm`.
 
 ## Support
 

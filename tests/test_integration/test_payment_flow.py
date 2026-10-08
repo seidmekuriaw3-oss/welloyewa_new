@@ -99,6 +99,7 @@ class TestPaymentFlowIntegration:
                 )
 
                 provider = TelebirrProvider()
+                provider.app_key = "test-only-signing-key"
                 request = PaymentRequest(
                     amount=Decimal("100.00"),
                     order_number="ORD001",
@@ -137,6 +138,7 @@ class TestPaymentFlowIntegration:
                 )
 
                 provider = CBEBirrProvider()
+                provider.secret_key = "test-only-signing-key"
                 request = PaymentRequest(
                     amount=Decimal("100.00"),
                     order_number="ORD001",

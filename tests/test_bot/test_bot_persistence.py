@@ -25,6 +25,11 @@ class TestBotPersistence:
         builder = Mock()
         builder.token.return_value = builder
         builder.persistence.return_value = builder
+        builder.read_timeout.return_value = builder
+        builder.write_timeout.return_value = builder
+        builder.connect_timeout.return_value = builder
+        builder.pool_timeout.return_value = builder
+        builder.get_updates_read_timeout.return_value = builder
         builder.build.return_value = mock_app
 
         bot_instance._application = None
