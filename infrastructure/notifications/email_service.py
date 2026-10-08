@@ -72,7 +72,7 @@ class EmailService(NotificationProvider):
             <p>Dear {{name}},</p>
             <p>We received a request to reset your password. Use the code below to reset your password:</p>
             <h2 style="padding: 10px; background: #f0f0f0; text-align: center;">{{code}}</h2>
-            <p>This code will expire in 10 minutes.</p>
+            <p>This code will expire in 5 minutes.</p>
             <p>If you didn't request this, please ignore this email.</p>
             """,
             "payment_received": """
@@ -99,7 +99,7 @@ class EmailService(NotificationProvider):
 
         import jinja2
 
-        env = jinja2.Environment()
+        env = jinja2.Environment(autoescape=True)
         tmpl = env.from_string(template)
         return tmpl.render(**data)
 
@@ -156,10 +156,10 @@ class EmailService(NotificationProvider):
             )
 
         except Exception as e:
-            logger.error(f"Failed to send email to {request.to}: {e}")
+            logger.error("Failed to send email (%s)", type(e).__name__)
             return NotificationResponse(
                 success=False,
-                error=str(e),
+                error="Email delivery failed",
                 status="failed",
             )
 

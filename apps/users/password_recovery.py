@@ -1,4 +1,4 @@
-"""OTP-based password recovery for phone-verified customer accounts."""
+"""OTP-based password recovery delivered through linked Telegram or email."""
 
 import hashlib
 import hmac
@@ -61,8 +61,60 @@ class PasswordRecoveryService:
         manager = await get_redis_client()
         return await manager.get_client()
 
+    @staticmethod
+    async def _deliver_code(user, code: str) -> str | None:
+        """Send the code to a contact already linked to the account."""
+        user_id = getattr(user, "id", None)
+        message = (
+            "🔐 Wolloyewa Store\n"
+            f"የይለፍ ቃል መቀየሪያ ኮድዎ: {code}\n"
+            "ኮዱ ለ5 ደቂቃ ይሰራል። እርስዎ ካልጠየቁት ይህን መልዕክት ችላ ይበሉ።"
+        )
+
+        telegram_id = getattr(user, "telegram_id", None)
+        if telegram_id:
+            try:
+                from infrastructure.notifications.telegram_notifier import (
+                    send_telegram_message,
+                )
+
+                if await send_telegram_message(int(telegram_id), message):
+                    logger.info("Password recovery code delivered via Telegram for user_id=%s", user_id)
+                    return "telegram"
+            except Exception as exc:
+                logger.warning(
+                    "Password recovery Telegram delivery failed for user_id=%s (%s)",
+                    user_id,
+                    type(exc).__name__,
+                )
+
+        email = getattr(user, "email", None)
+        if email:
+            try:
+                from infrastructure.notifications.email_service import send_password_reset_email
+
+                name = " ".join(
+                    part
+                    for part in (
+                        getattr(user, "first_name", None),
+                        getattr(user, "last_name", None),
+                    )
+                    if part
+                ) or "Customer"
+                if await send_password_reset_email(email, name, code):
+                    logger.info("Password recovery code delivered via email for user_id=%s", user_id)
+                    return "email"
+            except Exception as exc:
+                logger.warning(
+                    "Password recovery email delivery failed for user_id=%s (%s)",
+                    user_id,
+                    type(exc).__name__,
+                )
+
+        return None
+
     async def request_code(self, phone_number: str) -> None:
-        """Send a recovery code when an active account exists; never reveal account presence."""
+        """Send a recovery code to a linked Telegram or email contact."""
         phone = self._normalize_phone(phone_number)
         fingerprint = self._phone_fingerprint(phone)
         redis = await self._redis()
@@ -85,17 +137,15 @@ class PasswordRecoveryService:
         await redis.delete(attempts_key)
 
         try:
-            from infrastructure.notifications.sms_gateway import send_verification_code
-
-            delivered = await send_verification_code(phone, code)
+            channel = await self._deliver_code(user, code)
         except Exception as exc:
             await redis.delete(code_key, attempts_key)
-            logger.warning("Password recovery SMS delivery failed (%s)", type(exc).__name__)
+            logger.warning("Password recovery delivery failed (%s)", type(exc).__name__)
             return
 
-        if not delivered:
+        if not channel:
             await redis.delete(code_key, attempts_key)
-            logger.warning("Password recovery SMS delivery failed")
+            logger.warning("Password recovery has no usable Telegram or email delivery channel")
 
     async def reset_password(self, phone_number: str, code: str, new_password: str) -> None:
         """Verify and consume a recovery code before replacing the password hash."""

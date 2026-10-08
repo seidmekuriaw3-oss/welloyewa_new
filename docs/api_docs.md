@@ -351,7 +351,10 @@ Phone/password login uses the same endpoint with
 `{"phone_number":"0912345678","password":"..."}`. A bare Telegram ID is
 rejected. Password recovery uses
 `POST /api/v1/users/password-reset/request` followed by
-`POST /api/v1/users/password-reset/confirm`.
+`POST /api/v1/users/password-reset/confirm`. Recovery codes are sent to the
+account's linked Telegram chat, or its registered email if Telegram delivery
+is unavailable. SMTP must be configured for email delivery. In Telegram, a
+linked user can also request a code with `/resetpassword`.
 
 ## Support
 

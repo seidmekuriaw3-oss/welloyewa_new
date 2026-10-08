@@ -44,12 +44,15 @@ flow at `/app/register`.
 
 1. Call `POST /api/v1/users/password-reset/request` with
    `{"phone_number":"0912345678"}`.
-2. If an active account exists and SMS delivery is configured, a six-digit code
-   is sent. The response is intentionally the same for registered and
-   unregistered phone numbers.
+2. If an active account exists, a six-digit code is sent to its linked Telegram
+   account first, or to its registered email if Telegram delivery is unavailable.
+   The response is intentionally the same for registered and unregistered phone numbers.
 3. Call `POST /api/v1/users/password-reset/confirm` with
    `phone_number`, `otp`, `new_password`, and `confirm_password`.
 
 Codes expire after five minutes, can be used once, and allow at most five
 verification attempts. Requests are limited to three per phone number per hour.
-The SMS provider must be configured before customers can receive codes.
+Email delivery requires the app's SMTP settings. If neither linked channel is
+available, the customer should contact the store administrator; reset codes are
+never disclosed to admins. Linked Telegram users can also request a code in the
+bot using `/resetpassword`.

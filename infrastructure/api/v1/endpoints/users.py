@@ -74,7 +74,10 @@ async def request_password_reset(
         ) from exc
 
     return MessageResponse(
-        message="If the phone number is registered and SMS delivery is available, a code will be sent."
+        message=(
+            "If the phone number is registered, a code will be sent to a linked "
+            "Telegram account or email address when available."
+        )
     )
 
 

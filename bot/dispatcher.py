@@ -22,6 +22,7 @@ def setup_dispatcher(application: Application) -> Application:
 
     # ── Import all handler modules ──────────────────────────────────────────
     from bot.handlers import (
+        account_recovery,
         broadcaster,
         cart,
         catalog,
@@ -65,6 +66,9 @@ def setup_dispatcher(application: Application) -> Application:
     # ── Command handlers ─────────────────────────────────────────────────────
     application.add_handler(CommandHandler("start", start.start_command))
     application.add_handler(CommandHandler("help", start.help_command))
+    application.add_handler(
+        CommandHandler("resetpassword", account_recovery.reset_password_command)
+    )
     application.add_handler(CommandHandler("menu", catalog.menu_command))
     # NOTE: /search and /checkout are entry-points of ConversationHandlers below;
     # registering them again here would shadow the conversation — omitted.

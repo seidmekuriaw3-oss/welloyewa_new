@@ -70,8 +70,6 @@ class TelegramNotifier(NotificationProvider):
                 parse_mode=parse_mode,
             )
 
-            logger.info(f"Telegram message sent to {chat_id}")
-
             return NotificationResponse(
                 success=True,
                 message_id=str(message.message_id),
@@ -80,10 +78,10 @@ class TelegramNotifier(NotificationProvider):
             )
 
         except Exception as e:
-            logger.error(f"Failed to send Telegram message: {e}")
+            logger.error("Failed to send Telegram message (%s)", type(e).__name__)
             return NotificationResponse(
                 success=False,
-                error=str(e),
+                error="Telegram delivery failed",
                 status="failed",
             )
 
