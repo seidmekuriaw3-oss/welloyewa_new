@@ -5,8 +5,10 @@
 
 import logging
 import sys
+import tempfile
 from contextvars import ContextVar
 from datetime import datetime
+from pathlib import Path
 
 from pythonjsonlogger.json import JsonFormatter
 
@@ -117,17 +119,39 @@ def setup_logging() -> None:
 
     # File handler for errors (always enabled)
     if settings.LOG_FILE_PATH:
+        log_path = Path(settings.LOG_FILE_PATH).expanduser()
+        file_handler = None
         try:
-            file_handler = logging.FileHandler(settings.LOG_FILE_PATH, encoding="utf-8")
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            file_handler = logging.FileHandler(log_path, encoding="utf-8")
+        except OSError as primary_error:
+            fallback_path = Path(tempfile.gettempdir()) / log_path.name
+            try:
+                file_handler = logging.FileHandler(fallback_path, encoding="utf-8")
+            except OSError as fallback_error:
+                root_logger.warning(
+                    "Could not create log file handler at %s or fallback path %s: %s",
+                    log_path,
+                    fallback_path,
+                    fallback_error,
+                )
+            else:
+                root_logger.warning(
+                    "Could not create log file handler at %s (%s); using %s",
+                    log_path,
+                    primary_error,
+                    fallback_path,
+                )
+
+        if file_handler is not None:
             file_handler.setLevel(logging.ERROR)
-            file_formatter = CustomJsonFormatter(
-                fmt="%(timestamp)s %(level)s %(name)s %(message)s",
-                json_ensure_ascii=False,
+            file_handler.setFormatter(
+                CustomJsonFormatter(
+                    fmt="%(timestamp)s %(level)s %(name)s %(message)s",
+                    json_ensure_ascii=False,
+                )
             )
-            file_handler.setFormatter(file_formatter)
             root_logger.addHandler(file_handler)
-        except Exception as e:
-            root_logger.warning(f"Could not create log file handler: {e}")
 
     # Silence noisy loggers
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)

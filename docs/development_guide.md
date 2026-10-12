@@ -37,8 +37,9 @@
 git clone https://github.com/seidmekuriaw3-oss/welloyewa.git
 cd welloyewa
 
-# 2. Create virtual environment
-python -m venv venv
+# 2. Create a Python 3.11 virtual environment
+python3.11 -m venv venv
+# On Windows, use: py -3.11 -m venv venv
 source venv/bin/activate  # Linux/Mac
 # or
 venv\Scripts\activate     # Windows

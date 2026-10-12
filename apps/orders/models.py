@@ -17,12 +17,18 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
-from apps.common.models import BaseModel, TimestampMixin
-from core.constants import OrderStatus, PaymentMethod, PaymentStatus, ShippingMethod
+from apps.common.models import BaseModel, CaseInsensitiveEnum as SQLEnum, TimestampMixin
+from core.constants import (
+    OrderStatus,
+    PaymentMethod,
+    PaymentStatus,
+    ShippingMethod,
+    enum_values,
+    normalize_enum_value,
+)
 
 if TYPE_CHECKING:
     from apps.products.models import Product
@@ -48,8 +54,8 @@ class Order(BaseModel, TimestampMixin):
     )
 
     # Status
-    status: Mapped[str] = mapped_column(
-        SQLEnum(OrderStatus, name="order_status"),
+    status: Mapped[OrderStatus] = mapped_column(
+        SQLEnum(OrderStatus, name="order_status", values_callable=enum_values),
         nullable=False,
         default=OrderStatus.PENDING,
         index=True,
@@ -63,24 +69,28 @@ class Order(BaseModel, TimestampMixin):
     total: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=0)
 
     # Payment
-    payment_method: Mapped[str] = mapped_column(
-        SQLEnum(PaymentMethod, name="payment_method"), nullable=False
+    payment_method: Mapped[PaymentMethod] = mapped_column(
+        SQLEnum(PaymentMethod, name="payment_method", values_callable=enum_values),
+        nullable=False,
     )
-    payment_status: Mapped[str] = mapped_column(
-        SQLEnum(PaymentStatus, name="payment_status"),
+    payment_status: Mapped[PaymentStatus] = mapped_column(
+        SQLEnum(PaymentStatus, name="payment_status", values_callable=enum_values),
         nullable=False,
         default=PaymentStatus.PENDING,
         index=True,
     )
     payment_transaction_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     payment_details: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    payment_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_payment_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reconciliation_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # Shipping
     shipping_address: Mapped[str] = mapped_column(Text, nullable=False)
     shipping_city: Mapped[str] = mapped_column(String(100), nullable=False)
     shipping_phone: Mapped[str] = mapped_column(String(20), nullable=False)
-    shipping_method: Mapped[str] = mapped_column(
-        SQLEnum(ShippingMethod, name="shipping_method"),
+    shipping_method: Mapped[ShippingMethod] = mapped_column(
+        SQLEnum(ShippingMethod, name="shipping_method", values_callable=enum_values),
         nullable=False,
         default=ShippingMethod.STANDARD,
     )
@@ -102,6 +112,28 @@ class Order(BaseModel, TimestampMixin):
     refunded_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=0)
     refunded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     refund_transaction_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    @validates("status")
+    def normalize_status(self, _key: str, value: OrderStatus | str) -> OrderStatus:
+        return normalize_enum_value(OrderStatus, value)
+
+    @validates("payment_method")
+    def normalize_payment_method(
+        self, _key: str, value: PaymentMethod | str
+    ) -> PaymentMethod:
+        return normalize_enum_value(PaymentMethod, value)
+
+    @validates("payment_status")
+    def normalize_payment_status(
+        self, _key: str, value: PaymentStatus | str
+    ) -> PaymentStatus:
+        return normalize_enum_value(PaymentStatus, value)
+
+    @validates("shipping_method")
+    def normalize_shipping_method(
+        self, _key: str, value: ShippingMethod | str
+    ) -> ShippingMethod:
+        return normalize_enum_value(ShippingMethod, value)
 
     # Relationships
     user: Mapped["User"] = relationship("User", foreign_keys=[user_id], back_populates="orders")

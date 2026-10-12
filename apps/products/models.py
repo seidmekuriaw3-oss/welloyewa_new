@@ -19,12 +19,17 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym, validates
 
-from apps.common.models import BaseModel, MetadataMixin, SoftDeleteMixin, TimestampMixin
-from core.constants import ProductCategory, ProductStatus
+from apps.common.models import (
+    BaseModel,
+    CaseInsensitiveEnum as SQLEnum,
+    MetadataMixin,
+    SoftDeleteMixin,
+    TimestampMixin,
+)
+from core.constants import ProductCategory, ProductStatus, enum_values, normalize_enum_value
 
 if TYPE_CHECKING:
     from apps.orders.models import OrderItem
@@ -48,7 +53,7 @@ class Category(BaseModel, TimestampMixin):
 
     # Hierarchy
     parent_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("categories.id"), nullable=True, index=True
+        BigInteger, ForeignKey("categories.id"), nullable=True, index=True
     )
 
     # Media
@@ -113,13 +118,16 @@ class Product(BaseModel, TimestampMixin, SoftDeleteMixin, MetadataMixin):
 
     # Categorization
     category_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("categories.id"), nullable=True, index=True
+        BigInteger, ForeignKey("categories.id"), nullable=True, index=True
     )
 
     # ስሙን category ወደ category_type ቀይረው
-    category_type: Mapped[str | None] = mapped_column(
-        SQLEnum(ProductCategory, name="product_category"), nullable=True, index=True
+    category_type: Mapped[ProductCategory | None] = mapped_column(
+        SQLEnum(ProductCategory, name="product_category", values_callable=enum_values),
+        nullable=True,
+        index=True,
     )
+    category = synonym("category_type")
     subcategory: Mapped[str | None] = mapped_column(String(100), nullable=True)
     tags: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
@@ -132,6 +140,7 @@ class Product(BaseModel, TimestampMixin, SoftDeleteMixin, MetadataMixin):
 
     # Inventory
     stock_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reserved_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     low_stock_threshold: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
     sku: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
     barcode: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -145,12 +154,22 @@ class Product(BaseModel, TimestampMixin, SoftDeleteMixin, MetadataMixin):
     video_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Status
-    status: Mapped[str] = mapped_column(
-        SQLEnum(ProductStatus, name="product_status"),
+    status: Mapped[ProductStatus] = mapped_column(
+        SQLEnum(ProductStatus, name="product_status", values_callable=enum_values),
         nullable=False,
         default=ProductStatus.DRAFT,
         index=True,
     )
+
+    @validates("category_type")
+    def normalize_category_type(
+        self, _key: str, value: ProductCategory | str | None
+    ) -> ProductCategory | None:
+        return normalize_enum_value(ProductCategory, value) if value is not None else None
+
+    @validates("status")
+    def normalize_status(self, _key: str, value: ProductStatus | str) -> ProductStatus:
+        return normalize_enum_value(ProductStatus, value)
 
     # Features
     is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

@@ -63,7 +63,7 @@ class Ticket(BaseModel, TimestampMixin):
     )
     assigned_to: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     category_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("ticket_categories.id"), nullable=True
+        BigInteger, ForeignKey("ticket_categories.id"), nullable=True
     )
 
     # Ticket content
@@ -203,7 +203,7 @@ class FAQ(BaseModel, TimestampMixin):
     __tablename__ = "faqs"
 
     category_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("faq_categories.id"), nullable=True, index=True
+        BigInteger, ForeignKey("faq_categories.id"), nullable=True, index=True
     )
 
     question: Mapped[str] = mapped_column(String(500), nullable=False)

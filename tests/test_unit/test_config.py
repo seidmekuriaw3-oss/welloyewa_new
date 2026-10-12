@@ -29,6 +29,14 @@ def test_environment_and_runtime_properties():
     assert testing.is_testing is True
 
 
+def test_disable_bot_polling_setting():
+    disabled = Settings(DISABLE_BOT_POLLING="true", _env_file=None)
+    enabled = Settings(DISABLE_BOT_POLLING="false", _env_file=None)
+
+    assert disabled.DISABLE_BOT_POLLING is True
+    assert enabled.DISABLE_BOT_POLLING is False
+
+
 def test_production_requires_secrets_and_restricted_origins(monkeypatch):
     for name in (
         "SECRET_KEY",

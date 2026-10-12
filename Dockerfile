@@ -44,6 +44,7 @@ COPY pyproject.toml poetry.lock* ./
 RUN python -m venv /opt/venv && \
     /opt/venv/bin/pip install --upgrade pip && \
     poetry config virtualenvs.create false && \
+    VIRTUAL_ENV=/opt/venv PATH="/opt/venv/bin:$PATH" \
     poetry install --no-interaction --no-ansi --no-root --only main
 
 # ============================
@@ -139,15 +140,15 @@ RUN mkdir -p logs media static backups && \
 # Switch to non-root user
 USER appuser
 
-# Expose port
-EXPOSE 8000
+# Expose the default and Compose-configured ports
+EXPOSE 8000 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f "http://localhost:${PORT:-8000}/health" || exit 1
 
 # Run with gunicorn for production
-CMD ["gunicorn", "main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info"]
+CMD ["sh", "-c", "alembic upgrade head && exec gunicorn main:app --workers ${WEB_CONCURRENCY:-4} --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000} --access-logfile - --error-logfile - --log-level info"]
 
 # ============================
 # STAGE 4: Worker (Celery)

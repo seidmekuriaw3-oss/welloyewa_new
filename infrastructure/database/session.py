@@ -5,6 +5,7 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -133,6 +134,18 @@ class DatabaseSessionManager:
 _session_manager = DatabaseSessionManager()
 
 
+class _SessionFactoryProxy:
+    """Resolve the session factory after the lazy database initialization."""
+
+    def __call__(self, **kwargs: Any) -> AsyncSession:
+        if _session_manager._sessionmaker is None:
+            raise RuntimeError("Database is not initialized; call init_db() before creating a session")
+        return _session_manager._sessionmaker(**kwargs)
+
+
+AsyncSessionLocal = _SessionFactoryProxy()
+
+
 async def init_db() -> None:
     """Initialize database connection pool."""
     await _session_manager.initialize()
@@ -163,9 +176,6 @@ async def get_transaction_session() -> AsyncGenerator[AsyncSession, None]:
     """
     async with _session_manager.transaction() as session:
         yield session
-
-
-AsyncSessionLocal = _session_manager._sessionmaker
 
 
 __all__ = [

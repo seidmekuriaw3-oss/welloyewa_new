@@ -18,12 +18,17 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
-from apps.common.models import BaseModel, MetadataMixin, SoftDeleteMixin, TimestampMixin
-from core.constants import Gender, UserRole, UserStatus
+from apps.common.models import (
+    BaseModel,
+    CaseInsensitiveEnum as SQLEnum,
+    MetadataMixin,
+    SoftDeleteMixin,
+    TimestampMixin,
+)
+from core.constants import Gender, UserRole, UserStatus, enum_values, normalize_enum_value
 
 if TYPE_CHECKING:
     from apps.orders.models import Order
@@ -52,23 +57,31 @@ class User(BaseModel, TimestampMixin, SoftDeleteMixin, MetadataMixin):
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
 
     # Role and status
-    role: Mapped[str] = mapped_column(
-        SQLEnum(UserRole, name="user_role"), nullable=False, default=UserRole.CUSTOMER, index=True
+    role: Mapped[UserRole] = mapped_column(
+        SQLEnum(UserRole, name="user_role", values_callable=enum_values),
+        nullable=False,
+        default=UserRole.CUSTOMER,
+        index=True,
     )
-    status: Mapped[str] = mapped_column(
-        SQLEnum(UserStatus, name="user_status"),
+    status: Mapped[UserStatus] = mapped_column(
+        SQLEnum(UserStatus, name="user_status", values_callable=enum_values),
         nullable=False,
         default=UserStatus.ACTIVE,
         index=True,
     )
 
     # Personal info
-    gender: Mapped[str | None] = mapped_column(SQLEnum(Gender, name="gender"), nullable=True)
+    gender: Mapped[Gender | None] = mapped_column(
+        SQLEnum(Gender, name="gender", values_callable=enum_values),
+        nullable=True,
+    )
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     profile_picture: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Preferences
     language: Mapped[str] = mapped_column(String(10), nullable=False, default="am")
+    preferred_language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    notification_settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Location (last known)
     location_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -90,6 +103,18 @@ class User(BaseModel, TimestampMixin, SoftDeleteMixin, MetadataMixin):
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     reset_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
     reset_token_expires: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    @validates("role")
+    def normalize_role(self, _key: str, value: UserRole | str) -> UserRole:
+        return normalize_enum_value(UserRole, value)
+
+    @validates("status")
+    def normalize_status(self, _key: str, value: UserStatus | str) -> UserStatus:
+        return normalize_enum_value(UserStatus, value)
+
+    @validates("gender")
+    def normalize_gender(self, _key: str, value: Gender | str | None) -> Gender | None:
+        return normalize_enum_value(Gender, value) if value is not None else None
 
     # ====================
     # RELATIONSHIPS - ትክክለኛ አገባብ

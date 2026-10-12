@@ -4,13 +4,48 @@
 """Application-wide constants and enums."""
 
 from enum import StrEnum
+from typing import TypeVar
+
+
+EnumValue = TypeVar("EnumValue", bound=StrEnum)
+
+
+class CaseInsensitiveStrEnum(StrEnum):
+    """String enum that accepts either persisted values or member names."""
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            normalized = value.strip().casefold()
+            for member in cls:
+                if member.name.casefold() == normalized or member.value.casefold() == normalized:
+                    return member
+        return None
+
+
+def enum_values(enum_cls: type[StrEnum]) -> list[str]:
+    """Return DB-safe enum values for SQLAlchemy native enums."""
+    return [member.value for member in enum_cls]
+
+
+def normalize_enum_value(
+    enum_cls: type[EnumValue], value: str | EnumValue
+) -> EnumValue:
+    """Normalize enum members, values, and case-insensitive member names."""
+    if isinstance(value, enum_cls):
+        return value
+    try:
+        return enum_cls(value)
+    except ValueError as exc:
+        raise ValueError(f"{value!r} is not a valid {enum_cls.__name__}") from exc
+
 
 # ============================
 # User Related Constants
 # ============================
 
 
-class UserRole(StrEnum):
+class UserRole(CaseInsensitiveStrEnum):
     """User role enumeration."""
 
     CUSTOMER = "customer"
@@ -19,7 +54,7 @@ class UserRole(StrEnum):
     SUPER_ADMIN = "super_admin"
 
 
-class UserStatus(StrEnum):
+class UserStatus(CaseInsensitiveStrEnum):
     """User account status."""
 
     ACTIVE = "active"
@@ -28,7 +63,7 @@ class UserStatus(StrEnum):
     BANNED = "banned"
 
 
-class Gender(StrEnum):
+class Gender(CaseInsensitiveStrEnum):
     """User gender."""
 
     MALE = "male"
@@ -41,7 +76,7 @@ class Gender(StrEnum):
 # ============================
 
 
-class ProductStatus(StrEnum):
+class ProductStatus(CaseInsensitiveStrEnum):
     """Product status."""
 
     DRAFT = "draft"
@@ -50,7 +85,7 @@ class ProductStatus(StrEnum):
     DISCONTINUED = "discontinued"
 
 
-class ProductCategory(StrEnum):
+class ProductCategory(CaseInsensitiveStrEnum):
     """Product categories."""
 
     ELECTRONICS = "electronics"
@@ -85,7 +120,7 @@ CATEGORY_NAMES_AMHARIC: dict[ProductCategory, str] = {
 # ============================
 
 
-class OrderStatus(StrEnum):
+class OrderStatus(CaseInsensitiveStrEnum):
     """Order status."""
 
     PENDING = "pending"
@@ -97,7 +132,7 @@ class OrderStatus(StrEnum):
     REFUNDED = "refunded"
 
 
-class PaymentStatus(StrEnum):
+class PaymentStatus(CaseInsensitiveStrEnum):
     """Payment status."""
 
     PENDING = "pending"
@@ -107,7 +142,7 @@ class PaymentStatus(StrEnum):
     PARTIAL = "partial"
 
 
-class PaymentMethod(StrEnum):
+class PaymentMethod(CaseInsensitiveStrEnum):
     """Payment methods."""
 
     CHAPA = "chapa"
@@ -116,7 +151,7 @@ class PaymentMethod(StrEnum):
     CASH_ON_DELIVERY = "cash_on_delivery"
 
 
-class ShippingMethod(StrEnum):
+class ShippingMethod(CaseInsensitiveStrEnum):
     """Shipping methods."""
 
     STANDARD = "standard"

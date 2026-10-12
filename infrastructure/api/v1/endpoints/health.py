@@ -6,9 +6,11 @@
 from typing import Any
 
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import CONTENT_TYPE_LATEST
 
 from core.config import settings
+from core.monitoring.metrics import get_metrics as render_prometheus_metrics
 from core.monitoring.health_checks import health_checker
 
 router = APIRouter(tags=["health"])
@@ -91,6 +93,15 @@ async def get_metrics() -> dict[str, Any]:
         "environment": settings.ENVIRONMENT,
         "uptime_seconds": None,  # Would track actual uptime
     }
+
+
+@router.get("/prometheus", include_in_schema=False)
+async def prometheus_metrics() -> Response:
+    """Expose metrics in Prometheus text format."""
+    return Response(
+        content=render_prometheus_metrics(),
+        media_type=CONTENT_TYPE_LATEST,
+    )
 
 
 __all__ = ["router"]

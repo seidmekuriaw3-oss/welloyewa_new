@@ -41,7 +41,7 @@
 | OS | Ubuntu 22.04 LTS |
 
 ### Software Dependencies
-- Python 3.11+
+- Python 3.11
 - PostgreSQL 15+
 - Redis 7+
 - Nginx 1.24+
@@ -564,4 +564,3 @@ For deployment support:
 
 **Next:** [User Manual](user_manual.md)
 ```
-

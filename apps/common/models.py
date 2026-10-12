@@ -6,11 +6,29 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Integer, String
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Enum, String
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import Mapped, mapped_column
 
+from core.constants import normalize_enum_value
 from infrastructure.database.base import Base
+
+
+class CaseInsensitiveEnum(Enum):
+    """Persist canonical enum values while accepting case-insensitive string binds."""
+
+    def bind_processor(self, dialect):
+        enum_class = self.enum_class
+        processor = super().bind_processor(dialect)
+        if enum_class is None:
+            return processor
+
+        def process(value):
+            if isinstance(value, str) and not isinstance(value, enum_class):
+                value = normalize_enum_value(enum_class, value)
+            return processor(value) if processor is not None else value
+
+        return process
 
 
 class BaseModel(Base):
@@ -22,7 +40,7 @@ class BaseModel(Base):
 
     __abstract__ = True
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
 
     @declared_attr
     def __tablename__(cls) -> str:

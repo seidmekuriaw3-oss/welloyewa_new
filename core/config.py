@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = Field(default="Wolloyewa_Store_Bot")
     VERSION: str = Field(default="1.0.0")
     ENVIRONMENT: str = Field(default="development")
+    DISABLE_BOT_POLLING: bool = Field(default=False)
     DEBUG: bool = Field(default=True)
     SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
     TIMEZONE: str = Field(default="Africa/Addis_Ababa")

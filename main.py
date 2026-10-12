@@ -29,8 +29,6 @@ from core.lifespan import lifespan_manager
 from core.logger import setup_logging
 from core.security.middleware import SecurityHeadersMiddleware
 
-os.makedirs("./logs", exist_ok=True)
-
 setup_logging()
 logger = logging.getLogger(__name__)
 
@@ -53,17 +51,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         await init_db()
         logger.info("Database connection pool initialized")
-        # Development can bootstrap an empty database; production must use migrations.
-        try:
-            if settings.ENVIRONMENT == "production":
-                logger.info("Production schema management is delegated to Alembic")
-                raise StopIteration
+        if settings.ENVIRONMENT == "production":
+            logger.info("Production schema management is delegated to Alembic")
+        else:
             import re
 
             from sqlalchemy.ext.asyncio import create_async_engine
             from sqlalchemy.pool import NullPool
 
-            # Import all models so metadata is fully populated
             import apps.common.models
             import apps.inventory.models
             import apps.marketing.models
@@ -77,19 +72,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             raw_url = re.sub(r"[?&]sslmode=[^&]*", "", raw_url).rstrip("?")
             db_url = raw_url.replace("postgresql://", "postgresql+asyncpg://")
             _schema_engine = create_async_engine(db_url, poolclass=NullPool)
-            async with _schema_engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all, checkfirst=True)
-            await _schema_engine.dispose()
+            try:
+                async with _schema_engine.begin() as conn:
+                    await conn.run_sync(Base.metadata.create_all, checkfirst=True)
+            finally:
+                await _schema_engine.dispose()
             logger.info("Database schema verified/created")
-        except StopIteration:
-            pass
-        except Exception as schema_err:
-            logger.warning(f"Schema auto-create skipped: {schema_err}")
     except Exception as e:
-        if settings.ENVIRONMENT == "production":
-            logger.error("Database initialization failed (%s)", type(e).__name__)
-            raise RuntimeError("Database initialization failed; refusing to start") from e
-        logger.warning("Database initialization failed; continuing (%s)", type(e).__name__)
+        logger.error("Database initialization failed (%s); refusing to start", type(e).__name__)
+        raise RuntimeError("Database initialization failed; refusing to start") from e
 
     # Redis is optional in local development, but production rate limits must be shared.
     try:
@@ -133,19 +124,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         # Start polling only in development mode (not when deployed) and avoid duplicate local sessions
         _is_deployed = os.environ.get("REPLIT_DEPLOYMENT", "").strip() == "1"
-        default_disable_polling = "0" if settings.ENVIRONMENT == "development" else "1"
-        _disable_bot_polling = os.environ.get("DISABLE_BOT_POLLING", default_disable_polling).strip() in {
-            "1",
-            "true",
-            "True",
-            "yes",
-            "y",
-        }
         if (
             settings.ENVIRONMENT == "development"
             and application_instance
             and not _is_deployed
-            and not _disable_bot_polling
+            and not settings.DISABLE_BOT_POLLING
         ):
             logger.info("Starting Telegram bot in POLLING mode...")
             await application_instance.initialize()

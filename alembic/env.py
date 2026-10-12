@@ -8,6 +8,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from infrastructure.database.base import Base
+from core.config import settings
 from apps.common.models import *
 from apps.users.models import *
 from apps.products.models import *
@@ -26,7 +27,7 @@ target_metadata = Base.metadata
 
 def get_async_database_url() -> str:
     """Return a clean asyncpg-compatible URL (no sslmode query param)."""
-    url = os.environ.get("DATABASE_URL", "")
+    url = os.environ.get("DATABASE_URL") or str(settings.DATABASE_URL)
     # Ensure asyncpg driver
     url = re.sub(r"^postgresql://", "postgresql+asyncpg://", url)
     url = re.sub(r"^postgres://", "postgresql+asyncpg://", url)

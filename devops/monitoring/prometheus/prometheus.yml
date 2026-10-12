@@ -26,12 +26,10 @@ scrape_configs:
   # FastAPI Application Metrics
   - job_name: 'wolloyewa-api'
     scrape_interval: 10s
-    metrics_path: '/metrics'
+    metrics_path: '/api/v1/health/prometheus'
     static_configs:
       - targets:
-          - 'api-1.wolloyewa.com:8000'
-          - 'api-2.wolloyewa.com:8000'
-          - 'api-3.wolloyewa.com:8000'
+          - 'app:8080'
         labels:
           service: 'api'
           component: 'backend'
@@ -168,15 +166,3 @@ scrape_configs:
       - targets:
           - 'postgres-exporter:9187'
     metrics_path: '/metrics/slow'
-    
-  # Business Metrics
-  - job_name: 'wolloyewa-business'
-    scrape_interval: 60s
-    static_configs:
-      - targets:
-          - 'api-1.wolloyewa.com:8000'
-        params:
-          metrics_path: ['/metrics/business']
-        labels:
-          service: 'business'
-          type: 'revenue'
