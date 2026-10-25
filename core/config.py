@@ -82,7 +82,13 @@ class Settings(BaseSettings):
         data = info.data
         if data.get("ENVIRONMENT") == "testing":
             return "sqlite+aiosqlite:///./test.db"
-        return f"postgresql+asyncpg://{data.get('POSTGRES_USER')}:{data.get('POSTGRES_PASSWORD')}@{data.get('POSTGRES_HOST')}:{data.get('POSTGRES_PORT')}/{data.get('POSTGRES_DB')}"
+        username = quote(str(data.get("POSTGRES_USER", "")), safe="")
+        password = quote(str(data.get("POSTGRES_PASSWORD", "")), safe="")
+        database = quote(str(data.get("POSTGRES_DB", "")), safe="")
+        return (
+            f"postgresql+asyncpg://{username}:{password}"
+            f"@{data.get('POSTGRES_HOST')}:{data.get('POSTGRES_PORT')}/{database}"
+        )
 
     # ============================
     # Redis
@@ -358,6 +364,10 @@ class Settings(BaseSettings):
             raise ValueError(
                 "Production requires ALLOWED_HOSTS to be an explicit host allowlist."
             )
+        if self.TELEGRAM_WEBHOOK_URL:
+            webhook_url = urlsplit(self.TELEGRAM_WEBHOOK_URL)
+            if webhook_url.scheme != "https" or not webhook_url.netloc:
+                raise ValueError("TELEGRAM_WEBHOOK_URL must be a valid HTTPS URL when configured.")
         return self
 
     # ============================

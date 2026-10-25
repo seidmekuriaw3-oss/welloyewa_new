@@ -14,13 +14,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from apps.orders.services import OrderService
 from apps.products.services import ProductService
 from apps.users.services import UserService
 from core.config import settings
-from core.dependencies import get_current_user, get_db_session
+from core.dependencies import get_current_user, get_db_session, get_transaction_session
 from core.logger import logger
 
 # Setup templates
@@ -115,6 +115,14 @@ class CheckoutRequest(BaseModel):
     city: str
     address: str
     payment_method: str  # "chapa" | "telebirr" | "cbe" | "cod"
+    latitude: float | None = Field(None, ge=-90, le=90)
+    longitude: float | None = Field(None, ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def validate_coordinates(self) -> "CheckoutRequest":
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Both latitude and longitude are required.")
+        return self
 
 
 _PAYMENT_MAP = {
@@ -601,7 +609,9 @@ async def get_product(product_id: int, db=Depends(get_db_session)):
     """Get single product."""
     product_service = ProductService(db)
     product = await product_service.get_product(product_id)
-    if not product:
+    from core.constants import ProductStatus
+
+    if not product or product.status != ProductStatus.ACTIVE:
         raise HTTPException(status_code=404, detail="Product not found")
     return product.to_dict()
 
@@ -624,7 +634,11 @@ def _user_from_bearer(request: Request, db) -> int | None:
 
 
 @web_app_router.post("/api/checkout")
-async def api_checkout(request: Request, body: CheckoutRequest, db=Depends(get_db_session)):
+async def api_checkout(
+    request: Request,
+    body: CheckoutRequest,
+    db=Depends(get_transaction_session),
+):
     """
     Place an order from the web app.
     Accepts:
@@ -637,6 +651,7 @@ async def api_checkout(request: Request, body: CheckoutRequest, db=Depends(get_d
     from apps.orders.schemas import OrderCreate, OrderItemCreate
     from apps.users.models import User
     from core.constants import PaymentMethod, ShippingMethod
+    from core.utils.location import format_delivery_address
 
     if not body.items:
         raise HTTPException(status_code=400, detail="Cart is empty.")
@@ -701,13 +716,20 @@ async def api_checkout(request: Request, body: CheckoutRequest, db=Depends(get_d
     if len(current_prices) != len(set(product_ids)):
         raise HTTPException(status_code=400, detail="One or more products are unavailable.")
 
-    subtotal = sum(float(current_prices[i.id]) * i.qty for i in body.items)
+    subtotal = sum(
+        (Decimal(str(current_prices[item.id])) * item.qty for item in body.items),
+        start=Decimal("0"),
+    )
     shipping_fee = Decimal("0") if subtotal >= 1000 else Decimal("50")
 
     # ── Build and create order ───────────────────────────────────────────────
     order_data = OrderCreate(
         payment_method=pm,
-        shipping_address=body.address,
+        shipping_address=format_delivery_address(
+            body.address,
+            body.latitude,
+            body.longitude,
+        ),
         shipping_city=body.city,
         shipping_phone=body.phone,
         shipping_method=ShippingMethod.STANDARD,
@@ -719,6 +741,40 @@ async def api_checkout(request: Request, body: CheckoutRequest, db=Depends(get_d
     order_service = OrderService(db)
     try:
         order = await order_service.create_order(db_user.id, order_data)
+        payment_url = None
+        if pm != PaymentMethod.CASH_ON_DELIVERY:
+            from infrastructure.payments.factory import process_payment
+
+            try:
+                payment_response = await process_payment(
+                    method=pm.value,
+                    amount=order.total,
+                    order_id=order.id,
+                    order_number=order.order_number,
+                    customer_name=db_user.full_name or body.full_name,
+                    customer_email=db_user.email or "",
+                    customer_phone=body.phone,
+                )
+            except Exception as exc:
+                logger.exception("Web app payment initialization failed for order %s", order.id)
+                raise HTTPException(
+                    status_code=502,
+                    detail="Payment provider could not initialize the payment.",
+                ) from exc
+            if not payment_response.success or not payment_response.transaction_id:
+                raise HTTPException(
+                    status_code=502,
+                    detail="Payment provider could not initialize the payment.",
+                )
+            await order_service.update_payment_status(
+                order.id,
+                "pending",
+                payment_response.transaction_id,
+            )
+            payment_url = payment_response.payment_url or payment_response.redirect_url
+        await db.commit()
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error(f"Order creation failed: {exc}")
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -746,6 +802,8 @@ async def api_checkout(request: Request, body: CheckoutRequest, db=Depends(get_d
         "order_number": order.order_number,
         "order_id": order.id,
         "total": float(order.total),
+        "payment_url": payment_url,
+        "payment_method": pm.value,
     }
 
 

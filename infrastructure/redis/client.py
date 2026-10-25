@@ -34,7 +34,7 @@ class RedisClient:
             return
 
         try:
-            self._client = await redis.from_url(
+            self._client = redis.from_url(
                 str(settings.REDIS_URL),
                 encoding="utf-8",
                 decode_responses=True,

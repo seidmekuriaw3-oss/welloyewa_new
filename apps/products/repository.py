@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy import String, and_, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from apps.common.repository import BaseRepository
 from apps.products.models import Category, Product, Review
@@ -19,6 +20,15 @@ class ProductRepository(BaseRepository[Product]):
 
     def __init__(self, db: AsyncSession):
         super().__init__(Product, db)
+
+    async def get_by_id(self, id: int) -> Product | None:
+        """Get a product by ID, excluding soft-deleted products."""
+        result = await self.db.execute(
+            select(Product)
+            .options(selectinload(Product.vendor))
+            .where(Product.id == id, Product.is_deleted.is_(False))
+        )
+        return result.scalar_one_or_none()
 
     async def get_by_slug(self, slug: str) -> Product | None:
         """Get product by slug."""
@@ -48,6 +58,94 @@ class ProductRepository(BaseRepository[Product]):
         query = query.order_by(Product.created_at.desc()).offset(offset).limit(limit)
         result = await self.db.execute(query)
         return result.scalars().all()
+
+    async def get_by_vendor_with_count(
+        self,
+        vendor_id: int,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[Product], int]:
+        """Get a vendor's products and an unpaginated total."""
+        conditions = [Product.vendor_id == vendor_id, Product.is_deleted.is_(False)]
+        if status:
+            conditions.append(Product.status == status)
+
+        total = await self.db.scalar(select(func.count(Product.id)).where(*conditions)) or 0
+        result = await self.db.execute(
+            select(Product)
+            .where(*conditions)
+            .order_by(Product.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return result.scalars().all(), total
+
+    async def get_public_products(
+        self,
+        *,
+        category: str | None = None,
+        vendor_id: int | None = None,
+        min_price: float | None = None,
+        max_price: float | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Product], int]:
+        """Return only active, non-deleted products with optional filters."""
+        conditions = [
+            Product.status == ProductStatus.ACTIVE,
+            Product.is_deleted.is_(False),
+        ]
+        if category:
+            conditions.append(Product.category_type == category)
+        if vendor_id is not None:
+            conditions.append(Product.vendor_id == vendor_id)
+        if min_price is not None:
+            conditions.append(Product.price >= min_price)
+        if max_price is not None:
+            conditions.append(Product.price <= max_price)
+
+        total = await self.db.scalar(select(func.count(Product.id)).where(*conditions)) or 0
+        result = await self.db.execute(
+            select(Product)
+            .where(*conditions)
+            .order_by(Product.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return result.scalars().all(), total
+
+    async def adjust_stock(
+        self,
+        product_id: int,
+        quantity: int,
+        operation: str,
+    ) -> Product | None:
+        """Apply an atomic stock change, rejecting subtraction below zero."""
+        if operation == "set":
+            new_quantity = quantity
+        elif operation == "add":
+            new_quantity = Product.stock_quantity + quantity
+        elif operation == "subtract":
+            new_quantity = Product.stock_quantity - quantity
+        else:
+            raise ValueError(f"Unsupported stock operation: {operation}")
+
+        conditions = [Product.id == product_id, Product.is_deleted.is_(False)]
+        if operation == "subtract":
+            conditions.append(Product.stock_quantity >= quantity)
+
+        result = await self.db.execute(
+            update(Product)
+            .where(*conditions)
+            .values(stock_quantity=new_quantity)
+            .returning(Product)
+        )
+        await self.db.flush()
+        product = result.scalar_one_or_none()
+        if product is not None:
+            await self.db.refresh(product)
+        return product
 
     async def get_by_category(
         self,

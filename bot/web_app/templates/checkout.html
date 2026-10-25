@@ -32,7 +32,8 @@ function renderCheckout() {
 
     const subtotal = cart.total();
     const shipping = subtotal >= 1000 ? 0 : 50;
-    const total    = subtotal + shipping;
+    const tax      = subtotal * 0.15;
+    const total    = subtotal + shipping + tax;
 
     page.innerHTML = `
         <div class="form-card">
@@ -48,6 +49,9 @@ function renderCheckout() {
             </div>
             <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:14px;color:var(--text-muted)">
                 <span>ዲሊቨሪ</span><span>${shipping === 0 ? 'ነፃ ✓' : 'ETB ' + shipping}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:14px;color:var(--text-muted)">
+                <span>ታክስ (15% VAT)</span><span>ETB ${Number(tax).toLocaleString()}</span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:10px 0 0;font-size:17px;font-weight:800;border-top:1px solid var(--border);margin-top:6px">
                 <span>ጠቅላላ</span><span style="color:var(--primary)">ETB ${Number(total).toLocaleString()}</span>
@@ -70,7 +74,14 @@ function renderCheckout() {
             </div>
             <div class="form-group">
                 <label>አድራሻ</label>
-                <textarea id="address" rows="2" placeholder="ሙሉ አድራሻዎን ያስገቡ"></textarea>
+                <textarea id="address" rows="2" placeholder="ሙሉ አድራሻዎን ያስገቡ ወይም አካባቢዎን ያጋሩ"></textarea>
+                <button type="button" class="btn-secondary" onclick="captureDeliveryLocation()" style="margin-top:8px">
+                    📍 አሁን ያሉበትን ቦታ ይጠቀሙ
+                </button>
+                <p id="locationStatus" role="status" style="font-size:13px;color:var(--text-muted);margin:8px 0 0"></p>
+                <a id="deliveryMapLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none;font-size:14px;margin-top:8px">
+                    🗺️ ቦታውን በGoogle Maps ይመልከቱ
+                </a>
             </div>
         </div>
 
@@ -104,6 +115,44 @@ function renderCheckout() {
             ✅ ትዕዛዝ አረጋግጥ — ETB ${Number(total).toLocaleString()}
         </button>
     `;
+}
+
+let deliveryCoordinates = null;
+
+function captureDeliveryLocation() {
+    const status = document.getElementById('locationStatus');
+    const mapLink = document.getElementById('deliveryMapLink');
+    if (!navigator.geolocation) {
+        status.textContent = 'ይህ መሣሪያ የአካባቢ መረጃን አይደግፍም። አድራሻዎን በእጅ ያስገቡ።';
+        return;
+    }
+
+    status.textContent = 'አካባቢዎን በመፈለግ ላይ…';
+    navigator.geolocation.getCurrentPosition(
+        ({ coords }) => {
+            deliveryCoordinates = {
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+            };
+            const mapsUrl = `https://maps.google.com/?q=${coords.latitude.toFixed(5)},${coords.longitude.toFixed(5)}`;
+            const address = document.getElementById('address');
+            if (!address.value.trim()) address.value = 'Shared location';
+            mapLink.href = mapsUrl;
+            mapLink.style.display = 'inline-block';
+            status.textContent = 'አካባቢዎ ተያይዟል። ከታች ያለውን አገናኝ በመጫን በካርታ ላይ ያረጋግጡ።';
+        },
+        (error) => {
+            deliveryCoordinates = null;
+            mapLink.style.display = 'none';
+            const messages = {
+                1: 'የአካባቢ ፈቃድ አልተሰጠም። ፈቃዱን ይፍቀዱ ወይም አድራሻዎን በእጅ ያስገቡ።',
+                2: 'የአካባቢ መረጃ አልተገኘም። እንደገና ይሞክሩ ወይም አድራሻዎን በእጅ ያስገቡ።',
+                3: 'የአካባቢ ፍለጋው ጊዜ አልፎበታል። እንደገና ይሞክሩ ወይም አድራሻዎን በእጅ ያስገቡ።',
+            };
+            status.textContent = messages[error.code] || 'አካባቢ ማግኘት አልተቻለም። አድራሻዎን በእጅ ያስገቡ።';
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+    );
 }
 
 function selectPay(el) {
@@ -144,6 +193,7 @@ async function placeOrder(total) {
                 items: cart.items.map(i => ({ id: i.id, name: i.name, price: i.price, qty: i.qty })),
                 full_name: fullName,
                 phone, city, address, payment_method,
+                ...(deliveryCoordinates || {}),
             }),
         });
         const data = await res.json();
@@ -151,6 +201,10 @@ async function placeOrder(total) {
 
         cart.clear();
         refreshAllBadges();
+        if (data.payment_url) {
+            window.location.assign(data.payment_url);
+            return;
+        }
 
         document.getElementById('checkoutPage').innerHTML = `
             <div style="text-align:center;padding:56px 16px">
@@ -162,6 +216,9 @@ async function placeOrder(total) {
                 <p style="font-size:14px;color:var(--text-muted);margin-bottom:28px">
                     ጠቅላላ: <strong>ETB ${Number(data.total).toLocaleString()}</strong>
                 </p>
+                ${data.payment_method === 'cash_on_delivery'
+                    ? '<p style="font-size:14px;color:var(--text-muted);margin-bottom:20px">ክፍያውን ምርቱ ሲደርስ ይፈጽሙ።</p>'
+                    : ''}
                 <a href="/app/orders" class="btn-primary" style="display:inline-block;padding:12px 28px;width:auto;margin-bottom:12px">ትዕዛዞቼን ይመልከቱ</a>
                 <br><a href="/app/" style="font-size:14px;color:var(--primary);display:inline-block;margin-top:12px">ወደ ዋና ገጽ →</a>
             </div>`;

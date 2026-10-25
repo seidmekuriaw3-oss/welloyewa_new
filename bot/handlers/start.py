@@ -8,13 +8,15 @@ from telegram import (
     Update,
     WebAppInfo,
 )
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from apps.users.schemas import UserUpdate
 from apps.users.services import UserService
 from core.config import settings
 from core.logger import logger
-from infrastructure.database.session import get_db_session
+from infrastructure.database.session import get_db_session, transaction_session
+from bot.localization import SUPPORTED_LANGUAGES, translate
 
 # ---------------------------------------------------------------------------
 # Shared UI builders
@@ -150,7 +152,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user = None
     db_found = False
 
-    async for db in get_db_session():
+    async with transaction_session() as db:
         user_service = UserService(db)
         existing = await user_service.get_user_by_telegram(tg_user.id)
         db_found = existing is not None
@@ -162,7 +164,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         from bot.middlewares.auth import auth_middleware
 
         auth_middleware.invalidate(tg_user.id)
-        break
 
     # --- Determine if this is truly a new user ---
     # A user is "new" only when:
@@ -181,12 +182,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             try:
                 from apps.users.schemas import UserUpdate
 
-                async for db in get_db_session():
+                async with transaction_session() as db:
                     us = UserService(db)
                     await us.update_user(user.id, UserUpdate(language=lang_restore))
-                    break
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.error("Failed to restore user language for %s: %s", tg_user.id, exc)
         logger.info(f"User {tg_user.id} restored from context.user_data (DB row was missing)")
 
     # Always clear the stale onboarding flag for returning users so that
@@ -251,21 +251,29 @@ async def onboard_language_callback(update: Update, context: ContextTypes.DEFAUL
     Saves the chosen language, then moves to Step 2 (phone sharing).
     """
     query = update.callback_query
+    lang = query.data.removeprefix("onboard_lang_")
+    if lang not in SUPPORTED_LANGUAGES:
+        await query.answer("Unsupported language.", show_alert=True)
+        return
     await query.answer()
-
-    lang = query.data.replace("onboard_lang_", "")  # "am" | "en" | "om"
     tg_user = update.effective_user
 
     # Save language to DB
-    async for db in get_db_session():
+    user_found = False
+    async with transaction_session() as db:
         user_service = UserService(db)
         user = await user_service.get_user_by_telegram(tg_user.id)
         if user:
             await user_service.update_user(user.id, UserUpdate(language=lang))
+            user_found = True
             from bot.middlewares.auth import auth_middleware
 
             auth_middleware.invalidate(tg_user.id)
-        break
+
+    if not user_found:
+        logger.error("Could not save onboarding language: user %s was not found", tg_user.id)
+        await query.message.reply_text(translate(lang, "user_not_found"))
+        return
 
     # Acknowledgement messages per language
     ack = {
@@ -301,6 +309,8 @@ async def onboard_language_callback(update: Update, context: ContextTypes.DEFAUL
     # Ensure onboarding flag is set (may have been lost if user reopened the bot)
     context.user_data["onboarding"] = True
     context.user_data["onboarding_lang"] = lang
+    context.user_data["language"] = lang
+    context.user_data.setdefault("user", {})["language"] = lang
 
 
 # ---------------------------------------------------------------------------
@@ -308,10 +318,25 @@ async def onboard_language_callback(update: Update, context: ContextTypes.DEFAUL
 # ---------------------------------------------------------------------------
 
 
+async def _show_callback_text(query, text: str, **kwargs) -> None:
+    """Edit a text message or reply when the callback came from a photo."""
+    if query.message.text is not None:
+        await query.edit_message_text(text, **kwargs)
+    else:
+        await query.message.reply_text(text, **kwargs)
+
+
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Route all menu_* callback queries to the right handler."""
     query = update.callback_query
-    await query.answer()
+    try:
+        await query.answer()
+    except BadRequest as exc:
+        message = str(exc).lower()
+        if "query is too old" not in message and "query id is invalid" not in message:
+            raise
+        logger.debug("Ignoring expired menu callback query: %s", getattr(query, "id", None))
+        return
 
     action = query.data.removeprefix("menu_")
 
@@ -379,7 +404,8 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 "/feedback - Yaada\n/help - Gargaarsa"
             ),
         }
-        await query.edit_message_text(
+        await _show_callback_text(
+            query,
             help_texts.get(user_lang, help_texts["am"]),
             parse_mode="Markdown",
         )
@@ -387,11 +413,12 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     elif action == "admin":
         # admin_command expects update.message, so show the panel inline here.
         if update.effective_user.id not in settings.admin_ids_list:
-            await query.edit_message_text("❌ ፈቃድ የለዎትም።")
+            await _show_callback_text(query, "❌ ፈቃድ የለዎትም።")
         else:
             from bot.handlers.admin.dashboard import ADMIN_MENU_TEXT, _admin_main_keyboard
 
-            await query.edit_message_text(
+            await _show_callback_text(
+                query,
                 ADMIN_MENU_TEXT,
                 parse_mode="Markdown",
                 reply_markup=_admin_main_keyboard(),
@@ -406,7 +433,8 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             "en": "🌟 *Wolloyewa Store* — Main Menu\n\n📌 Choose from the buttons below.",
             "om": "🌟 *Wolloyewa Store* — Chaartii Ijoo\n\n📌 Armaan gadii keessaa filadhu.",
         }
-        await query.edit_message_text(
+        await _show_callback_text(
+            query,
             titles.get(lang, titles["am"]),
             parse_mode="Markdown",
             reply_markup=_build_main_menu(is_admin, lang),
@@ -414,7 +442,7 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     else:
         logger.warning(f"Unknown menu action: {action}")
-        await query.edit_message_text("❓ /start")
+        await _show_callback_text(query, "❓ /start")
 
 
 async def noop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

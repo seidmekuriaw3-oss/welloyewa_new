@@ -8,8 +8,9 @@ from collections.abc import Awaitable, Callable
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from apps.users.schemas import UserUpdate
 from apps.users.services import UserService
-from infrastructure.database.session import get_db_session
+from infrastructure.database.session import get_db_session, transaction_session
 
 
 class I18nMiddleware:
@@ -176,17 +177,17 @@ class I18nMiddleware:
         if language not in self.TRANSLATIONS:
             language = self._default_language
 
-        # Update cache
-        self._user_languages[user_id] = language
-
-        # Update database
-        async for db in get_db_session():
+        user_found = False
+        async with transaction_session() as db:
             user_service = UserService(db)
             user = await user_service.get_user_by_telegram(user_id)
 
             if user:
-                await user_service.update_user(user.id, {"language": language})
-            break
+                await user_service.update_user(user.id, UserUpdate(language=language))
+                user_found = True
+
+        if user_found:
+            self._user_languages[user_id] = language
 
 
 # Global i18n middleware instance

@@ -15,6 +15,27 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+
+def _create_enum_if_missing(type_name: str, values: tuple[str, ...]) -> None:
+    """Create a Postgres enum only when it doesn't already exist."""
+    enum_values = ", ".join(f"'{value}'" for value in values)
+    op.execute(
+        f"""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM pg_type
+                WHERE typname = '{type_name}'
+                  AND typtype = 'e'
+            ) THEN
+                CREATE TYPE {type_name} AS ENUM ({enum_values});
+            END IF;
+        END $$;
+        """
+    )
+
+
 # Revision identifiers, used by Alembic.
 revision: str = '001_initial_migration'
 down_revision: Union[str, None] = None
@@ -30,22 +51,22 @@ def upgrade() -> None:
     # ============================
     
     # User related enums
-    op.execute("CREATE TYPE user_role AS ENUM ('customer', 'vendor', 'admin', 'super_admin')")
-    op.execute("CREATE TYPE user_status AS ENUM ('active', 'inactive', 'suspended', 'banned')")
-    op.execute("CREATE TYPE gender AS ENUM ('male', 'female', 'other')")
-    
+    _create_enum_if_missing('user_role', ('customer', 'vendor', 'admin', 'super_admin'))
+    _create_enum_if_missing('user_status', ('active', 'inactive', 'suspended', 'banned'))
+    _create_enum_if_missing('gender', ('male', 'female', 'other'))
+
     # Order related enums
-    op.execute("CREATE TYPE order_status AS ENUM ('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded')")
-    op.execute("CREATE TYPE payment_status AS ENUM ('pending', 'paid', 'failed', 'refunded', 'partial')")
-    op.execute("CREATE TYPE payment_method AS ENUM ('chapa', 'telebirr', 'cbe_birr', 'cash_on_delivery')")
-    
+    _create_enum_if_missing('order_status', ('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'))
+    _create_enum_if_missing('payment_status', ('pending', 'paid', 'failed', 'refunded', 'partial'))
+    _create_enum_if_missing('payment_method', ('chapa', 'telebirr', 'cbe_birr', 'cash_on_delivery'))
+
     # Product related enums
-    op.execute("CREATE TYPE product_status AS ENUM ('draft', 'active', 'out_of_stock', 'discontinued')")
-    op.execute("CREATE TYPE product_category AS ENUM ('electronics', 'clothing', 'food', 'books', 'beauty', 'health', 'home', 'sports', 'toys', 'other')")
-    
+    _create_enum_if_missing('product_status', ('draft', 'active', 'out_of_stock', 'discontinued'))
+    _create_enum_if_missing('product_category', ('electronics', 'clothing', 'food', 'books', 'beauty', 'health', 'home', 'sports', 'toys', 'other'))
+
     # Other enums
-    op.execute("CREATE TYPE shipping_method AS ENUM ('standard', 'express', 'pickup')")
-    op.execute("CREATE TYPE notification_type AS ENUM ('email', 'sms', 'telegram', 'push')")
+    _create_enum_if_missing('shipping_method', ('standard', 'express', 'pickup'))
+    _create_enum_if_missing('notification_type', ('email', 'sms', 'telegram', 'push'))
     
     # ============================
     # Users Table
@@ -59,9 +80,9 @@ def upgrade() -> None:
         sa.Column('last_name', sa.String(100), nullable=True),
         sa.Column('phone_number', sa.String(20), nullable=True),
         sa.Column('email', sa.String(255), nullable=True),
-        sa.Column('role', sa.Enum('customer', 'vendor', 'admin', 'super_admin', name='user_role'), nullable=False, server_default='customer'),
-        sa.Column('status', sa.Enum('active', 'inactive', 'suspended', 'banned', name='user_status'), nullable=False, server_default='active'),
-        sa.Column('gender', sa.Enum('male', 'female', 'other', name='gender'), nullable=True),
+        sa.Column('role', postgresql.ENUM('customer', 'vendor', 'admin', 'super_admin', name='user_role', create_type=False), nullable=False, server_default='customer'),
+        sa.Column('status', postgresql.ENUM('active', 'inactive', 'suspended', 'banned', name='user_status', create_type=False), nullable=False, server_default='active'),
+        sa.Column('gender', postgresql.ENUM('male', 'female', 'other', name='gender', create_type=False), nullable=True),
         sa.Column('date_of_birth', sa.Date(), nullable=True),
         sa.Column('profile_picture', sa.String(500), nullable=True),
         sa.Column('language', sa.String(10), nullable=False, server_default='am'),
@@ -131,7 +152,7 @@ def upgrade() -> None:
         sa.Column('slug', sa.String(255), nullable=False, unique=True),
         sa.Column('description', sa.Text(), nullable=True),
         sa.Column('short_description', sa.String(500), nullable=True),
-        sa.Column('category', sa.Enum('electronics', 'clothing', 'food', 'books', 'beauty', 'health', 'home', 'sports', 'toys', 'other', name='product_category'), nullable=False),
+        sa.Column('category', postgresql.ENUM('electronics', 'clothing', 'food', 'books', 'beauty', 'health', 'home', 'sports', 'toys', 'other', name='product_category', create_type=False), nullable=False),
         sa.Column('subcategory', sa.String(100), nullable=True),
         sa.Column('price', sa.Numeric(10, 2), nullable=False),
         sa.Column('compare_price', sa.Numeric(10, 2), nullable=True),
@@ -144,7 +165,7 @@ def upgrade() -> None:
         sa.Column('dimensions', sa.String(100), nullable=True),
         sa.Column('images', sa.JSON(), nullable=True),
         sa.Column('video_url', sa.String(500), nullable=True),
-        sa.Column('status', sa.Enum('draft', 'active', 'out_of_stock', 'discontinued', name='product_status'), nullable=False, server_default='draft'),
+        sa.Column('status', postgresql.ENUM('draft', 'active', 'out_of_stock', 'discontinued', name='product_status', create_type=False), nullable=False, server_default='draft'),
         sa.Column('is_featured', sa.Boolean(), nullable=False, server_default='false'),
         sa.Column('is_on_sale', sa.Boolean(), nullable=False, server_default='false'),
         sa.Column('sale_start_date', sa.DateTime(), nullable=True),
@@ -198,19 +219,19 @@ def upgrade() -> None:
         sa.Column('order_number', sa.String(50), nullable=False, unique=True),
         sa.Column('user_id', sa.BigInteger(), nullable=False),
         sa.Column('vendor_id', sa.BigInteger(), nullable=True),
-        sa.Column('status', sa.Enum('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded', name='order_status'), nullable=False, server_default='pending'),
+        sa.Column('status', postgresql.ENUM('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded', name='order_status', create_type=False), nullable=False, server_default='pending'),
         sa.Column('subtotal', sa.Numeric(10, 2), nullable=False),
         sa.Column('shipping_fee', sa.Numeric(10, 2), nullable=False, server_default='0'),
         sa.Column('tax', sa.Numeric(10, 2), nullable=False, server_default='0'),
         sa.Column('discount', sa.Numeric(10, 2), nullable=False, server_default='0'),
         sa.Column('total', sa.Numeric(10, 2), nullable=False),
-        sa.Column('payment_method', sa.Enum('chapa', 'telebirr', 'cbe_birr', 'cash_on_delivery', name='payment_method'), nullable=False),
-        sa.Column('payment_status', sa.Enum('pending', 'paid', 'failed', 'refunded', 'partial', name='payment_status'), nullable=False, server_default='pending'),
+        sa.Column('payment_method', postgresql.ENUM('chapa', 'telebirr', 'cbe_birr', 'cash_on_delivery', name='payment_method', create_type=False), nullable=False),
+        sa.Column('payment_status', postgresql.ENUM('pending', 'paid', 'failed', 'refunded', 'partial', name='payment_status', create_type=False), nullable=False, server_default='pending'),
         sa.Column('payment_transaction_id', sa.String(255), nullable=True),
         sa.Column('shipping_address', sa.Text(), nullable=False),
         sa.Column('shipping_city', sa.String(100), nullable=False),
         sa.Column('shipping_phone', sa.String(20), nullable=False),
-        sa.Column('shipping_method', sa.Enum('standard', 'express', 'pickup', name='shipping_method'), nullable=False, server_default='standard'),
+        sa.Column('shipping_method', postgresql.ENUM('standard', 'express', 'pickup', name='shipping_method', create_type=False), nullable=False, server_default='standard'),
         sa.Column('tracking_number', sa.String(100), nullable=True),
         sa.Column('customer_notes', sa.Text(), nullable=True),
         sa.Column('admin_notes', sa.Text(), nullable=True),

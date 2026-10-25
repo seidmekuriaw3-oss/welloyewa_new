@@ -6,6 +6,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from apps.products.services import ProductService
+from bot.localization import get_language, tr, translate
 from core.logger import logger
 from core.utils.currency import format_etb
 from infrastructure.database.session import get_db_session
@@ -26,11 +27,11 @@ async def cart_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     cart = _get_cart(context)
     if not cart:
         await update.effective_message.reply_text(
-            "🛒 *የግዢ ቅርጫትዎ ባዶ ነው!*\n\nምርቶችን ለመግዛት /menu ይጫኑ።",
+            tr(context, "cart_empty"),
             parse_mode="Markdown",
         )
         return
-    cart_text, reply_markup = await _build_cart_view(cart)
+    cart_text, reply_markup = await _build_cart_view(cart, context)
     await update.effective_message.reply_text(
         cart_text, parse_mode="Markdown", reply_markup=reply_markup
     )
@@ -39,8 +40,6 @@ async def cart_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle cart_* callback queries."""
     query = update.callback_query
-    await query.answer()
-
     action = query.data
     cart = _get_cart(context)
 
@@ -55,13 +54,12 @@ async def cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         if not found:
             cart.append({"product_id": product_id, "quantity": 1})
         _save_cart(context, cart)
-        try:
-            await query.answer("✅ ወደ ቅርጫት ተጨምሯል!", show_alert=True)
-        except Exception:
-            pass
+        await query.answer(tr(context, "cart_added"))
         return
 
-    elif action.startswith("cart_remove_"):
+    await query.answer()
+
+    if action.startswith("cart_remove_"):
         product_id = int(action.split("_")[2])
         cart = [i for i in cart if i["product_id"] != product_id]
         _save_cart(context, cart)
@@ -83,15 +81,9 @@ async def cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     elif action == "cart_clear":
         _save_cart(context, [])
         try:
-            await query.message.edit_text("🛒 *የግዢ ቅርጫትዎ ባዶ ነው!*", parse_mode="Markdown")
+            await query.message.edit_text(tr(context, "cart_empty"), parse_mode="Markdown")
         except Exception:
             pass
-        return
-
-    elif action == "cart_checkout":
-        from bot.handlers.checkout import start_checkout
-
-        await start_checkout(update, context)
         return
 
     elif action == "cart_refresh":
@@ -101,18 +93,18 @@ async def cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     cart = _get_cart(context)
     if not cart:
         try:
-            await query.message.edit_text("🛒 *የግዢ ቅርጫትዎ ባዶ ነው!*", parse_mode="Markdown")
+            await query.message.edit_text(tr(context, "cart_empty"), parse_mode="Markdown")
         except Exception:
             pass
         return
-    cart_text, reply_markup = await _build_cart_view(cart)
+    cart_text, reply_markup = await _build_cart_view(cart, context)
     try:
         await query.message.edit_text(cart_text, parse_mode="Markdown", reply_markup=reply_markup)
     except Exception:
         pass
 
 
-async def _build_cart_view(cart: list):
+async def _build_cart_view(cart: list, context: ContextTypes.DEFAULT_TYPE = None):
     """Build cart display text and keyboard."""
     total = Decimal("0")
     items_text = []
@@ -125,26 +117,37 @@ async def _build_cart_view(cart: list):
                 if product:
                     item_total = product.price * item["quantity"]
                     total += item_total
+                    language = get_language(context) if context else "am"
+                    name = (
+                        product.name_am if language == "am" else product.name
+                    ) or product.name
                     items_text.append(
-                        f"• *{product.name}*\n"
-                        f"  {item['quantity']} x {format_etb(product.price)} = {format_etb(item_total)}\n"
+                        translate(
+                            language,
+                            "cart_item",
+                            name=name,
+                            quantity=item["quantity"],
+                            price=format_etb(product.price),
+                            total=format_etb(item_total),
+                        )
                     )
             except Exception:
                 pass
         break
 
-    cart_text = "🛒 *የግዢ ቅርጫትዎ*\n\n"
-    cart_text += "\n".join(items_text) if items_text else "_ምርቶች ሲጫኑ ይታያሉ_"
-    cart_text += f"\n─────────────────\n💰 *ጠቅላላ*: {format_etb(total)}"
+    language = get_language(context) if context else "am"
+    cart_text = translate(language, "cart_title") + "\n\n"
+    cart_text += "\n".join(items_text) if items_text else translate(language, "cart_no_items")
+    cart_text += f"\n─────────────────\n{translate(language, 'cart_total')}: {format_etb(total)}"
 
     keyboard = [
         [
-            InlineKeyboardButton("🗑️ ቅርጫትን አጥፋ", callback_data="cart_clear"),
-            InlineKeyboardButton("🔄 አድስ", callback_data="cart_refresh"),
+            InlineKeyboardButton(translate(language, "cart_clear"), callback_data="cart_clear"),
+            InlineKeyboardButton(translate(language, "refresh"), callback_data="cart_refresh"),
         ],
         [
-            InlineKeyboardButton("+ ቀጥል", callback_data="menu_products"),
-            InlineKeyboardButton("✅ ግዢ አጠናቅቅ", callback_data="cart_checkout"),
+            InlineKeyboardButton(translate(language, "continue_shopping"), callback_data="menu_products"),
+            InlineKeyboardButton(translate(language, "checkout"), callback_data="cart_checkout"),
         ],
     ]
     return cart_text, InlineKeyboardMarkup(keyboard)
@@ -180,9 +183,9 @@ async def refresh_cart_display(query, user_id: int, context: ContextTypes.DEFAUL
     """Refresh the cart display message."""
     cart = _get_cart(context)
     if not cart:
-        await query.message.edit_text("🛒 *የግዢ ቅርጫትዎ ባዶ ነው!*", parse_mode="Markdown")
+        await query.message.edit_text(tr(context, "cart_empty"), parse_mode="Markdown")
         return
-    cart_text, reply_markup = await _build_cart_view(cart)
+    cart_text, reply_markup = await _build_cart_view(cart, context)
     await query.message.edit_text(cart_text, parse_mode="Markdown", reply_markup=reply_markup)
 
 

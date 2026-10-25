@@ -7,8 +7,12 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes, ConversationHandler
 
 from apps.support.services import TicketService
+from apps.users.services import UserService
+from bot.handlers.text_routing import mark_text_message_handled
+from bot.localization import tr
+from core.exceptions import NotFoundError
 from core.logger import logger
-from infrastructure.database.session import get_db_session
+from infrastructure.database.session import transaction_session
 
 # Conversation states
 WAITING_RATING, WAITING_MESSAGE = range(2)
@@ -21,7 +25,7 @@ async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     Starts the feedback conversation.
     """
     await update.effective_message.reply_text(
-        "💬 *ግብረ መልስ ለመስጠት እንመሰግናለን!*\n\n" "እባክዎ አገልግሎታችንን ይገምግሙ።", parse_mode="Markdown"
+        tr(context, "feedback_thanks"), parse_mode="Markdown"
     )
 
     # Show rating buttons
@@ -33,13 +37,13 @@ async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             InlineKeyboardButton("⭐⭐⭐⭐ 4", callback_data="rate_4"),
             InlineKeyboardButton("⭐⭐⭐⭐⭐ 5", callback_data="rate_5"),
         ],
-        [InlineKeyboardButton("❌ ሰርዝ", callback_data="feedback_cancel")],
+        [InlineKeyboardButton(tr(context, "cancel"), callback_data="feedback_cancel")],
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.effective_message.reply_text(
-        "📊 *ደረጃ ይስጡ:*\n(1 = በጣም መጥፎ, 5 = በጣም ጥሩ)", parse_mode="Markdown", reply_markup=reply_markup
+        tr(context, "feedback_rate_prompt"), parse_mode="Markdown", reply_markup=reply_markup
     )
 
 
@@ -62,14 +66,20 @@ async def start_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             InlineKeyboardButton("⭐⭐⭐⭐ 4", callback_data="rate_4"),
             InlineKeyboardButton("⭐⭐⭐⭐⭐ 5", callback_data="rate_5"),
         ],
-        [InlineKeyboardButton("❌ ሰርዝ", callback_data="feedback_cancel")],
+        [InlineKeyboardButton(tr(context, "cancel"), callback_data="feedback_cancel")],
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await query.message.edit_text(
-        "📊 *ደረጃ ይስጡ:*\n(1 = በጣም መጥፎ, 5 = በጣም ጥሩ)", parse_mode="Markdown", reply_markup=reply_markup
-    )
+    rating_prompt = tr(context, "feedback_rate_prompt")
+    if query.message.text is not None:
+        await query.message.edit_text(
+            rating_prompt, parse_mode="Markdown", reply_markup=reply_markup
+        )
+    else:
+        await query.message.reply_text(
+            rating_prompt, parse_mode="Markdown", reply_markup=reply_markup
+        )
 
     return WAITING_RATING
 
@@ -89,24 +99,20 @@ async def rating_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await query.answer()
 
     if query.data == "feedback_cancel":
-        await query.message.edit_text("❌ ግብረ መልስ ተሰርዟል።")
+        await query.message.edit_text(tr(context, "feedback_cancelled"))
         return ConversationHandler.END
 
     # Extract rating
     rating = int(query.data.split("_")[1])
+    if rating not in range(1, 6):
+        await query.message.edit_text(tr(context, "feedback_default_prompt"))
+        return WAITING_RATING
     context.user_data["feedback_rating"] = rating
 
     # Show rating feedback
-    rating_messages = {
-        1: "😞 አዝነናል አገልግሎታችን እንዳላረካዎት። እባክዎ ችግሩን ይግለጹ።",
-        2: "😕 አገልግሎታችንን ማሻሻል እንደሚፈልግ ተገንዝበናል። እባክዎ ምን እንደሚሻሻል ይንገሩን።",
-        3: "😐 አገልግሎታችንን በአማካይ ደረጃ ሰጥተውናል። እባክዎ ሀሳብዎን ያካፍሉን።",
-        4: "🙂 አገልግሎታችንን እንደወደዱት ደስ ብሎናል! እባክዎ ተጨማሪ አስተያየት ይስጡ።",
-        5: "😊 አገልግሎታችንን ስለወደዱት እናመሰግናለን! እባክዎ ልምድዎን ያጋሩን።",
-    }
-
     await query.message.edit_text(
-        f"{rating_messages.get(rating, 'እባክዎ አስተያየትዎን ይላኩ።')}\n\n" f"✏️ አስተያየትዎን ይጻፉ (በአንድ መልዕክት):",
+        f"{tr(context, f'feedback_rating_{rating}')}\n\n"
+        f"{tr(context, 'feedback_message_prompt')}",
         parse_mode="Markdown",
     )
 
@@ -124,31 +130,31 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     Returns:
         Next conversation state (END)
     """
+    mark_text_message_handled(update, context)
     message_text = update.effective_message.text
     rating = context.user_data.get("feedback_rating", 0)
-    user_id = update.effective_user.id
+    telegram_id = update.effective_user.id
 
     # Create support ticket for feedback
-    async for db in get_db_session():
+    async with transaction_session() as db:
+        user = await UserService(db).get_user_by_telegram(telegram_id)
+        if not user:
+            raise NotFoundError("User", telegram_id)
         ticket_service = TicketService(db)
 
         # Create ticket
         await ticket_service.create_ticket(
-            user_id=user_id,
+            user_id=user.id,
             subject=f"User Feedback - Rating {rating}/5",
             message=f"Rating: {rating}/5\n\nFeedback: {message_text}",
             priority="low",
         )
 
-        break
-
-    logger.info(f"Feedback received from user {user_id}: rating {rating}/5")
+    logger.info(f"Feedback received from user {telegram_id}: rating {rating}/5")
 
     # Send confirmation
     await update.effective_message.reply_text(
-        "✅ *ግብረ መልስዎ ተልኳል!*\n\n"
-        "አመሰግናለሁ ጊዜዎን ስለሰጡን። አስተያየትዎ አገልግሎታችንን ለማሻሻል ይረዳናል።\n\n"
-        "ተጨማሪ እገዛ ከፈለጉ እባክዎ ድጋፍን ያግኙ።",
+        tr(context, "feedback_sent"),
         parse_mode="Markdown",
     )
 
@@ -169,7 +175,7 @@ async def cancel_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     Returns:
         Next conversation state (END)
     """
-    await update.effective_message.reply_text("❌ ግብረ መልስ ተሰርዟል።")
+    await update.effective_message.reply_text(tr(context, "feedback_cancelled"))
     return ConversationHandler.END
 
 

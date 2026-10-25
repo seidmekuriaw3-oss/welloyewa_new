@@ -24,12 +24,14 @@ import uuid
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
+from telegram.helpers import escape_markdown
 
 from apps.products.schemas import CategoryCreate, CategoryUpdate
 from apps.products.services import CategoryService, ProductService
+from bot.handlers.text_routing import mark_text_message_handled
 from core.config import settings
 from core.logger import logger
-from infrastructure.database.session import get_db_session
+from infrastructure.database.session import transaction_session
 
 # Directory served at /app/static/uploads/
 _UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "web_app", "static", "uploads")
@@ -97,10 +99,9 @@ async def addphoto_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             return
 
         # Verify product exists
-        async for db in get_db_session():
+        async with transaction_session() as db:
             svc = ProductService(db)
-            product = await svc.product_repo.get(product_id)
-            break
+            product = await svc.product_repo.get_by_id(product_id)
 
         if not product:
             await update.message.reply_text(f"❌ ምርት ID {product_id} አልተገኘም።")
@@ -136,7 +137,7 @@ async def _show_addphoto_picker(
     """Show a paginated/searchable product picker for /addphoto."""
     page_size = 8
 
-    async for db in get_db_session():
+    async with transaction_session() as db:
         svc = ProductService(db)
         if q:
             products = await svc.search_products(q, limit=page_size)
@@ -148,7 +149,6 @@ async def _show_addphoto_picker(
                 order_by="created_at",
                 order_desc=True,
             )
-        break
 
     if not products:
         msg = f"🔍 '*{q}*' ምርት አልተገኘም።" if q else "📦 ምንም ምርቶች አልተገኙም።"
@@ -205,16 +205,83 @@ async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_
     if not _is_admin(update):
         # This handler is first in group 0, so delegate non-admin text states
         # before the general catch-all can consume the message.
-        from bot.handlers.location import city_text_handler
-        from bot.handlers.profile import profile_text_handler
-        from bot.handlers.vendor import vendor_text_handler
+        if context.user_data.get("awaiting_city"):
+            from bot.handlers.location import city_text_handler
 
-        await city_text_handler(update, context)
-        await profile_text_handler(update, context)
-        await vendor_text_handler(update, context)
+            await city_text_handler(update, context)
+        elif context.user_data.get("updating_field") or context.user_data.get(
+            "vendor_application"
+        ):
+            from bot.handlers.profile import profile_text_handler
+
+            await profile_text_handler(update, context)
+        elif context.user_data.get("vendor_state"):
+            from bot.handlers.vendor import vendor_text_handler
+
+            await vendor_text_handler(update, context)
         return
 
     state = context.user_data.get("admin_state")
+    text = (update.message.text or "").strip()
+
+    if context.user_data.get("admin_awaiting_user_search"):
+        mark_text_message_handled(update, context)
+        context.user_data.pop("admin_awaiting_user_search", None)
+        if len(text) < 2:
+            await update.message.reply_text("🔍 ቢያንስ 2 ፊደላት ወይም ቁጥሮች ያስገቡ።")
+            return
+
+        try:
+            async with transaction_session() as db:
+                from apps.users.services import UserService
+
+                users = await UserService(db).user_repo.search_users(text, limit=10)
+        except Exception as exc:
+            logger.error("Admin user search failed: %s", exc)
+            await update.message.reply_text("❌ ተጠቃሚ ለመፈለግ ስህተት ተፈጥሯል።")
+            return
+
+        if not users:
+            await update.message.reply_text("🔍 የሚዛመድ ተጠቃሚ አልተገኘም።")
+            return
+
+        keyboard = []
+        lines = ["🔍 *የፍለጋ ውጤት:*", ""]
+        for user in users:
+            full_name = escape_markdown(str(user.full_name), version=1)
+            role = escape_markdown(str(user.role), version=1)
+            status = escape_markdown(str(user.status), version=1)
+            lines.append(
+                f"• {full_name} (ID:{user.id}) — {role}, {status}"
+            )
+            if user.status == "suspended":
+                keyboard.append(
+                    [
+                        InlineKeyboardButton(
+                            f"✅ ክልከላ አንሳ ({user.id})",
+                            callback_data=f"admin_unsuspend_user_{user.id}",
+                        )
+                    ]
+                )
+            elif user.role not in {"admin", "super_admin"}:
+                keyboard.append(
+                    [
+                        InlineKeyboardButton(
+                            f"🚫 አግድ ({user.id})",
+                            callback_data=f"admin_suspend_user_{user.id}",
+                        )
+                    ]
+                )
+        keyboard.append(
+            [InlineKeyboardButton("🔙 ወደ ተጠቃሚዎች", callback_data="admin_users")]
+        )
+        await update.message.reply_text(
+            "\n".join(lines),
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+        return
+
     if not state:
         # Broadcast input also uses group 0 and must not be swallowed here.
         from bot.handlers.broadcaster import broadcast_message_handler
@@ -222,7 +289,7 @@ async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_
         await broadcast_message_handler(update, context)
         return
 
-    text = (update.message.text or "").strip()
+    mark_text_message_handled(update, context)
 
     # ── Add Product flow ──────────────────────────────────────────────────────
     if state == "add_product_name":
@@ -267,10 +334,9 @@ async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_
         context.user_data["admin_state"] = None
 
         try:
-            async for db in get_db_session():
+            async with transaction_session() as db:
                 cat_service = CategoryService(db)
                 categories = await cat_service.get_all_categories()
-                break
         except Exception as exc:
             logger.error("Category fetch error: %s", exc)
             categories = []
@@ -306,10 +372,9 @@ async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_
             return
         context.user_data["admin_state"] = None
         try:
-            async for db in get_db_session():
+            async with transaction_session() as db:
                 cat_service = CategoryService(db)
                 cat = await cat_service.create_category(CategoryCreate(name=text))
-                break
             await update.message.reply_text(
                 f"✅ ምድቡ ተፈጠረ!\n• ስም: *{cat.name}*\n• ID: {cat.id}",
                 parse_mode="Markdown",
@@ -338,10 +403,9 @@ async def handle_admin_text_input(update: Update, context: ContextTypes.DEFAULT_
             await update.message.reply_text("❌ ምድቡ ID ጠፍቷል። እባክዎ ዳግም ይሞክሩ።")
             return
         try:
-            async for db in get_db_session():
+            async with transaction_session() as db:
                 cat_service = CategoryService(db)
                 cat = await cat_service.update_category(cat_id, CategoryUpdate(name=text))
-                break
             await update.message.reply_text(
                 f"✅ ምድቡ ተዘምኗል!\n• አዲስ ስም: *{cat.name}*\n• ID: {cat.id}",
                 parse_mode="Markdown",
@@ -422,16 +486,15 @@ async def handle_admin_photo_input(update: Update, context: ContextTypes.DEFAULT
         await tg_file.download_to_drive(save_path)
         url = f"/app/static/uploads/{filename}"
 
-        async for db in get_db_session():
+        async with transaction_session() as db:
             svc = ProductService(db)
-            product = await svc.product_repo.get(product_id)
+            product = await svc.product_repo.get_by_id(product_id)
             if not product:
                 raise ValueError(f"Product {product_id} not found")
             existing = list(product.images or [])
             existing.append(url)
             await svc.product_repo.update(product_id, {"images": existing})
             prod_name = product.name_am or product.name
-            break
 
         # Keep state open so admin can send more photos
         # (state stays "waiting_product_image", product id stays set)

@@ -23,11 +23,12 @@ New callback patterns handled here (in addition to the originals):
 from datetime import datetime, timedelta
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from apps.analytics.services import SalesAnalyticsService
 from apps.orders.services import OrderService
-from apps.users.services import UserService
+from apps.users.services import UserService, VendorService
 from core.config import settings
 from core.logger import logger
 from core.utils.currency import format_etb
@@ -95,16 +96,31 @@ async def _send_dashboard_text(
             today_sales = await sales_service.get_sales_summary(today_start, now)
             week_sales = await sales_service.get_sales_summary(week_start, now)
             month_sales = await sales_service.get_sales_summary(month_start, now)
-            total_users = await user_service.user_repo.count()
-            active_users = await user_service.user_repo.count({"last_active__gte": week_start})
-            vendors = await user_service.user_repo.count({"role": "vendor"})
+            total_users = await user_service.user_repo.count({"is_deleted": False})
+            active_users = await user_service.user_repo.count(
+                {"last_active__gte": week_start, "is_deleted": False}
+            )
+            vendors = await VendorService(db).vendor_repo.count()
             pending_orders = await order_service.order_repo.count({"status": "pending"})
             processing_orders = await order_service.order_repo.count({"status": "processing"})
             break
     except Exception as exc:
         logger.error("Dashboard stats error: %s", exc)
-        today_sales = week_sales = month_sales = {}
-        total_users = active_users = vendors = pending_orders = processing_orders = 0
+        message = (
+            "❌ የዳሽቦርድ መረጃን ለማምጣት ስህተት ተፈጥሯል። "
+            "እባክዎ ቆይተው ዳግም ይሞክሩ።"
+        )
+        keyboard = InlineKeyboardMarkup(
+            [
+                [InlineKeyboardButton("🔄 ዳግም ሞክር", callback_data="admin_dashboard")],
+                [InlineKeyboardButton("🔙 ወደ አስተዳደር", callback_data="admin_back")],
+            ]
+        )
+        if via_command:
+            await update.effective_message.reply_text(message, reply_markup=keyboard)
+        else:
+            await update.callback_query.message.edit_text(message, reply_markup=keyboard)
+        return
 
     dashboard_text = (
         "📊 *የስርዓት ዳሽቦርድ*\n\n"
@@ -135,9 +151,14 @@ async def _send_dashboard_text(
             dashboard_text, parse_mode="Markdown", reply_markup=reply_markup
         )
     else:
-        await update.callback_query.message.edit_text(
-            dashboard_text, parse_mode="Markdown", reply_markup=reply_markup
-        )
+        try:
+            await update.callback_query.message.edit_text(
+                dashboard_text, parse_mode="Markdown", reply_markup=reply_markup
+            )
+        except BadRequest as exc:
+            if "message is not modified" not in str(exc).lower():
+                raise
+            logger.debug("Dashboard content is unchanged")
 
 
 async def show_admin_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -196,10 +217,10 @@ async def show_payment_settings(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     await query.message.edit_text(
         "💰 *የክፍያ ቅንብሮች*\n\n"
-        "• Chapa: ✅ ንቁ\n"
-        "• Telebirr: ✅ ንቁ\n"
-        "• CBE Birr: ✅ ንቁ\n\n"
-        "⚠️ ቅንብሮችን ለመቀየር `.env` ፋይሉ ያስተካክሉ።",
+        f"• Chapa: {'✅ የተዋቀረ' if settings.CHAPA_SECRET_KEY else '⚪ አልተዋቀረም'}\n"
+        f"• Telebirr: {'✅ የተዋቀረ' if settings.TELEBIRR_APP_ID and settings.TELEBIRR_APP_KEY else '⚪ አልተዋቀረም'}\n"
+        f"• CBE Birr: {'✅ የተዋቀረ' if settings.CBE_BIRR_MERCHANT_ID and settings.CBE_BIRR_SECRET_KEY else '⚪ አልተዋቀረም'}\n\n"
+        "ℹ️ ይህ ገጽ የቅንብር ሁኔታን ብቻ ያሳያል፤ ለመቀየር የሰርቨር ቅንብሮችን ያስተካክሉ።",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("🔙 ወደ ቅንብሮች", callback_data="admin_settings")]]
@@ -211,9 +232,9 @@ async def show_notification_settings(update: Update, context: ContextTypes.DEFAU
     query = update.callback_query
     await query.message.edit_text(
         "📧 *ማሳወቂያ ቅንብሮች*\n\n"
-        "• ትዕዛዝ ማሳወቂያ: ✅ ንቁ\n"
-        "• ክምችት ማሳወቂያ: ✅ ንቁ\n"
-        "• ሪፖርት ማሳወቂያ: ✅ ንቁ",
+        f"• Push notifications: {'✅ ንቁ' if settings.ENABLE_PUSH_NOTIFICATIONS else '⚪ ጠፍቷል'}\n"
+        f"• SMTP: {'✅ የተዋቀረ' if settings.SMTP_USER and settings.SMTP_PASSWORD else '⚪ አልተዋቀረም'}\n\n"
+        "ℹ️ የማሳወቂያ ቅንብሮችን በሰርቨር ቅንብር ውስጥ ያስተካክሉ።",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("🔙 ወደ ቅንብሮች", callback_data="admin_settings")]]
@@ -227,8 +248,10 @@ async def show_backup_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await query.message.edit_text(
         "🗄️ *የውሂብ ጎታ ምትኬ*\n\n"
         f"• ሰዓት: {now.strftime('%Y-%m-%d %H:%M UTC')}\n"
-        "• ሁኔታ: ✅ ንቁ (በራስ-ሰር)\n\n"
-        "⚠️ ምትኬ ለማስጀመር DevOps ቡድን ያነጋግሩ።",
+        f"• የቅንብር ሁኔታ: {'✅ ተከፍቷል' if settings.BACKUP_ENABLED else '⚪ ጠፍቷል'}\n"
+        f"• መርሃ ግብር: `{settings.BACKUP_SCHEDULE}`\n"
+        f"• ማቆያ: {settings.BACKUP_RETENTION_DAYS} ቀናት\n\n"
+        "⚠️ እዚህ ላይ የመጨረሻ backup ስኬት አይረጋገጥም፤ የbackup ሂደቱን እና ፋይሎቹን በሰርቨሩ ያረጋግጡ።",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("🔙 ወደ ቅንብሮች", callback_data="admin_settings")]]
@@ -287,6 +310,15 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         from bot.handlers.admin.products_admin import do_create_product_with_category
 
         await do_create_product_with_category(update, context, cat_id)
+        return
+
+    if action.startswith("admin_vendor_pick_"):
+        vendor_id, category_id = map(
+            int, action[len("admin_vendor_pick_") :].split("_", 1)
+        )
+        from bot.handlers.admin.products_admin import do_create_product_with_vendor
+
+        await do_create_product_with_vendor(update, context, vendor_id, category_id)
         return
 
     # admin_add_image_<id>  → show image management panel for that product
@@ -642,16 +674,19 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # ── Vendors ─────────────────────────────────────────────────────
     elif action == "admin_vendors":
+        context.user_data["admin_vendors_pending_only"] = False
         await show_vendors_list(update, context)
 
     elif action == "admin_list_vendors":
         context.user_data["admin_vendors_page"] = 1
+        context.user_data["admin_vendors_pending_only"] = False
         from bot.handlers.admin.users_admin import list_vendors
 
         await list_vendors(update, context)
 
     elif action == "admin_pending_vendors":
         context.user_data["admin_vendors_page"] = 1
+        context.user_data["admin_vendors_pending_only"] = True
         from bot.handlers.admin.users_admin import list_vendors
 
         await list_vendors(update, context, pending_only=True)
@@ -662,23 +697,33 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         from bot.handlers.admin.users_admin import list_vendors
 
-        await list_vendors(update, context)
+        await list_vendors(
+            update,
+            context,
+            pending_only=context.user_data.get("admin_vendors_pending_only", False),
+        )
 
     elif action == "admin_vendors_page_next":
         context.user_data["admin_vendors_page"] = context.user_data.get("admin_vendors_page", 1) + 1
         from bot.handlers.admin.users_admin import list_vendors
 
-        await list_vendors(update, context)
+        await list_vendors(
+            update,
+            context,
+            pending_only=context.user_data.get("admin_vendors_pending_only", False),
+        )
 
     # bare approve/reject vendor (no ID) → pending vendors list
     elif action == "admin_approve_vendor":
         context.user_data["admin_vendors_page"] = 1
+        context.user_data["admin_vendors_pending_only"] = True
         from bot.handlers.admin.users_admin import list_vendors
 
         await list_vendors(update, context, pending_only=True)
 
     elif action == "admin_reject_vendor":
         context.user_data["admin_vendors_page"] = 1
+        context.user_data["admin_vendors_pending_only"] = True
         from bot.handlers.admin.users_admin import list_vendors
 
         await list_vendors(update, context, pending_only=True)

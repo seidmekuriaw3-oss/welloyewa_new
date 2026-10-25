@@ -3,11 +3,18 @@
 # ============================
 """Background task definitions for Celery workers."""
 
+import asyncio
 from datetime import datetime
 from typing import Any
 
 from core.logger import logger
 from infrastructure.workers.celery_app import celery_app
+
+
+def _run_async(coroutine):
+    """Run an asynchronous notification inside a synchronous worker task."""
+    return asyncio.run(coroutine)
+
 
 # ============================
 # Order Tasks
@@ -134,7 +141,7 @@ def send_email_task(
     try:
         from infrastructure.notifications.email_service import send_email
 
-        return send_email(to, subject, content, template, template_data)
+        return _run_async(send_email(to, subject, content, template, template_data))
 
     except Exception as e:
         logger.error(f"Failed to send email: {e}")
@@ -159,7 +166,7 @@ def send_sms_task(self, to: str, message: str) -> bool:
     try:
         from infrastructure.notifications.sms_gateway import send_sms
 
-        return send_sms(to, message)
+        return _run_async(send_sms(to, message))
 
     except Exception as e:
         logger.error(f"Failed to send SMS: {e}")
@@ -184,7 +191,7 @@ def send_telegram_task(self, chat_id: int, message: str) -> bool:
     try:
         from infrastructure.notifications.telegram_notifier import send_telegram_message
 
-        return send_telegram_message(chat_id, message)
+        return _run_async(send_telegram_message(chat_id, message))
 
     except Exception as e:
         logger.error(f"Failed to send Telegram message: {e}")

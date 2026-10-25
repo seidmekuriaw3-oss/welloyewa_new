@@ -178,6 +178,13 @@ async def get_transaction_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+@asynccontextmanager
+async def transaction_session() -> AsyncGenerator[AsyncSession, None]:
+    """Open a transaction-scoped session for non-FastAPI callers."""
+    async with _session_manager.transaction() as session:
+        yield session
+
+
 __all__ = [
     "AsyncSessionLocal",
     "DatabaseSessionManager",
@@ -185,4 +192,5 @@ __all__ = [
     "get_db_session",
     "get_transaction_session",
     "init_db",
+    "transaction_session",
 ]

@@ -8,9 +8,10 @@ from telegram.ext import ContextTypes
 
 from apps.orders.schemas import OrderStatusUpdate
 from apps.orders.services import OrderService
+from core.constants import OrderStatus
 from core.logger import logger
 from core.utils.currency import format_etb
-from infrastructure.database.session import get_db_session
+from infrastructure.database.session import transaction_session
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -35,7 +36,7 @@ STATUS_TRANSITIONS = {
     "pending": ["confirmed", "cancelled"],
     "confirmed": ["processing", "cancelled"],
     "processing": ["shipped", "cancelled"],
-    "shipped": ["delivered", "cancelled"],
+    "shipped": ["delivered"],
     "delivered": [],
     "cancelled": [],
     "refunded": [],
@@ -84,7 +85,7 @@ async def list_orders(
     page_size = 5  # smaller page so per-order buttons fit
 
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             order_service = OrderService(db)
             filters = {}
             if status:
@@ -97,7 +98,6 @@ async def list_orders(
                 order_by="created_at",
                 order_desc=True,
             )
-            break
     except Exception as exc:
         logger.error("list_orders error: %s", exc)
         await query.message.edit_text(
@@ -154,10 +154,9 @@ async def show_order_detail(
     query = update.callback_query
 
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             order_service = OrderService(db)
             order = await order_service.get_order(order_id)
-            break
     except Exception as exc:
         logger.error("show_order_detail %s error: %s", order_id, exc)
         order = None
@@ -212,14 +211,15 @@ async def do_change_order_status(
     query = update.callback_query
 
     try:
-        async for db in get_db_session():
+        if new_status not in {status.value for status in OrderStatus}:
+            raise ValueError(f"Invalid order status: {new_status}")
+        async with transaction_session() as db:
             order_service = OrderService(db)
             await order_service.update_order_status(
                 order_id=order_id,
                 data=OrderStatusUpdate(status=new_status),
                 user_id=update.effective_user.id,
             )
-            break
         status_label = STATUS_LABELS.get(new_status, new_status.upper())
         await query.message.edit_text(
             f"✅ ትዕዛዝ (ID: {order_id}) ሁኔታ ወደ *{status_label}* ተቀይሯል!",

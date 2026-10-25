@@ -162,6 +162,7 @@ downgrade:
 seed:
 	@echo "$(GREEN)Seeding database...$(NC)"
 	python scripts/seed_db.py
+	python scripts/seed_data.py
 	@echo "$(GREEN)Database seeded!$(NC)"
 
 reset-db: clean-db migrate seed

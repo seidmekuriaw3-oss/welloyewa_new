@@ -4,13 +4,16 @@
 """Admin handlers for product management."""
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.helpers import escape_markdown
 from telegram.ext import ContextTypes
 
 from apps.products.schemas import ProductCreate
 from apps.products.services import CategoryService, ProductService
+from core.constants import ProductStatus
+from core.exceptions import ValidationError
 from core.logger import logger
 from core.utils.currency import format_etb
-from infrastructure.database.session import get_db_session
+from infrastructure.database.session import transaction_session
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -59,15 +62,15 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     page_size = 8
 
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             product_service = ProductService(db)
             products, total = await product_service.product_repo.get_all_with_count(
+                filters={"is_deleted": False},
                 limit=page_size,
                 offset=(page - 1) * page_size,
                 order_by="created_at",
                 order_desc=True,
             )
-            break
     except Exception as exc:
         logger.error("list_products error: %s", exc)
         await query.message.edit_text(
@@ -88,8 +91,9 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     for p in products:
         emoji = STATUS_EMOJI.get(str(p.status), "📦")
+        product_name = escape_markdown(str(p.name), version=1)
         text += (
-            f"{emoji} *{p.name}* (ID:{p.id})\n"
+            f"{emoji} *{product_name}* (ID:{p.id})\n"
             f"   💰 {format_etb(p.price)} | 📦 ክምችት: {p.stock_quantity}\n\n"
         )
 
@@ -114,15 +118,14 @@ async def list_pending_products(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
 
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             product_service = ProductService(db)
             products = await product_service.product_repo.get_all(
-                filters={"status": "pending"},
+                filters={"status": ProductStatus.PENDING, "is_deleted": False},
                 order_by="created_at",
                 order_desc=True,
                 limit=20,
             )
-            break
     except Exception as exc:
         logger.error("list_pending_products error: %s", exc)
         await query.message.edit_text(
@@ -142,8 +145,9 @@ async def list_pending_products(update: Update, context: ContextTypes.DEFAULT_TY
     keyboard = []
 
     for p in products[:10]:  # cap at 10 to avoid message size limit
+        product_name = escape_markdown(str(p.name), version=1)
         text += (
-            f"📦 *{p.name}* (ID:{p.id})\n"
+            f"📦 *{product_name}* (ID:{p.id})\n"
             f"   👤 ሻጭ: {p.vendor_id} | 💰 {format_etb(p.price)}\n"
             f"   📅 {p.created_at.strftime('%Y-%m-%d')}\n\n"
         )
@@ -168,10 +172,9 @@ async def manage_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     query = update.callback_query
 
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             category_service = CategoryService(db)
             categories = await category_service.get_all_categories()
-            break
     except Exception as exc:
         logger.error("manage_categories error: %s", exc)
         categories = []
@@ -180,7 +183,8 @@ async def manage_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     keyboard = []
     for cat in categories[:15]:
-        text += f"• *{cat.name}* (ID:{cat.id})\n"
+        category_name = escape_markdown(str(cat.name), version=1)
+        text += f"• *{category_name}* (ID:{cat.id})\n"
         keyboard.append(
             [
                 InlineKeyboardButton(
@@ -282,10 +286,9 @@ async def do_delete_category(
     query = update.callback_query
 
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             cat_service = CategoryService(db)
             success = await cat_service.delete_category(cat_id)
-            break
 
         if success:
             await query.message.edit_text(
@@ -301,6 +304,14 @@ async def do_delete_category(
                     [[InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]]
                 ),
             )
+    except ValidationError as exc:
+        logger.warning("Delete category %s blocked: %s", cat_id, exc)
+        await query.message.edit_text(
+            f"⚠️ {exc}",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("🔙 ወደ ምድቦች", callback_data="admin_categories")]]
+            ),
+        )
     except Exception as exc:
         logger.error("Delete category %s error: %s", cat_id, exc)
         await query.message.edit_text(
@@ -318,10 +329,16 @@ async def do_approve_product(
     query = update.callback_query
 
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             product_service = ProductService(db)
-            await product_service.product_repo.update(product_id, {"status": "active"})
-            break
+            product = await product_service.get_product(product_id)
+            if product.status != ProductStatus.PENDING:
+                raise ValueError(f"Product {product_id} is not pending approval")
+            await product_service.product_repo.update(
+                product_id, {"status": ProductStatus.ACTIVE}
+            )
+            if product.category_id is not None:
+                await product_service.category_repo.update_product_count(product.category_id)
         await query.message.edit_text(
             f"✅ ምርቱ (ID: {product_id}) ፀድቋል!",
             reply_markup=InlineKeyboardMarkup(
@@ -343,10 +360,14 @@ async def do_reject_product(
     query = update.callback_query
 
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             product_service = ProductService(db)
-            await product_service.product_repo.update(product_id, {"status": "rejected"})
-            break
+            product = await product_service.get_product(product_id)
+            if product.status != ProductStatus.PENDING:
+                raise ValueError(f"Product {product_id} is not pending review")
+            await product_service.product_repo.update(
+                product_id, {"status": ProductStatus.REJECTED}
+            )
         await query.message.edit_text(
             f"❌ ምርቱ (ID: {product_id}) ውድቅ ሆኗል።",
             reply_markup=InlineKeyboardMarkup(
@@ -364,12 +385,12 @@ async def do_reject_product(
 async def do_create_product_with_category(
     update: Update, context: ContextTypes.DEFAULT_TYPE, category_id: int
 ) -> None:
-    """Final step: create product after admin picks a category via inline button."""
+    """Ask the admin to choose an approved vendor for the new product."""
     query = update.callback_query
 
-    name = context.user_data.pop("new_product_name", None)
-    price = context.user_data.pop("new_product_price", None)
-    stock = context.user_data.pop("new_product_stock", None)
+    name = context.user_data.get("new_product_name")
+    price = context.user_data.get("new_product_price")
+    stock = context.user_data.get("new_product_stock")
 
     if not name or price is None or stock is None:
         await query.message.edit_text(
@@ -380,41 +401,101 @@ async def do_create_product_with_category(
         )
         return
 
-    # Use admin's Telegram ID to find (or approximate) a vendor record
-    admin_tg_id = update.effective_user.id
-    cat_id = category_id if category_id > 0 else None
+    try:
+        async with transaction_session() as db:
+            from apps.users.repository import VendorRepository
 
-    # Auto-generate a SKU from the product name
+            vendors = await VendorRepository(db).get_approved_vendors(limit=100)
+    except Exception as exc:
+        logger.error("Load approved vendors for product creation failed: %s", exc)
+        await query.message.edit_text(
+            "❌ ሻጮችን ለማምጣት ስህተት ተፈጥሯል።",
+            reply_markup=_products_back_keyboard(),
+        )
+        return
+
+    if not vendors:
+        await query.message.edit_text(
+            "⚠️ የተፈቀደ ሻጭ አልተገኘም። ምርት ለመፍጠር በመጀመሪያ ሻጭ ያጽድቁ።",
+            reply_markup=_products_back_keyboard(),
+        )
+        return
+
+    context.user_data["new_product_category_id"] = category_id
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                vendor.business_name[:50],
+                callback_data=f"admin_vendor_pick_{vendor.id}_{category_id}",
+            )
+        ]
+        for vendor in vendors[:50]
+    ]
+    keyboard.append(
+        [InlineKeyboardButton("❌ ሰርዝ", callback_data="admin_products")]
+    )
+    await query.message.edit_text(
+        "🏪 ምርቱን የሚያቀርበውን የተፈቀደ ሻጭ ይምረጡ:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+
+
+async def do_create_product_with_vendor(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    vendor_id: int,
+    category_id: int,
+) -> None:
+    """Create an admin-entered product under a selected approved vendor."""
+    query = update.callback_query
+    name = context.user_data.get("new_product_name")
+    price = context.user_data.get("new_product_price")
+    stock = context.user_data.get("new_product_stock")
+    if not name or price is None or stock is None:
+        await query.message.edit_text(
+            "❌ ምርቱን ለመፍጠር ያስፈለጉ ዝርዝሮች ጠፍተዋል። እባክዎ ዳግም ይሞክሩ።",
+            reply_markup=_products_back_keyboard(),
+        )
+        return
+
     import re
     import uuid
 
-    sku_base = re.sub(r"[^A-Za-z0-9]", "", name.upper())[:8] or "PROD"
-    sku = f"{sku_base}-{uuid.uuid4().hex[:6].upper()}"
-
     try:
-        async for db in get_db_session():
-            from apps.users.services import UserService
+        async with transaction_session() as db:
+            from apps.users.repository import VendorRepository
 
-            user_service = UserService(db)
-            admin_user = await user_service.get_user_by_telegram(admin_tg_id)
-            vendor_id = admin_user.id if admin_user else 1
-
+            vendor = await VendorRepository(db).get_by_id(vendor_id)
+            if not vendor or not vendor.is_approved:
+                raise ValueError(f"Vendor {vendor_id} is not approved")
             product_service = ProductService(db)
+            sku_base = re.sub(r"[^A-Za-z0-9]", "", name.upper())[:8] or "PROD"
+            sku = f"{sku_base}-{uuid.uuid4().hex[:6].upper()}"
             product = await product_service.create_product(
                 vendor_id=vendor_id,
                 data=ProductCreate(
                     name=name,
                     price=price,
                     stock_quantity=stock,
-                    category_id=cat_id,
+                    category_id=category_id if category_id > 0 else None,
                     sku=sku,
+                    status=ProductStatus.ACTIVE,
                 ),
+                admin_approved=True,
             )
-            break
 
+        for key in (
+            "new_product_name",
+            "new_product_price",
+            "new_product_stock",
+            "new_product_category_id",
+        ):
+            context.user_data.pop(key, None)
+
+        product_name = escape_markdown(str(product.name), version=1)
         await query.message.edit_text(
             f"✅ *ምርቱ ተፈጠረ!*\n\n"
-            f"• ስም: *{product.name}*\n"
+            f"• ስም: *{product_name}*\n"
             f"• ዋጋ: {format_etb(product.price)}\n"
             f"• ክምችት: {product.stock_quantity}\n"
             f"• ID: {product.id}",
@@ -429,7 +510,7 @@ async def do_create_product_with_category(
     except Exception as exc:
         logger.error("Create product error: %s", exc)
         await query.message.edit_text(
-            "❌ ምርቱን ለመፍጠር ስህተት ተፈጥሯል። ሻጭ ID ያረጋግጡ።",
+            "❌ ምርቱን ለመፍጠር ስህተት ተፈጥሯል። የተፈቀደ ሻጭ እና ምርት መረጃውን ያረጋግጡ።",
             reply_markup=_products_back_keyboard(),
         )
 
@@ -444,15 +525,15 @@ async def list_products_for_images(update: Update, context: ContextTypes.DEFAULT
     page_size = 8
 
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             product_service = ProductService(db)
             products, total = await product_service.product_repo.get_all_with_count(
+                filters={"is_deleted": False},
                 limit=page_size,
                 offset=(page - 1) * page_size,
                 order_by="created_at",
                 order_desc=True,
             )
-            break
     except Exception as exc:
         logger.error("list_products_for_images error: %s", exc)
         await query.message.edit_text(
@@ -509,10 +590,9 @@ async def show_product_images(
     query = update.callback_query
 
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             product_service = ProductService(db)
-            product = await product_service.product_repo.get(product_id)
-            break
+            product = await product_service.product_repo.get_by_id(product_id)
     except Exception as exc:
         logger.error("show_product_images error: %s", exc)
         await query.message.edit_text("❌ ምርቱ አልተገኘም።", reply_markup=_products_back_keyboard())
@@ -559,13 +639,15 @@ async def show_product_images(
             ]
         )
         try:
-            # Try as URL first; fall back silently if the URL is unreachable
-            await context.bot.send_photo(
-                chat_id=chat_id,
-                photo=url,
-                caption=f"ምስል {i+1}/{len(images)}",
-                reply_markup=del_kb,
-            )
+            from bot.product_media import telegram_photo_source
+
+            with telegram_photo_source(str(url)) as photo:
+                await context.bot.send_photo(
+                    chat_id=chat_id,
+                    photo=photo,
+                    caption=f"ምስል {i+1}/{len(images)}",
+                    reply_markup=del_kb,
+                )
         except Exception as e:
             logger.warning("Could not send thumbnail %s for product %s: %s", url, product_id, e)
             # Send as a text fallback with the URL
@@ -603,9 +685,9 @@ async def do_remove_product_image(
     query = update.callback_query
 
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             product_service = ProductService(db)
-            product = await product_service.product_repo.get(product_id)
+            product = await product_service.product_repo.get_by_id(product_id)
             if not product:
                 raise ValueError("not found")
             images = list(product.images or [])
@@ -613,7 +695,6 @@ async def do_remove_product_image(
                 removed = images.pop(img_index)
                 await product_service.product_repo.update(product_id, {"images": images})
                 logger.info("Removed image %s from product %s", removed, product_id)
-            break
     except Exception as exc:
         logger.error("remove_image %s[%s] error: %s", product_id, img_index, exc)
         await query.answer("❌ ምስሉን ለማስወገድ ስህተት ተፈጥሯል።", show_alert=True)

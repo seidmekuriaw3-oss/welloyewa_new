@@ -84,10 +84,14 @@ class TicketService:
         return await self.ticket_repo.get_by_number(ticket_number)
 
     async def update_ticket(
-        self, ticket_id: int, data: TicketUpdate, is_admin: bool = False
+        self,
+        ticket_id: int,
+        data: TicketUpdate,
+        is_admin: bool = False,
+        user_id: int | None = None,
     ) -> Ticket:
         """Update a ticket."""
-        ticket = await self.get_ticket(ticket_id)
+        ticket = await self.get_ticket(ticket_id, user_id=user_id, is_admin=is_admin)
 
         update_data = data.dict(exclude_unset=True)
 
@@ -128,7 +132,7 @@ class TicketService:
 
     async def assign_ticket(self, ticket_id: int, assigned_to: int, admin_id: int) -> Ticket:
         """Assign ticket to a support agent."""
-        ticket = await self.get_ticket(ticket_id)
+        ticket = await self.get_ticket(ticket_id, is_admin=True)
 
         updated = await self.ticket_repo.update(
             ticket_id,
@@ -147,7 +151,7 @@ class TicketService:
         self, ticket_id: int, resolution_note: str, resolved_by: int
     ) -> Ticket:
         """Resolve a ticket."""
-        ticket = await self.get_ticket(ticket_id)
+        ticket = await self.get_ticket(ticket_id, is_admin=True)
 
         updated = await self.ticket_repo.update(
             ticket_id,
@@ -163,7 +167,7 @@ class TicketService:
 
     async def close_ticket(self, ticket_id: int, closed_by: int) -> Ticket:
         """Close a resolved ticket."""
-        ticket = await self.get_ticket(ticket_id)
+        ticket = await self.get_ticket(ticket_id, is_admin=True)
 
         if ticket.status != "resolved":
             raise ValidationError("Only resolved tickets can be closed")

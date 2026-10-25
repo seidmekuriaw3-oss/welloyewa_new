@@ -20,6 +20,7 @@ from core.dependencies import (
     get_current_user,
     get_current_vendor,
     get_db_session,
+    get_transaction_session,
 )
 from core.exceptions import InsufficientStockError, NotFoundError, PermissionError, ValidationError
 
@@ -46,7 +47,7 @@ def _serialize_vendor_order(order, vendor_id: int) -> OrderResponse:
 async def create_order(
     data: OrderCreate,
     current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_transaction_session),
 ) -> OrderResponse:
     """
     Create a new order.
@@ -87,10 +88,7 @@ async def get_my_orders(
     )
 
     return PaginatedResponse.create(
-        items=[
-            _serialize_vendor_order(order, current_user["vendor_id"])
-            for order in orders
-        ],
+        items=[OrderResponse.model_validate(order) for order in orders],
         total=total,
         page=page,
         page_size=page_size,
@@ -112,7 +110,7 @@ async def get_order(
 
     try:
         order = await order_service.get_order(order_id, current_user["id"])
-        return _serialize_vendor_order(order, current_user["vendor_id"])
+        return OrderResponse.model_validate(order)
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except PermissionError as e:
@@ -124,7 +122,7 @@ async def cancel_order(
     order_id: int,
     reason: str | None = Query(None),
     current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_transaction_session),
 ) -> OrderResponse:
     """
     Cancel an order.
@@ -222,7 +220,7 @@ async def update_order_status(
     order_id: int,
     data: OrderStatusUpdate,
     current_user: dict = Depends(get_current_vendor),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_transaction_session),
 ) -> OrderResponse:
     """
     Update order status (vendor only).
@@ -291,7 +289,7 @@ async def admin_update_order_status(
     order_id: int,
     data: OrderStatusUpdate,
     current_user: dict = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_transaction_session),
 ) -> OrderResponse:
     """
     Update order status (admin only).

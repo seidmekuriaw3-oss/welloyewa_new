@@ -161,10 +161,25 @@ async def on_order_cancelled(event: Event) -> None:
 
     logger.info(f"Order {order_id} cancelled. Reason: {reason}")
 
-    # Process refund if payment was made
+    # Cancelled unpaid orders do not have a payment to refund.
     from apps.orders.refunds import process_refund
+    from apps.orders.services import OrderService
+    from core.constants import PaymentStatus
+    from infrastructure.database.session import transaction_session
 
-    await process_refund(order_id, reason="Order cancelled")
+    async with transaction_session() as db:
+        order = await OrderService(db).get_order(order_id)
+        if (
+            order.payment_status != PaymentStatus.PAID.value
+            or not order.payment_transaction_id
+        ):
+            logger.info("Skipping refund for unpaid order %s", order_id)
+            return
+        await process_refund(
+            order_id,
+            reason=reason or "Order cancelled",
+            db=db,
+        )
 
 
 async def on_payment_received(event: Event) -> None:

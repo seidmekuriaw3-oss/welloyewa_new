@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from apps.common.repository import BaseRepository
 from apps.users.models import User, Vendor
@@ -20,14 +21,22 @@ class UserRepository(BaseRepository[User]):
         super().__init__(User, db)
 
     async def get_by_telegram(self, telegram_id: int) -> User | None:
-        """Get user by Telegram ID."""
-        query = select(User).where(User.telegram_id == telegram_id)
+        """Get user by Telegram ID with addresses eagerly loaded."""
+        query = (
+            select(User)
+            .options(selectinload(User.addresses))
+            .where(User.telegram_id == telegram_id)
+        )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
     async def get_by_phone(self, phone_number: str) -> User | None:
-        """Get user by phone number."""
-        query = select(User).where(User.phone_number == phone_number)
+        """Get user by phone number with addresses eagerly loaded."""
+        query = (
+            select(User)
+            .options(selectinload(User.addresses))
+            .where(User.phone_number == phone_number)
+        )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 

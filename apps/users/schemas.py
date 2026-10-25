@@ -53,6 +53,8 @@ class UserUpdate(BaseSchema):
     email: EmailStr | None = None
     language: str | None = Field(None, max_length=10)
     profile_picture: str | None = Field(None, max_length=500)
+    location_lat: float | None = None
+    location_lng: float | None = None
     city: str | None = Field(None, max_length=100)
     subcity: str | None = Field(None, max_length=100)
     woreda: str | None = Field(None, max_length=50)

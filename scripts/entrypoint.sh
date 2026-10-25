@@ -54,7 +54,7 @@ run_migrations() {
 seed_database() {
     if [ "${ENVIRONMENT}" = "development" ] && [ "${DEV_POPULATE_DUMMY_DATA}" = "True" ]; then
         log "Seeding database with dummy data..." "${YELLOW}"
-        if python scripts/seed_db.py; then
+        if python scripts/seed_db.py && python scripts/seed_data.py; then
             log "Database seeded successfully!" "${GREEN}"
         else
             log "Database seeding failed!" "${RED}"

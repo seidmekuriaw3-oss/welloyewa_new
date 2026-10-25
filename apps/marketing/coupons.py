@@ -9,9 +9,11 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.marketing.repository import CouponRepository, CouponUsageRepository
+from apps.orders.models import Order
 from core.exceptions import NotFoundError, ValidationError
 from core.logger import logger
 
@@ -184,7 +186,15 @@ class CouponManager:
         Returns:
             Discount amount applied
         """
-        validation = await self.validate_coupon(code, user_id, order_amount)
+        user_order_count = await self.db.scalar(
+            select(func.count(Order.id)).where(Order.user_id == user_id)
+        )
+        validation = await self.validate_coupon(
+            code,
+            user_id,
+            order_amount,
+            user_order_count=user_order_count or 0,
+        )
 
         if not validation["is_valid"]:
             raise ValidationError(validation["message"])

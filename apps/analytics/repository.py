@@ -6,7 +6,7 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.orders.models import Order, OrderItem
@@ -21,6 +21,24 @@ class SalesRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    def _vendor_order_sales(self, vendor_id: int, *conditions):
+        """Return one paid sales row per order for the selected vendor."""
+        return (
+            select(
+                Order.id.label("order_id"),
+                Order.created_at.label("created_at"),
+                func.sum(OrderItem.total_price).label("sales"),
+            )
+            .join(OrderItem, OrderItem.order_id == Order.id)
+            .where(
+                OrderItem.vendor_id == vendor_id,
+                Order.payment_status == PaymentStatus.PAID.value,
+                *conditions,
+            )
+            .group_by(Order.id, Order.created_at)
+            .subquery()
+        )
+
     async def get_daily_sales(
         self,
         days: int = 30,
@@ -29,17 +47,28 @@ class SalesRepository:
         """Get daily sales for the last N days."""
         cutoff = datetime.utcnow() - timedelta(days=days)
 
-        query = select(
-            func.date(Order.created_at).label("date"),
-            func.count(Order.id).label("order_count"),
-            func.sum(Order.total).label("total_sales"),
-            func.avg(Order.total).label("average_order"),
-        ).where(Order.created_at >= cutoff, Order.payment_status == PaymentStatus.PAID.value)
-
         if vendor_id:
-            query = query.where(Order.vendor_id == vendor_id)
+            vendor_sales = self._vendor_order_sales(vendor_id, Order.created_at >= cutoff)
+            sale_date = func.date(vendor_sales.c.created_at)
+            query = select(
+                sale_date.label("date"),
+                func.count(vendor_sales.c.order_id).label("order_count"),
+                func.sum(vendor_sales.c.sales).label("total_sales"),
+                func.avg(vendor_sales.c.sales).label("average_order"),
+            ).select_from(vendor_sales)
+        else:
+            sale_date = func.date(Order.created_at)
+            query = select(
+                sale_date.label("date"),
+                func.count(Order.id).label("order_count"),
+                func.sum(Order.total).label("total_sales"),
+                func.avg(Order.total).label("average_order"),
+            ).where(
+                Order.created_at >= cutoff,
+                Order.payment_status == PaymentStatus.PAID.value,
+            )
 
-        query = query.group_by(func.date(Order.created_at)).order_by("date")
+        query = query.group_by(sale_date).order_by("date")
 
         result = await self.db.execute(query)
         rows = result.all()
@@ -62,25 +91,46 @@ class SalesRepository:
         """Get weekly sales for the last N weeks."""
         cutoff = datetime.utcnow() - timedelta(weeks=weeks)
 
-        query = select(
-            func.year(Order.created_at).label("year"),
-            func.week(Order.created_at).label("week"),
-            func.count(Order.id).label("order_count"),
-            func.sum(Order.total).label("total_sales"),
-        ).where(Order.created_at >= cutoff, Order.payment_status == PaymentStatus.PAID.value)
-
         if vendor_id:
-            query = query.where(Order.vendor_id == vendor_id)
-
-        query = query.group_by("year", "week").order_by("year", "week")
+            vendor_sales = self._vendor_order_sales(vendor_id, Order.created_at >= cutoff)
+            year = extract("year", vendor_sales.c.created_at).label("year")
+            week = extract("week", vendor_sales.c.created_at).label("week")
+            query = (
+                select(
+                    year,
+                    week,
+                    func.count(vendor_sales.c.order_id).label("order_count"),
+                    func.sum(vendor_sales.c.sales).label("total_sales"),
+                )
+                .select_from(vendor_sales)
+                .group_by(year, week)
+                .order_by(year, week)
+            )
+        else:
+            year = extract("year", Order.created_at).label("year")
+            week = extract("week", Order.created_at).label("week")
+            query = (
+                select(
+                    year,
+                    week,
+                    func.count(Order.id).label("order_count"),
+                    func.sum(Order.total).label("total_sales"),
+                )
+                .where(
+                    Order.created_at >= cutoff,
+                    Order.payment_status == PaymentStatus.PAID.value,
+                )
+                .group_by(year, week)
+                .order_by(year, week)
+            )
 
         result = await self.db.execute(query)
         rows = result.all()
 
         return [
             {
-                "year": row.year,
-                "week": row.week,
+                "year": int(row.year),
+                "week": int(row.week),
                 "order_count": row.order_count or 0,
                 "total_sales": float(row.total_sales) if row.total_sales else 0,
             }
@@ -95,23 +145,45 @@ class SalesRepository:
         """Get monthly sales for the last N months."""
         cutoff = datetime.utcnow() - timedelta(days=months * 30)
 
-        query = select(
-            func.date_format(Order.created_at, "%Y-%m").label("month"),
-            func.count(Order.id).label("order_count"),
-            func.sum(Order.total).label("total_sales"),
-        ).where(Order.created_at >= cutoff, Order.payment_status == PaymentStatus.PAID.value)
-
         if vendor_id:
-            query = query.where(Order.vendor_id == vendor_id)
-
-        query = query.group_by("month").order_by("month")
+            vendor_sales = self._vendor_order_sales(vendor_id, Order.created_at >= cutoff)
+            year = extract("year", vendor_sales.c.created_at).label("year")
+            month = extract("month", vendor_sales.c.created_at).label("month_number")
+            query = (
+                select(
+                    year,
+                    month,
+                    func.count(vendor_sales.c.order_id).label("order_count"),
+                    func.sum(vendor_sales.c.sales).label("total_sales"),
+                )
+                .select_from(vendor_sales)
+                .group_by(year, month)
+                .order_by(year, month)
+            )
+        else:
+            year = extract("year", Order.created_at).label("year")
+            month = extract("month", Order.created_at).label("month_number")
+            query = (
+                select(
+                    year,
+                    month,
+                    func.count(Order.id).label("order_count"),
+                    func.sum(Order.total).label("total_sales"),
+                )
+                .where(
+                    Order.created_at >= cutoff,
+                    Order.payment_status == PaymentStatus.PAID.value,
+                )
+                .group_by(year, month)
+                .order_by(year, month)
+            )
 
         result = await self.db.execute(query)
         rows = result.all()
 
         return [
             {
-                "month": row.month,
+                "month": f"{int(row.year):04d}-{int(row.month_number):02d}",
                 "order_count": row.order_count or 0,
                 "total_sales": float(row.total_sales) if row.total_sales else 0,
             }
@@ -125,21 +197,33 @@ class SalesRepository:
         vendor_id: int | None = None,
     ) -> dict[str, Any]:
         """Get sales summary for a date range."""
-        query = select(
-            func.count(Order.id).label("total_orders"),
-            func.sum(Order.total).label("total_revenue"),
-            func.avg(Order.total).label("avg_order_value"),
-            func.sum(Order.discount).label("total_discount"),
-            func.sum(Order.shipping_fee).label("total_shipping"),
-            func.sum(Order.tax).label("total_tax"),
-        ).where(
-            Order.created_at >= start_date,
-            Order.created_at <= end_date,
-            Order.payment_status == PaymentStatus.PAID.value,
-        )
-
         if vendor_id:
-            query = query.where(Order.vendor_id == vendor_id)
+            vendor_sales = self._vendor_order_sales(
+                vendor_id,
+                Order.created_at >= start_date,
+                Order.created_at <= end_date,
+            )
+            query = select(
+                func.count(vendor_sales.c.order_id).label("total_orders"),
+                func.sum(vendor_sales.c.sales).label("total_revenue"),
+                func.avg(vendor_sales.c.sales).label("avg_order_value"),
+                func.sum(Order.discount).label("total_discount"),
+                func.sum(Order.shipping_fee).label("total_shipping"),
+                func.sum(Order.tax).label("total_tax"),
+            ).select_from(vendor_sales).join(Order, Order.id == vendor_sales.c.order_id)
+        else:
+            query = select(
+                func.count(Order.id).label("total_orders"),
+                func.sum(Order.total).label("total_revenue"),
+                func.avg(Order.total).label("avg_order_value"),
+                func.sum(Order.discount).label("total_discount"),
+                func.sum(Order.shipping_fee).label("total_shipping"),
+                func.sum(Order.tax).label("total_tax"),
+            ).where(
+                Order.created_at >= start_date,
+                Order.created_at <= end_date,
+                Order.payment_status == PaymentStatus.PAID.value,
+            )
 
         result = await self.db.execute(query)
         row = result.one()
@@ -174,7 +258,7 @@ class SalesRepository:
         )
 
         if vendor_id:
-            query = query.where(Order.vendor_id == vendor_id)
+            query = query.where(OrderItem.vendor_id == vendor_id)
 
         query = query.group_by(OrderItem.product_id, OrderItem.product_name)
         query = query.order_by(func.sum(OrderItem.quantity).desc()).limit(limit)

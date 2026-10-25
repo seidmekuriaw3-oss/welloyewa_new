@@ -10,7 +10,7 @@ from telegram.ext import ContextTypes
 
 from apps.users.services import UserService
 from core.logger import logger
-from infrastructure.database.session import get_db_session
+from infrastructure.database.session import transaction_session
 
 
 class AuthMiddleware:
@@ -33,7 +33,7 @@ class AuthMiddleware:
             return self._user_cache[telegram_id]
 
         try:
-            async for db in get_db_session():
+            async with transaction_session() as db:
                 user_service = UserService(db)
                 user = await user_service.get_or_create_user(
                     telegram_id=telegram_id,
@@ -61,7 +61,6 @@ class AuthMiddleware:
                     }
                     self._user_cache[telegram_id] = user_data
                     return user_data
-                break
         except Exception as e:
             logger.warning(f"AuthMiddleware: failed to get/create user {telegram_id}: {e}")
 
@@ -109,6 +108,7 @@ async def ensure_user_registered(update: Update, context: ContextTypes.DEFAULT_T
         context.user_data["user_id"] = user_data["id"]
         context.user_data["user_role"] = user_data["role"]
         context.user_data["user"] = user_data
+        context.user_data["language"] = user_data.get("language") or "am"
     else:
         logger.error(f"Could not register/load user {tg_user.id} — DB may be unavailable.")
 

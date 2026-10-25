@@ -8,12 +8,13 @@ import io
 from datetime import datetime, timedelta
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.helpers import escape_markdown
 from telegram.ext import ContextTypes
 
 from apps.analytics.services import SalesAnalyticsService, UserAnalyticsService
 from apps.orders.services import OrderService
 from apps.products.services import CategoryService, ProductService
-from apps.users.services import UserService
+from apps.users.services import UserService, VendorService
 from core.logger import logger
 from core.utils.currency import format_etb
 from infrastructure.database.session import get_db_session
@@ -72,9 +73,11 @@ async def generate_sales_report(
             break
     except Exception as exc:
         logger.error("Sales report error: %s", exc)
-        summary = {}
-        daily_sales = []
-        top_products = []
+        await query.message.edit_text(
+            "❌ የሽያጭ ሪፖርቱን ማምጣት አልተቻለም።",
+            reply_markup=_back_keyboard(),
+        )
+        return
 
     report_text = (
         f"📊 *የሽያጭ ሪፖርት* — {days} ቀናት\n\n"
@@ -85,7 +88,8 @@ async def generate_sales_report(
         "🏆 *ከፍተኛ ምርቶች:*\n"
     )
     for p in top_products[:3]:
-        report_text += f"• {p.get('product_name', 'N/A')}: {format_etb(p.get('revenue', 0))}\n"
+        product_name = escape_markdown(str(p.get("product_name", "N/A")), version=1)
+        report_text += f"• {product_name}: {format_etb(p.get('revenue', 0))}\n"
 
     report_text += "\n📈 *ዕለታዊ (ባለፉ 7 ቀናት):*\n"
     for day in daily_sales[-7:]:
@@ -114,18 +118,24 @@ async def generate_user_report(update: Update, context: ContextTypes.DEFAULT_TYP
         async for db in get_db_session():
             user_service = UserService(db)
             user_analytics = UserAnalyticsService(db)
-            total_users = await user_service.user_repo.count()
+            total_users = await user_service.user_repo.count({"is_deleted": False})
             active_users = await user_analytics.get_active_users(days=30)
             new_users_last_30d = await user_service.user_repo.count(
-                {"created_at__gte": datetime.utcnow() - timedelta(days=30)}
+                {
+                    "created_at__gte": datetime.utcnow() - timedelta(days=30),
+                    "is_deleted": False,
+                }
             )
-            vendors = await user_service.user_repo.count({"role": "vendor"})
+            vendors = await VendorService(db).vendor_repo.count()
             user_growth = await user_analytics.get_user_growth(days=30)
             break
     except Exception as exc:
         logger.error("User report error: %s", exc)
-        total_users = active_users = new_users_last_30d = vendors = 0
-        user_growth = []
+        await query.message.edit_text(
+            "❌ የተጠቃሚ ሪፖርቱን ማምጣት አልተቻለም።",
+            reply_markup=_back_keyboard(),
+        )
+        return
 
     report_text = (
         "👥 *የተጠቃሚ ሪፖርት*\n\n"
@@ -157,15 +167,22 @@ async def generate_product_report(update: Update, context: ContextTypes.DEFAULT_
         async for db in get_db_session():
             product_service = ProductService(db)
             category_service = CategoryService(db)
-            total_products = await product_service.product_repo.count()
-            pending_count = await product_service.product_repo.count({"status": "pending"})
-            active_count = await product_service.product_repo.count({"status": "active"})
+            pending_count = await product_service.product_repo.count(
+                {"status": "pending", "is_deleted": False}
+            )
+            active_count = await product_service.product_repo.count(
+                {"status": "active", "is_deleted": False}
+            )
+            total_products = await product_service.product_repo.count({"is_deleted": False})
             categories = await category_service.get_all_categories()
             break
     except Exception as exc:
         logger.error("Product report error: %s", exc)
-        total_products = pending_count = active_count = 0
-        categories = []
+        await query.message.edit_text(
+            "❌ የምርት ሪፖርቱን ማምጣት አልተቻለም።",
+            reply_markup=_back_keyboard(),
+        )
+        return
 
     report_text = (
         "📦 *የምርት ሪፖርት*\n\n"
@@ -176,7 +193,8 @@ async def generate_product_report(update: Update, context: ContextTypes.DEFAULT_
         "📁 *ምድቦች:*\n"
     )
     for cat in categories[:10]:
-        report_text += f"• {cat.name}: {getattr(cat, 'product_count', 0)} ምርቶች\n"
+        category_name = escape_markdown(str(cat.name), version=1)
+        report_text += f"• {category_name}: {getattr(cat, 'product_count', 0)} ምርቶች\n"
 
     await query.message.edit_text(
         report_text,
@@ -191,15 +209,17 @@ async def generate_vendor_report(update: Update, context: ContextTypes.DEFAULT_T
 
     try:
         async for db in get_db_session():
-            user_service = UserService(db)
-            total_vendors = await user_service.user_repo.count({"role": "vendor"})
-            active_vendors = await user_service.user_repo.count(
-                {"role": "vendor", "status": "active"}
-            )
+            vendor_repo = VendorService(db).vendor_repo
+            total_vendors = await vendor_repo.count()
+            active_vendors = await vendor_repo.count({"is_approved": True})
             break
     except Exception as exc:
         logger.error("Vendor report error: %s", exc)
-        total_vendors = active_vendors = 0
+        await query.message.edit_text(
+            "❌ የሻጭ ሪፖርቱን ማምጣት አልተቻለም።",
+            reply_markup=_back_keyboard(),
+        )
+        return
 
     report_text = (
         "🏪 *የሻጭ ሪፖርት*\n\n"
@@ -238,7 +258,11 @@ async def export_sales_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             break
     except Exception as exc:
         logger.error("Export sales CSV error: %s", exc)
-        orders = []
+        await query.message.edit_text(
+            "❌ የሽያጭ CSV ሪፖርቱን ማዘጋጀት አልተቻለም።",
+            reply_markup=_back_keyboard(),
+        )
+        return
 
     buf = io.StringIO()
     writer = csv.writer(buf)
@@ -289,6 +313,7 @@ async def export_users_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         async for db in get_db_session():
             user_service = UserService(db)
             users = await user_service.user_repo.get_all(
+                filters={"is_deleted": False},
                 order_by="created_at",
                 order_desc=True,
                 limit=2000,
@@ -296,7 +321,11 @@ async def export_users_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             break
     except Exception as exc:
         logger.error("Export users CSV error: %s", exc)
-        users = []
+        await query.message.edit_text(
+            "❌ የተጠቃሚ CSV ሪፖርቱን ማዘጋጀት አልተቻለም።",
+            reply_markup=_back_keyboard(),
+        )
+        return
 
     buf = io.StringIO()
     writer = csv.writer(buf)

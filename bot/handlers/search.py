@@ -4,9 +4,15 @@
 """Telegram bot product search and filtering handlers."""
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes, ConversationHandler
+from telegram.helpers import escape_markdown
 
 from apps.products.search_engine import ProductSearchEngine
+from bot.handlers.text_routing import mark_text_message_handled
+from bot.localization import get_language, tr
+from core.constants import CATEGORY_NAMES_AMHARIC, ProductCategory
+from core.logger import logger
 from core.utils.currency import format_etb
 from infrastructure.database.session import get_db_session
 
@@ -17,16 +23,15 @@ WAITING_QUERY, FILTER_RESULTS = range(2)
 SEARCH_RESULTS_PER_PAGE = 10
 
 
-async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     Handle the /search command.
 
     Starts the search conversation.
     """
+    mark_text_message_handled(update, context)
     await update.effective_message.reply_text(
-        "🔍 *ምርቶችን ይፈልጉ*\n\n"
-        "እባክዎ ማግኘት የሚፈልጉትን ምርት ስም ወይም ቁልፍ ቃል ይጻፉ።\n\n"
-        "ለምሳሌ: 'ስልክ', 'ልብስ', 'ኮምፒውተር'",
+        tr(context, "search_prompt"),
         parse_mode="Markdown",
     )
     return WAITING_QUERY
@@ -43,7 +48,7 @@ async def start_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     await query.answer()
 
     await query.message.edit_text(
-        "🔍 *ምርቶችን ይፈልጉ*\n\n" "እባክዎ ማግኘት የሚፈልጉትን ምርት ስም ወይም ቁልፍ ቃል ይጻፉ።", parse_mode="Markdown"
+        tr(context, "search_prompt"), parse_mode="Markdown"
     )
 
     return WAITING_QUERY
@@ -60,10 +65,11 @@ async def search_query_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     Returns:
         Next conversation state
     """
+    mark_text_message_handled(update, context)
     query_text = update.effective_message.text.strip()
 
     if len(query_text) < 2:
-        await update.effective_message.reply_text("❌ እባክዎ ቢያንስ 2 ፊደላት ያስገቡ።")
+        await update.effective_message.reply_text(tr(context, "search_min_length"))
         return WAITING_QUERY
 
     context.user_data["search_query"] = query_text
@@ -107,7 +113,7 @@ async def perform_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     if not products:
         await update.effective_message.reply_text(
-            f"🔍 *'{query}'* የሚል ምርት አልተገኘም።\n\n" f"እባክዎ ሌላ ቃል ይሞክሩ ወይም /menu በመጠቀም ምድቦችን ይመልከቱ።",
+            tr(context, "no_search_results", query=escape_markdown(query, version=1)),
             parse_mode="Markdown",
         )
         return
@@ -115,7 +121,13 @@ async def perform_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Build results message
     total_pages = (total + SEARCH_RESULTS_PER_PAGE - 1) // SEARCH_RESULTS_PER_PAGE
 
-    results_text = f"🔍 *'{query}'* የፍለጋ ውጤት - ገጽ {page}/{total_pages}\n\n"
+    results_text = tr(
+        context,
+        "search_results",
+        query=escape_markdown(query, version=1),
+        page=page,
+        total_pages=total_pages,
+    ) + "\n\n"
 
     for product in products:
         price_text = format_etb(product.price)
@@ -124,10 +136,15 @@ async def perform_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         stock_icon = "✅" if product.is_in_stock else "❌"
 
-        results_text += f"{stock_icon} *{product.name}*\n"
+        language = get_language(context)
+        product_name = (
+            product.name_am if language == "am" else product.name
+        ) or product.name
+        product_name = escape_markdown(str(product_name), version=1)
+        results_text += f"{stock_icon} *{product_name}*\n"
         results_text += f"   💰 {price_text}\n"
         results_text += f"   ⭐ {product.rating:.1f}/5\n"
-        results_text += f"   [ዝርዝር ለማየት ይጫኑ](/view_{product.id})\n\n"
+        results_text += f"   {tr(context, 'view_product', id=product.id)}\n\n"
 
     # Build keyboard
     keyboard = []
@@ -135,9 +152,9 @@ async def perform_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Pagination buttons
     nav_buttons = []
     if page > 1:
-        nav_buttons.append(InlineKeyboardButton("◀️ ቀዳሚ", callback_data="search_page_prev"))
+        nav_buttons.append(InlineKeyboardButton(f"◀️ {tr(context, 'previous')}", callback_data="search_page_prev"))
     if page < total_pages:
-        nav_buttons.append(InlineKeyboardButton("ቀጣይ ▶️", callback_data="search_page_next"))
+        nav_buttons.append(InlineKeyboardButton(f"{tr(context, 'next')} ▶️", callback_data="search_page_next"))
 
     if nav_buttons:
         keyboard.append(nav_buttons)
@@ -145,20 +162,25 @@ async def perform_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Filter and sort buttons
     keyboard.append(
         [
-            InlineKeyboardButton("🔧 ማጣሪያ", callback_data="search_filter"),
-            InlineKeyboardButton("📊 ደርድር", callback_data="search_sort"),
+            InlineKeyboardButton(tr(context, "search_filter"), callback_data="search_filter"),
+            InlineKeyboardButton(tr(context, "search_sort"), callback_data="search_sort"),
         ]
     )
 
     # Product buttons (limited to 5)
     for product in products[:5]:
         keyboard.append(
-            [InlineKeyboardButton(f"📦 {product.name[:30]}", callback_data=f"prod_{product.id}")]
+            [
+                InlineKeyboardButton(
+                    f"📦 {((product.name_am if get_language(context) == 'am' else product.name) or product.name)[:30]}",
+                    callback_data=f"prod_{product.id}",
+                )
+            ]
         )
 
     # Back button
-    keyboard.append([InlineKeyboardButton("🔍 አዲስ ፍለጋ", callback_data="search_new")])
-    keyboard.append([InlineKeyboardButton("🔙 ወደ ምናሌ", callback_data="menu_back")])
+    keyboard.append([InlineKeyboardButton(tr(context, "search_new"), callback_data="search_new")])
+    keyboard.append([InlineKeyboardButton(tr(context, "menu_back"), callback_data="menu_back")])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -166,54 +188,161 @@ async def perform_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.callback_query.message.edit_text(
             results_text, parse_mode="Markdown", reply_markup=reply_markup
         )
-        await update.callback_query.answer()
     else:
         await update.effective_message.reply_text(
             results_text, parse_mode="Markdown", reply_markup=reply_markup
         )
 
 
-async def filter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def filter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     Handle search filter callback.
 
     Shows filter options.
     """
     query = update.callback_query
-    await query.answer()
+    try:
+        await query.answer()
+    except BadRequest as exc:
+        message = str(exc).lower()
+        if "query is too old" not in message and "query id is invalid" not in message:
+            raise
+        logger.debug("Ignoring expired search callback query: %s", query.id)
 
     if query.data == "search_filter":
         # Show filter options
         keyboard = [
-            [InlineKeyboardButton("📁 ምድብ", callback_data="filter_category")],
-            [InlineKeyboardButton("💰 የዋጋ ክልል", callback_data="filter_price")],
-            [InlineKeyboardButton("⭐ ዝቅተኛ ደረጃ", callback_data="filter_rating")],
-            [InlineKeyboardButton("✅ ክምችት ያለው ብቻ", callback_data="filter_in_stock")],
-            [InlineKeyboardButton("🏷️ በሽያጭ ላይ ያሉ", callback_data="filter_on_sale")],
-            [InlineKeyboardButton("🗑️ ማጣሪያ አጥፋ", callback_data="filter_clear")],
-            [InlineKeyboardButton("🔙 ወደ ውጤቶች", callback_data="search_back")],
+            [InlineKeyboardButton(tr(context, "filter_category"), callback_data="filter_category")],
+            [InlineKeyboardButton(tr(context, "filter_price"), callback_data="filter_price")],
+            [InlineKeyboardButton(tr(context, "filter_rating"), callback_data="filter_rating")],
+            [InlineKeyboardButton(tr(context, "filter_stock"), callback_data="filter_in_stock")],
+            [InlineKeyboardButton(tr(context, "filter_sale"), callback_data="filter_on_sale")],
+            [InlineKeyboardButton(tr(context, "filter_clear"), callback_data="filter_clear")],
+            [InlineKeyboardButton(tr(context, "back_results"), callback_data="search_back")],
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         await query.message.edit_text(
-            "🔧 *ማጣሪያ አማራጮች*\n\n" "ምርጫዎችዎን ይምረጡ።", parse_mode="Markdown", reply_markup=reply_markup
+            tr(context, "filter_title"), parse_mode="Markdown", reply_markup=reply_markup
         )
 
     elif query.data == "search_sort":
         # Show sort options
         keyboard = [
-            [InlineKeyboardButton("📊 በተዛማጅነት", callback_data="sort_relevance")],
-            [InlineKeyboardButton("💰 ዋጋ ወጪ ወደ ታች", callback_data="sort_price_desc")],
-            [InlineKeyboardButton("💰 ዋጋ ወጪ ወደ ላይ", callback_data="sort_price_asc")],
-            [InlineKeyboardButton("⭐ በደረጃ", callback_data="sort_rating")],
-            [InlineKeyboardButton("🆕 በአዲስነት", callback_data="sort_newest")],
-            [InlineKeyboardButton("🔙 ወደ ውጤቶች", callback_data="search_back")],
+            [InlineKeyboardButton(tr(context, "sort_relevance"), callback_data="sort_relevance")],
+            [InlineKeyboardButton(tr(context, "sort_price_desc"), callback_data="sort_price_desc")],
+            [InlineKeyboardButton(tr(context, "sort_price_asc"), callback_data="sort_price_asc")],
+            [InlineKeyboardButton(tr(context, "sort_rating"), callback_data="sort_rating")],
+            [InlineKeyboardButton(tr(context, "sort_newest"), callback_data="sort_newest")],
+            [InlineKeyboardButton(tr(context, "back_results"), callback_data="search_back")],
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         await query.message.edit_text(
-            "📊 *ደርድር አማራጮች*\n\n" "ምርጫዎችዎን ይምረጡ።", parse_mode="Markdown", reply_markup=reply_markup
+            tr(context, "sort_title"), parse_mode="Markdown", reply_markup=reply_markup
         )
+
+    elif query.data == "filter_category":
+        language = get_language(context)
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    CATEGORY_NAMES_AMHARIC.get(category, category.value)
+                    if language == "am"
+                    else category.value.replace("_", " ").title(),
+                    callback_data=f"filter_category_{category.value}",
+                )
+            ]
+            for category in ProductCategory
+        ]
+        keyboard.append(
+            [InlineKeyboardButton(tr(context, "back_results"), callback_data="search_filter")]
+        )
+        await query.message.edit_text(
+            tr(context, "filter_category"),
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+
+    elif query.data == "filter_price":
+        keyboard = [
+            [InlineKeyboardButton("< 500 ETB", callback_data="filter_price_under_500")],
+            [InlineKeyboardButton("500-1,999.99 ETB", callback_data="filter_price_500_2000")],
+            [InlineKeyboardButton("≥ 2,000 ETB", callback_data="filter_price_over_2000")],
+            [InlineKeyboardButton(tr(context, "back_results"), callback_data="search_filter")],
+        ]
+        await query.message.edit_text(
+            tr(context, "filter_price"),
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+
+    elif query.data == "filter_rating":
+        keyboard = [
+            [InlineKeyboardButton("⭐ 3+", callback_data="filter_rating_3")],
+            [InlineKeyboardButton("⭐ 4+", callback_data="filter_rating_4")],
+            [InlineKeyboardButton("⭐ 4.5+", callback_data="filter_rating_4_5")],
+            [InlineKeyboardButton(tr(context, "back_results"), callback_data="search_filter")],
+        ]
+        await query.message.edit_text(
+            tr(context, "filter_rating"),
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+
+    elif query.data.startswith("filter_category_"):
+        context.user_data.setdefault("search_filters", {})["category"] = query.data.removeprefix(
+            "filter_category_"
+        )
+        context.user_data["search_page"] = 1
+        await perform_search(update, context)
+
+    elif query.data.startswith("filter_price_"):
+        filters = context.user_data.setdefault("search_filters", {})
+        price_range = query.data.removeprefix("filter_price_")
+        if price_range == "under_500":
+            filters["min_price"], filters["max_price"] = None, 499.99
+        elif price_range == "500_2000":
+            filters["min_price"], filters["max_price"] = 500, 1999.99
+        elif price_range == "over_2000":
+            filters["min_price"], filters["max_price"] = 2000, None
+        context.user_data["search_page"] = 1
+        await perform_search(update, context)
+
+    elif query.data.startswith("filter_rating_"):
+        rating = query.data.removeprefix("filter_rating_").replace("_", ".")
+        context.user_data.setdefault("search_filters", {})["min_rating"] = float(rating)
+        context.user_data["search_page"] = 1
+        await perform_search(update, context)
+
+    elif query.data in {"filter_in_stock", "filter_on_sale"}:
+        filters = context.user_data.setdefault("search_filters", {})
+        key = "in_stock_only" if query.data == "filter_in_stock" else "on_sale_only"
+        filters[key] = not filters.get(key, False)
+        context.user_data["search_page"] = 1
+        await perform_search(update, context)
+
+    elif query.data == "filter_clear":
+        context.user_data["search_filters"] = {}
+        context.user_data["search_page"] = 1
+        await perform_search(update, context)
+
+    elif query.data in {
+        "sort_relevance",
+        "sort_price_desc",
+        "sort_price_asc",
+        "sort_rating",
+        "sort_newest",
+    }:
+        sort_options = {
+            "sort_relevance": ("relevance", True),
+            "sort_price_desc": ("price", True),
+            "sort_price_asc": ("price", False),
+            "sort_rating": ("rating", True),
+            "sort_newest": ("newest", True),
+        }
+        context.user_data.setdefault("search_filters", {})["sort_by"], context.user_data[
+            "search_filters"
+        ]["sort_desc"] = sort_options[query.data]
+        context.user_data["search_page"] = 1
+        await perform_search(update, context)
 
     elif query.data == "search_back":
         # Go back to search results
@@ -221,7 +350,9 @@ async def filter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     elif query.data == "search_page_prev":
         # Previous page
-        context.user_data["search_page"] = context.user_data.get("search_page", 1) - 1
+        context.user_data["search_page"] = max(
+            1, context.user_data.get("search_page", 1) - 1
+        )
         await perform_search(update, context)
 
     elif query.data == "search_page_next":
@@ -230,8 +361,12 @@ async def filter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await perform_search(update, context)
 
     elif query.data == "search_new":
-        # New search
-        await search_command(update, context)
+        await query.message.edit_text(
+            tr(context, "search_prompt"), parse_mode="Markdown"
+        )
+        return WAITING_QUERY
+
+    return FILTER_RESULTS
 
 
 async def product_from_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -259,7 +394,7 @@ async def cancel_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     Returns:
         Next conversation state (END)
     """
-    await update.effective_message.reply_text("❌ ፍለጋ ተሰርዟል።")
+    await update.effective_message.reply_text(tr(context, "search_cancelled"))
     return ConversationHandler.END
 
 

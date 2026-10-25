@@ -9,9 +9,12 @@ from telegram.ext import ContextTypes
 from apps.orders.services import OrderService
 from apps.users.schemas import UserUpdate
 from apps.users.services import UserService, VendorService
+from bot.handlers.text_routing import mark_text_message_handled
+from bot.localization import SUPPORTED_LANGUAGES, get_language, tr
 from core.logger import logger
 from core.utils.currency import format_etb
-from infrastructure.database.session import get_db_session
+from core.utils.validators import Validator
+from infrastructure.database.session import get_db_session, transaction_session
 
 # ---------------------------------------------------------------------------
 # Translation tables
@@ -289,7 +292,7 @@ def _get_lang(context: ContextTypes.DEFAULT_TYPE, user=None) -> str:
     lang = context.user_data.get("user", {}).get("language")
     if not lang and user:
         lang = getattr(user, "language", None)
-    return lang or "am"
+    return lang if lang in SUPPORTED_LANGUAGES else get_language(context)
 
 
 def _role_label(role, lang: str) -> str:
@@ -640,17 +643,25 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     Saves new language to DB, refreshes the middleware cache, and re-opens Profile.
     """
     query = update.callback_query
+    new_lang = query.data.removeprefix("lang_")
+    if new_lang not in SUPPORTED_LANGUAGES:
+        await query.answer("Unsupported language.", show_alert=True)
+        return
     await query.answer()
-
-    new_lang = query.data.replace("lang_", "")  # "am" | "en" | "om"
     tg_id = update.effective_user.id
 
-    async for db in get_db_session():
+    user_found = False
+    async with transaction_session() as db:
         user_service = UserService(db)
         user = await user_service.get_user_by_telegram(tg_id)
         if user:
             await user_service.update_user(user.id, UserUpdate(language=new_lang))
-        break
+            user_found = True
+
+    if not user_found:
+        logger.error("Could not change language: user %s was not found", tg_id)
+        await query.message.reply_text(t("user_not_found", new_lang))
+        return
 
     # Refresh middleware cache so subsequent handlers see the new language
     from bot.middlewares.auth import auth_middleware
@@ -660,6 +671,7 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     # Also update the in-memory user_data so this same message sees the change
     if "user" in context.user_data:
         context.user_data["user"]["language"] = new_lang
+    context.user_data["language"] = new_lang
 
     # Confirm with a short toast-style message, then reopen profile
     await query.edit_message_text(t("lang_changed", new_lang), parse_mode="Markdown")
@@ -706,32 +718,35 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     1. New-user onboarding — /start → lang selected → phone shared → main menu
     2. Profile update      — "📞 Update Phone" button → contact shared → stay in profile
     """
+    if context.user_data.get("checkout_in_progress"):
+        if not context.user_data.get("checkout_conversation_active"):
+            context.user_data.pop("checkout_in_progress", None)
+            await update.message.reply_text(
+                tr(context, "checkout_session_expired"),
+                reply_markup=ReplyKeyboardRemove(),
+            )
+        return
+
     contact = update.message.contact
     tg_user = update.effective_user
     if not contact:
         return
 
-    phone_number = contact.phone_number
     lang = _get_lang(context)
+    try:
+        phone_number = Validator.phone(contact.phone_number, normalize=True)
+    except ValueError:
+        await update.message.reply_text(
+            t("phone_invalid", lang),
+            reply_markup=ReplyKeyboardRemove(),
+        )
+        return
 
-    saved = False
-    async for db in get_db_session():
-        try:
-            user_service = UserService(db)
-            user = await user_service.get_user_by_telegram(tg_user.id)
-            if user:
-                await user_service.update_user(user.id, UserUpdate(phone_number=phone_number))
-                from bot.middlewares.auth import auth_middleware
-
-                auth_middleware.invalidate(tg_user.id)
-                if "user" in context.user_data:
-                    context.user_data["user"]["phone_number"] = phone_number
-                saved = True
-        except Exception as e:
-            logger.error(
-                f"contact_handler: failed to save phone {phone_number} for {tg_user.id}: {e}"
-            )
-        break
+    saved = await _save_profile_update(
+        tg_user.id,
+        UserUpdate(phone_number=phone_number),
+        context,
+    )
 
     await update.message.reply_text(
         t("phone_saved", lang) if saved else t("phone_failed", lang),
@@ -760,23 +775,23 @@ async def profile_text_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     """Save text entered after the profile email/update prompts."""
     field = context.user_data.get("updating_field")
     if context.user_data.get("vendor_application"):
+        mark_text_message_handled(update, context)
         context.user_data.pop("vendor_application", None)
         await update.effective_message.reply_text("✅ ማመልከቻዎ ተቀብሏል። አስተዳደሩ ከገመገመ በኋላ ያሳውቅዎታል።")
         return
     if field == "phone":
+        mark_text_message_handled(update, context)
         value = (update.effective_message.text or "").strip()
-        digits = "".join(ch for ch in value if ch.isdigit() or ch == "+")
-        if len(digits.replace("+", "")) < 9:
+        try:
+            value = Validator.phone(value, normalize=True)
+        except ValueError:
             await update.effective_message.reply_text(t("phone_invalid", _get_lang(context)))
             return
-        tg_id = update.effective_user.id
-        saved = False
-        async for db in get_db_session():
-            user = await UserService(db).get_user_by_telegram(tg_id)
-            if user:
-                await UserService(db).update_user(user.id, UserUpdate(phone_number=value))
-                saved = True
-            break
+        saved = await _save_profile_update(
+            update.effective_user.id,
+            UserUpdate(phone_number=value),
+            context,
+        )
         context.user_data.pop("updating_field", None)
         await update.effective_message.reply_text(
             t("phone_saved", _get_lang(context)) if saved else t("phone_failed", _get_lang(context))
@@ -784,23 +799,45 @@ async def profile_text_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         return
     if field != "email":
         return
+    mark_text_message_handled(update, context)
     value = (update.effective_message.text or "").strip()
-    if "@" not in value or "." not in value.split("@")[-1]:
+    try:
+        value = Validator.email(value)
+    except ValueError:
         await update.effective_message.reply_text(t("email_invalid", _get_lang(context)))
         return
 
-    tg_id = update.effective_user.id
-    saved = False
-    async for db in get_db_session():
-        user = await UserService(db).get_user_by_telegram(tg_id)
-        if user:
-            await UserService(db).update_user(user.id, UserUpdate(email=value))
-            saved = True
-        break
+    saved = await _save_profile_update(
+        update.effective_user.id,
+        UserUpdate(email=value),
+        context,
+    )
     context.user_data.pop("updating_field", None)
     await update.effective_message.reply_text(
         t("email_saved", _get_lang(context)) if saved else t("email_failed", _get_lang(context))
     )
+
+
+async def _save_profile_update(
+    telegram_id: int,
+    data: UserUpdate,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> bool:
+    """Commit a profile update before reporting success or refreshing the user cache."""
+    async with transaction_session() as db:
+        user_service = UserService(db)
+        user = await user_service.get_user_by_telegram(telegram_id)
+        if not user:
+            return False
+        updated_user = await user_service.update_user(user.id, data)
+
+    from bot.middlewares.auth import auth_middleware
+
+    auth_middleware.invalidate(telegram_id)
+    cached_user = context.user_data.setdefault("user", {})
+    for field in data.model_fields_set:
+        cached_user[field] = getattr(updated_user, field)
+    return True
 
 
 # ---------------------------------------------------------------------------

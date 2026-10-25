@@ -100,6 +100,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Telegram Bot with retry
     try:
         from bot.bot_instance import init_bot, shutdown_bot
+        from bot.webhooks import set_webhook
 
         if not settings.TELEGRAM_BOT_TOKEN:
             logger.warning(
@@ -122,6 +123,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     else:
                         raise net_err
 
+            if settings.TELEGRAM_WEBHOOK_URL:
+                try:
+                    if await set_webhook():
+                        logger.info("Telegram webhook configured")
+                except Exception as hook_err:
+                    logger.warning("Telegram webhook setup failed: %s", type(hook_err).__name__)
+
         # Start polling only in development mode (not when deployed) and avoid duplicate local sessions
         _is_deployed = os.environ.get("REPLIT_DEPLOYMENT", "").strip() == "1"
         if (
@@ -129,6 +137,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             and application_instance
             and not _is_deployed
             and not settings.DISABLE_BOT_POLLING
+            and not settings.TELEGRAM_WEBHOOK_URL
         ):
             logger.info("Starting Telegram bot in POLLING mode...")
             await application_instance.initialize()
@@ -333,30 +342,19 @@ async def liveness_probe():
 
 def register_routers() -> None:
     """Register all API routers."""
-    try:
-        from infrastructure.api.v1.router import api_router
+    from bot.webhooks import router as webhook_router
+    from infrastructure.api.v1.router import api_router
 
-        app.include_router(api_router, prefix="/api/v1")
-        logger.info("API v1 router registered")
-    except Exception as e:
-        logger.warning(f"Failed to register API v1 router: {e}")
-
-    try:
-        from bot.webhooks import router as webhook_router
-
-        app.include_router(webhook_router, prefix="/webhook")
-        logger.info("Webhook router registered")
-    except Exception as e:
-        logger.warning(f"Failed to register webhook router: {e}")
+    app.include_router(api_router, prefix="/api/v1")
+    logger.info("API v1 router registered")
+    app.include_router(webhook_router, prefix="/webhook")
+    logger.info("Webhook router registered")
 
     if settings.ENABLE_WEB_APP:
-        try:
-            from bot.web_app.router import web_app_router
+        from bot.web_app.router import web_app_router
 
-            app.include_router(web_app_router)
-            logger.info("Web app router registered")
-        except Exception as e:
-            logger.warning(f"Failed to register web app router: {e}")
+        app.include_router(web_app_router)
+        logger.info("Web app router registered")
 
 
 register_routers()

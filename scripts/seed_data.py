@@ -4,11 +4,11 @@ Wolloyewa Store — Database Seed Script
 Populates the database with:
   - 1 system vendor user + vendor account
   - 10 categories (6 root + 4 sub)
-  - 30 Ethiopian sample products across categories
+  - Ethiopian sample products across categories
   - 1 product image per product
 
 Run:
-    python3 scripts/seed_data.py
+    python scripts/seed_data.py
 """
 
 import asyncio
@@ -156,10 +156,46 @@ CATEGORIES = [
 ]
 
 
-# product images — curated free public URLs that work reliably
-# Using picsum.photos with seeds for consistent results
+# Pexels stock photos are illustrative demo imagery, not photos of the exact
+# inventory. Replace these with seller-provided photos before live sales.
+def pexels_img(photo_id: int, w: int = 600) -> str:
+    return (
+        f"https://images.pexels.com/photos/{photo_id}/"
+        f"pexels-photo-{photo_id}.jpeg?auto=compress&cs=tinysrgb&w={w}"
+    )
+
+
+PRODUCT_PHOTOS = {
+    "samsung-galaxy-a34-5g": 3945679,
+    "tecno-spark-20-pro": 13844013,
+    "itel-vision-3-plus": 30639091,
+    "sony-43-smart-tv": 5202925,
+    "hp-laptop-15s-i5": 93405,
+    "white-habesha-kemis-women": 18158250,
+    "habesha-netela-shawl": 18148796,
+    "mens-habesha-gabi-suit": 19960366,
+    "nike-air-max-270": 2529148,
+    "adidas-trefoil-tshirt-men": 2112648,
+    "teff-flour-5kg": 30580651,
+    "berbere-spice-mix-500g": 4198755,
+    "mitmita-spice-250g": 4871246,
+    "yirgacheffe-coffee-beans-1kg": 16682442,
+    "sidama-coffee-ground-500g": 33015766,
+    "niter-kibbeh-500g": 7965940,
+    "argan-oil-shampoo-400ml": 7440056,
+    "ethiopian-rose-face-cream-50ml": 12969358,
+    "black-seed-oil-250ml": 4735904,
+    "ethiopian-coffee-ceremony-set": 6742970,
+}
+
+
 def img(seed: int, w: int = 400, h: int = 400) -> str:
     return f"https://picsum.photos/seed/{seed}/{w}/{h}"
+
+
+def product_img(product: dict, w: int = 600) -> str:
+    photo_id = PRODUCT_PHOTOS.get(product["slug"])
+    return pexels_img(photo_id, w) if photo_id else img(product.get("image_seed", 1), w, w)
 
 
 PRODUCTS = [
@@ -602,10 +638,9 @@ async def seed(session: AsyncSession) -> None:
     existing_products = (await session.execute(select(Product))).scalars().all()
     if existing_products:
         print(
-            f"   ⚠️  Database already has {len(existing_products)} products — skipping (run with --force to re-seed)."
+            f"   INFO: Found {len(existing_products)} products; keeping existing records and "
+            "adding any missing demo products."
         )
-        if "--force" not in sys.argv:
-            return
 
     # ── 2. Vendor user ───────────────────────────────────────────────────────
     print("   👤 Creating system vendor user…")
@@ -714,14 +749,49 @@ async def seed(session: AsyncSession) -> None:
             .first()
         )
 
+        image_url = product_img(p)
+        thumbnail_url = product_img(p, 200)
+
         if existing:
-            print(f"      ♻️  {p['name']}")
+            current_images = existing.images or []
+            should_replace_image = (
+                not current_images or "picsum.photos" in current_images[0]
+            )
+            if should_replace_image:
+                existing.images = [image_url]
+
+            if should_replace_image:
+                image_result = await session.execute(
+                    select(ProductImage)
+                    .where(
+                        ProductImage.product_id == existing.id,
+                        ProductImage.is_primary.is_(True),
+                    )
+                    .limit(1)
+                )
+                existing_image = image_result.scalars().first()
+                if existing_image is None:
+                    session.add(
+                        ProductImage(
+                            product_id=existing.id,
+                            image_url=image_url,
+                            thumbnail_url=thumbnail_url,
+                            alt_text=p["name"],
+                            display_order=0,
+                            is_primary=True,
+                        )
+                    )
+                elif not existing_image.image_url or "picsum.photos" in existing_image.image_url:
+                    existing_image.image_url = image_url
+                    existing_image.thumbnail_url = thumbnail_url
+                    existing_image.alt_text = p["name"]
+
+            print(f"      ♻️  {p['name']} (photo checked)")
             continue
 
         cat = cat_by_slug.get(p["category_slug"])
         cat_id = cat.id if cat else None
 
-        seed_num = p.get("image_seed", 1)
         product = Product(
             vendor_id=vendor.id,
             name=p["name"],
@@ -740,7 +810,7 @@ async def seed(session: AsyncSession) -> None:
             is_featured=p.get("is_featured", False),
             is_on_sale=p.get("is_on_sale", False),
             tags=p.get("tags", []),
-            images=[img(seed_num, 600, 600)],
+            images=[image_url],
             rating=0.0,
             reviews_count=0,
             views_count=0,
@@ -750,11 +820,10 @@ async def seed(session: AsyncSession) -> None:
         await session.flush()
 
         # Product image
-        seed_num = p.get("image_seed", 1)
         image = ProductImage(
             product_id=product.id,
-            image_url=img(seed_num, 600, 600),
-            thumbnail_url=img(seed_num, 200, 200),
+            image_url=image_url,
+            thumbnail_url=thumbnail_url,
             alt_text=p["name"],
             display_order=0,
             is_primary=True,

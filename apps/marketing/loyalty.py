@@ -126,32 +126,41 @@ class LoyaltyManager:
             raise ValidationError(f"Insufficient points. You have {current_balance} points")
 
         # Calculate discount value
-        discount_amount = Decimal(str(points * self.birr_per_point))
-
         # Get order to check total
         order = await self.order_repo.get_by_id(order_id)
         if not order:
             raise NotFoundError("Order", order_id)
 
-        # Ensure discount doesn't exceed order total
-        discount_amount = min(discount_amount, order.total)
+        order_total = Decimal(str(order.total))
+        redeemable_points = min(points, int(order_total / Decimal(str(self.birr_per_point))))
+        discount_amount = min(
+            Decimal(str(redeemable_points * self.birr_per_point)),
+            order_total,
+        )
+        if redeemable_points <= 0 or discount_amount <= 0:
+            raise ValidationError("Order total is too low to redeem points")
 
         # Deduct points
-        new_balance = current_balance - points
+        new_balance = current_balance - redeemable_points
 
         await self.transaction_repo.create(
             {
                 "user_id": user_id,
                 "transaction_type": "redeem",
-                "points": -points,
+                "points": -redeemable_points,
                 "points_balance": new_balance,
                 "reference_id": order_id,
                 "reference_type": "order",
-                "description": f"Redeemed {points} points for order {order.order_number}",
+                "description": (
+                    f"Redeemed {redeemable_points} points for order {order.order_number}"
+                ),
             }
         )
 
-        logger.info(f"User {user_id} redeemed {points} points for {discount_amount} ETB discount")
+        logger.info(
+            f"User {user_id} redeemed {redeemable_points} points for "
+            f"{discount_amount} ETB discount"
+        )
         return discount_amount
 
     async def get_points_value(self, points: int) -> Decimal:

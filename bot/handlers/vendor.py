@@ -13,8 +13,10 @@ from apps.products.schemas import ProductCreate, ProductUpdate
 from apps.products.services import ProductService
 from apps.users.schemas import VendorUpdate
 from apps.users.services import UserService, VendorService
+from bot.handlers.text_routing import mark_text_message_handled
+from core.constants import ProductStatus
 from core.utils.currency import format_etb
-from infrastructure.database.session import get_db_session
+from infrastructure.database.session import get_db_session, transaction_session
 
 
 def _back() -> InlineKeyboardMarkup:
@@ -74,9 +76,8 @@ async def vendor_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await query.message.edit_text("📦 አዲሱን stock ቁጥር ይላኩ።", reply_markup=_back())
     elif action.startswith("vendor_delete_"):
         product_id = int(action.rsplit("_", 1)[1])
-        async for db in get_db_session():
+        async with transaction_session() as db:
             ok = await ProductService(db).delete_product(product_id, vendor.id)
-            break
         await query.message.edit_text(
             "✅ ምርቱ ተሰርዟል።" if ok else "❌ ምርቱን ማጥፋት አልተቻለም።", reply_markup=_back()
         )
@@ -103,16 +104,20 @@ async def vendor_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     elif action.startswith("vendor_status_"):
         parts = action.split("_")
         order_id, status = int(parts[2]), "_".join(parts[3:])
-        async for db in get_db_session():
+        async with transaction_session() as db:
             order = await OrderService(db).get_order(order_id)
             if not order or order.vendor_id != vendor.id:
                 await query.message.edit_text("❌ ይህ ትዕዛዝ የእርስዎ አይደለም።", reply_markup=_back())
-                break
-            await OrderService(db).update_vendor_order_status(
-                order_id, vendor.id, OrderStatusUpdate(status=status), update.effective_user.id
-            )
-            await query.message.edit_text("✅ የትዕዛዙ ሁኔታ ተቀይሯል።", reply_markup=_back())
-            break
+            else:
+                await OrderService(db).update_vendor_order_status(
+                    order_id,
+                    vendor.id,
+                    OrderStatusUpdate(status=status),
+                    update.effective_user.id,
+                )
+                await query.message.edit_text(
+                    "✅ የትዕዛዙ ሁኔታ ተቀይሯል።", reply_markup=_back()
+                )
 
 
 async def list_vendor_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -273,6 +278,7 @@ async def vendor_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     state = context.user_data.get("vendor_state")
     if not state:
         return
+    mark_text_message_handled(update, context)
     value = (update.effective_message.text or "").strip()
     if not value:
         return
@@ -302,13 +308,21 @@ async def vendor_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         sku = (
             f"{re.sub(r'[^A-Z0-9]', '', name.upper())[:8] or 'PROD'}-{uuid.uuid4().hex[:8].upper()}"
         )
-        async for db in get_db_session():
+        async with transaction_session() as db:
             product = await ProductService(db).create_product(
-                vendor.id, ProductCreate(name=name, price=price, stock_quantity=int(value), sku=sku)
+                vendor.id,
+                ProductCreate(
+                    name=name,
+                    price=price,
+                    stock_quantity=int(value),
+                    sku=sku,
+                    status=ProductStatus.PENDING,
+                ),
             )
-            break
         await update.effective_message.reply_text(
-            f"✅ *{product.name}* ተፈጥሯል።", parse_mode="Markdown", reply_markup=_back()
+            f"✅ *{product.name}* ለአስተዳዳሪ ግምገማ ተልኳል።",
+            parse_mode="Markdown",
+            reply_markup=_back(),
         )
     elif state in ("edit_price", "edit_stock"):
         product_id = context.user_data.pop("vendor_product_id")
@@ -328,16 +342,15 @@ async def vendor_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
             context.user_data["vendor_product_id"] = product_id
             return
         context.user_data.pop("vendor_state", None)
-        async for db in get_db_session():
+        async with transaction_session() as db:
             await ProductService(db).update_product(product_id, vendor.id, data)
-            break
         await update.effective_message.reply_text("✅ ምርቱ ተስተካክሏል።", reply_markup=_back())
     elif state == "business_name":
         vendor = await _vendor_for(update, context)
-        if vendor:
-            async for db in get_db_session():
-                await VendorService(db).update_vendor(vendor.id, VendorUpdate(business_name=value))
-                break
+        if not vendor:
+            return
+        async with transaction_session() as db:
+            await VendorService(db).update_vendor(vendor.id, VendorUpdate(business_name=value))
         context.user_data.pop("vendor_state", None)
         await update.effective_message.reply_text("✅ የንግድ ስሙ ተቀይሯል።", reply_markup=_back())
 

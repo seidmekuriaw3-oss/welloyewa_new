@@ -6,8 +6,10 @@
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.inventory.schemas import InventoryCreate, InventoryUpdate
 from apps.inventory.services import InventoryService
 from apps.products.models import Category, Product, Review
 from apps.products.repository import CategoryRepository, ProductRepository, ReviewRepository
@@ -18,6 +20,7 @@ from apps.products.schemas import (
     ProductUpdate,
     ReviewCreate,
 )
+from core.constants import ProductStatus
 from core.events import (
     PRODUCT_CREATED,
     PRODUCT_DELETED,
@@ -39,7 +42,13 @@ class ProductService:
         self.category_repo = CategoryRepository(db)
         self.inventory_service = InventoryService(db)
 
-    async def create_product(self, vendor_id: int, data: ProductCreate) -> Product:
+    async def create_product(
+        self,
+        vendor_id: int,
+        data: ProductCreate,
+        *,
+        admin_approved: bool = False,
+    ) -> Product:
         """
         Create a new product.
 
@@ -50,6 +59,12 @@ class ProductService:
         Returns:
             Created product
         """
+        vendor_allowed_statuses = {ProductStatus.DRAFT, ProductStatus.PENDING}
+        if not admin_approved and data.status not in vendor_allowed_statuses:
+            raise ValidationError("Only administrators can create an active product")
+        if admin_approved and data.status is not ProductStatus.ACTIVE:
+            raise ValidationError("Administrator-created products must be active")
+
         # Generate slug if not provided
         if not data.slug:
             base_slug = slugify(data.name)
@@ -63,16 +78,19 @@ class ProductService:
         # Create product
         product_data = data.dict()
         product_data["vendor_id"] = vendor_id
+        if data.category_id is not None:
+            if not await self.category_repo.get_by_id(data.category_id):
+                raise NotFoundError("Category", data.category_id)
 
         product = await self.product_repo.create(product_data)
 
-        # Create inventory record
-        await self.inventory_service.create_inventory(
-            product_id=product.id,
-            vendor_id=vendor_id,
+        await self._sync_inventory(
+            product,
             quantity=data.stock_quantity,
             low_stock_threshold=data.low_stock_threshold,
         )
+        if product.category_id is not None:
+            await self.category_repo.update_product_count(product.category_id)
 
         # Emit event
         await emit_event(
@@ -127,34 +145,78 @@ class ProductService:
             raise PermissionError("You don't have permission to update this product")
 
         # Update slug if name changed
-        if data.name and data.name != product.name:
-            base_slug = slugify(data.name)
+        update_data = data.dict(exclude_unset=True)
+        requested_status = update_data.get("status")
+        if requested_status is not None and requested_status not in {
+            ProductStatus.DRAFT,
+            ProductStatus.PENDING,
+            ProductStatus.DISCONTINUED,
+        }:
+            raise ValidationError("Only administrators can change this product status")
+        non_nullable_fields = {
+            "name",
+            "price",
+            "stock_quantity",
+            "low_stock_threshold",
+            "sku",
+            "status",
+            "is_featured",
+            "is_on_sale",
+        }
+        if any(
+            field in update_data and update_data[field] is None
+            for field in non_nullable_fields
+        ):
+            raise ValidationError("Required product fields cannot be set to null")
+        if update_data.get("slug") is None:
+            update_data.pop("slug")
+        if update_data.get("category_id") is not None:
+            category_id = update_data["category_id"]
+            if not await self.category_repo.get_by_id(category_id):
+                raise NotFoundError("Category", category_id)
+        if (
+            update_data.get("name")
+            and update_data["name"] != product.name
+            and "slug" not in update_data
+        ):
+            base_slug = slugify(update_data["name"])
             slug = base_slug
             counter = 1
             while await self.product_repo.get_by_slug(slug) and slug != product.slug:
                 slug = f"{base_slug}-{counter}"
                 counter += 1
-            data.slug = slug
+            update_data["slug"] = slug
 
+        previous_category_id = product.category_id
         # Update product
-        updated = await self.product_repo.update(product_id, data.dict(exclude_unset=True))
+        updated = await self.product_repo.update(product_id, update_data, partial=False)
+        if updated is None:
+            raise NotFoundError("Product", product_id)
 
-        # Update inventory if stock changed
-        if data.stock_quantity is not None:
-            await self.inventory_service.update_inventory(
-                product_id=product_id,
-                quantity=data.stock_quantity,
+        if (
+            data.stock_quantity is not None
+            or data.low_stock_threshold is not None
+            or data.sku is not None
+            or data.barcode is not None
+        ):
+            await self._sync_inventory(
+                updated,
+                quantity=updated.stock_quantity,
+                low_stock_threshold=updated.low_stock_threshold,
             )
 
         # Check low stock
-        if data.stock_quantity is not None and data.stock_quantity <= product.low_stock_threshold:
+        if (
+            data.stock_quantity is not None
+            and updated.stock_quantity <= updated.low_stock_threshold
+        ):
             await emit_event(
                 PRODUCT_STOCK_LOW,
                 {
                     "product_id": product_id,
                     "vendor_id": vendor_id,
-                    "current_stock": data.stock_quantity,
-                    "threshold": product.low_stock_threshold,
+                    "current_stock": updated.stock_quantity,
+                    "threshold": updated.low_stock_threshold,
                 },
                 sync=False,
             )
@@ -165,12 +227,17 @@ class ProductService:
             {
                 "product_id": product_id,
                 "vendor_id": vendor_id,
-                "updated_fields": list(data.dict(exclude_unset=True).keys()),
+                "updated_fields": list(update_data),
             },
             sync=False,
         )
 
         logger.info(f"Product updated: {product_id}")
+        if previous_category_id != updated.category_id:
+            if previous_category_id is not None:
+                await self.category_repo.update_product_count(previous_category_id)
+            if updated.category_id is not None:
+                await self.category_repo.update_product_count(updated.category_id)
         return updated
 
     async def delete_product(self, product_id: int, vendor_id: int) -> bool:
@@ -181,6 +248,8 @@ class ProductService:
             raise PermissionError("You don't have permission to delete this product")
 
         result = await self.product_repo.delete(product_id, soft=True)
+        if product.category_id is not None:
+            await self.category_repo.update_product_count(product.category_id)
 
         # Emit event
         await emit_event(
@@ -203,21 +272,26 @@ class ProductService:
         operation: str = "set",  # 'set', 'add', 'subtract'
     ) -> Product:
         """Update product stock quantity."""
-        product = await self.get_product(product_id)
+        if quantity < 0:
+            raise ValidationError("Stock quantity cannot be negative")
+        if operation not in {"set", "add", "subtract"}:
+            raise ValidationError(f"Unsupported stock operation: {operation}")
+        if operation != "set" and quantity == 0:
+            raise ValidationError("Stock adjustment quantity must be positive")
 
-        if operation == "set":
-            product.stock_quantity = quantity
-        elif operation == "add":
-            product.stock_quantity += quantity
-        elif operation == "subtract":
-            if product.stock_quantity < quantity:
-                raise InsufficientStockError(product.name, quantity, product.stock_quantity)
-            product.stock_quantity -= quantity
-
-        await self.product_repo.update(product_id, {"stock_quantity": product.stock_quantity})
+        product = await self.product_repo.adjust_stock(product_id, quantity, operation)
+        if product is None:
+            existing = await self.get_product(product_id)
+            if operation == "subtract":
+                raise InsufficientStockError(existing.name, quantity, existing.stock_quantity)
+            raise NotFoundError("Product", product_id)
 
         # Update inventory service
-        await self.inventory_service.update_inventory(product_id, product.stock_quantity)
+        await self._sync_inventory(
+            product,
+            quantity=product.stock_quantity,
+            low_stock_threshold=product.low_stock_threshold,
+        )
 
         # Check low stock
         if product.stock_quantity <= product.low_stock_threshold:
@@ -236,33 +310,74 @@ class ProductService:
 
     async def reserve_stock(self, product_id: int, quantity: int) -> bool:
         """Reserve stock for an order by decrementing stock_quantity on the product row."""
-        product = await self.get_product(product_id)
-
-        if product.stock_quantity < quantity:
+        if quantity <= 0:
+            raise ValidationError("Reservation quantity must be positive")
+        updated = await self.product_repo.adjust_stock(product_id, quantity, "subtract")
+        if updated is None:
+            await self.get_product(product_id)
             return False
-
-        await self.product_repo.update(
-            product_id, {"stock_quantity": product.stock_quantity - quantity}
+        await self._sync_inventory(
+            updated,
+            quantity=updated.stock_quantity,
+            low_stock_threshold=updated.low_stock_threshold,
         )
         logger.info(
             "Stock reserved: product=%s qty=-%s remaining=%s",
             product_id,
             quantity,
-            product.stock_quantity - quantity,
+            updated.stock_quantity,
         )
         return True
 
     async def release_stock(self, product_id: int, quantity: int) -> None:
         """Return stock to the product row (e.g. on order cancellation)."""
-        product = await self.get_product(product_id)
-        await self.product_repo.update(
-            product_id, {"stock_quantity": product.stock_quantity + quantity}
+        if quantity <= 0:
+            raise ValidationError("Released quantity must be positive")
+        updated = await self.product_repo.adjust_stock(product_id, quantity, "add")
+        if updated is None:
+            raise NotFoundError("Product", product_id)
+        await self._sync_inventory(
+            updated,
+            quantity=updated.stock_quantity,
+            low_stock_threshold=updated.low_stock_threshold,
         )
         logger.info(
             "Stock released: product=%s qty=+%s total=%s",
             product_id,
             quantity,
-            product.stock_quantity + quantity,
+            updated.stock_quantity,
+        )
+
+    async def _sync_inventory(
+        self,
+        product: Product,
+        *,
+        quantity: int,
+        low_stock_threshold: int,
+    ) -> None:
+        """Keep the inventory row aligned with product stock and SKU fields."""
+        inventory = await self.inventory_service.get_inventory(product.id)
+        if inventory is None:
+            await self.inventory_service.create_inventory(
+                InventoryCreate(
+                    product_id=product.id,
+                    vendor_id=product.vendor_id,
+                    quantity=quantity,
+                    low_stock_threshold=low_stock_threshold,
+                    sku=product.sku,
+                    barcode=product.barcode,
+                )
+            )
+            return
+
+        await self.inventory_service.update_inventory(
+            product.id,
+            InventoryUpdate(
+                quantity=quantity,
+                low_stock_threshold=low_stock_threshold,
+                sku=product.sku,
+                barcode=product.barcode,
+            ),
         )
 
     async def get_vendor_products(
@@ -333,11 +448,19 @@ class CategoryService:
 
     async def create_category(self, data: CategoryCreate) -> Category:
         """Create a new category."""
-        # Generate slug
-        if not data.slug:
-            data.slug = slugify(data.name)
-
-        return await self.category_repo.create(data.dict())
+        category_data = data.dict()
+        base_slug = category_data.get("slug") or slugify(data.name)
+        slug = base_slug
+        counter = 1
+        while await self.category_repo.get_by_slug(slug):
+            if category_data.get("slug"):
+                raise ValidationError(f"Category slug '{slug}' is already in use")
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+        category_data["slug"] = slug
+        if category_data.get("parent_id") is not None:
+            await self.get_category(category_data["parent_id"])
+        return await self.category_repo.create(category_data)
 
     async def get_category(self, category_id: int) -> Category:
         """Get category by ID."""
@@ -357,15 +480,62 @@ class CategoryService:
         """Update a category."""
         category = await self.get_category(category_id)
 
-        # Update slug if name changed
-        if data.name and data.name != category.name:
-            data.slug = slugify(data.name)
+        update_data = data.dict(exclude_unset=True)
+        non_nullable_fields = {"name", "display_order", "is_active", "is_featured"}
+        if any(
+            field in update_data and update_data[field] is None
+            for field in non_nullable_fields
+        ):
+            raise ValidationError("Required category fields cannot be set to null")
+        if update_data.get("slug") is None:
+            update_data.pop("slug")
+        if data.name and data.name != category.name and "slug" not in update_data:
+            base_slug = slugify(data.name)
+            slug = base_slug
+            counter = 1
+            while await self.category_repo.get_by_slug(slug) and slug != category.slug:
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            update_data["slug"] = slug
 
-        return await self.category_repo.update(category_id, data.dict(exclude_unset=True))
+        parent_id = update_data.get("parent_id", category.parent_id)
+        if parent_id == category_id:
+            raise ValidationError("A category cannot be its own parent")
+        if parent_id is not None:
+            parent = await self.get_category(parent_id)
+            visited = {category_id}
+            while parent is not None:
+                if parent.id in visited:
+                    raise ValidationError("Category hierarchy cannot contain a cycle")
+                visited.add(parent.id)
+                parent = (
+                    await self.get_category(parent.parent_id)
+                    if parent.parent_id is not None
+                    else None
+                )
+
+        if update_data.get("slug") and update_data["slug"] != category.slug:
+            existing_slug = await self.category_repo.get_by_slug(update_data["slug"])
+            if existing_slug:
+                raise ValidationError(f"Category slug '{update_data['slug']}' is already in use")
+
+        updated = await self.category_repo.update(category_id, update_data, partial=False)
+        if updated is None:
+            raise NotFoundError("Category", category_id)
+        return updated
 
     async def delete_category(self, category_id: int) -> bool:
         """Delete a category."""
-        return await self.category_repo.delete(category_id, soft=False)
+        category = await self.get_category(category_id)
+        product_count = await self.db.scalar(
+            select(func.count(Product.id)).where(Product.category_id == category_id)
+        )
+        child_count = await self.db.scalar(
+            select(func.count(Category.id)).where(Category.parent_id == category_id)
+        )
+        if product_count or child_count:
+            raise ValidationError("Cannot delete a category that has products or subcategories")
+        return await self.category_repo.delete(category.id, soft=False)
 
     async def get_category_tree(self) -> list[dict[str, Any]]:
         """Get hierarchical category tree."""

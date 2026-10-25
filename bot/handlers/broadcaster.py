@@ -9,6 +9,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from apps.users.services import UserService
+from bot.handlers.text_routing import mark_text_message_handled
 from core.config import settings
 from core.logger import logger
 from infrastructure.database.session import get_db_session
@@ -75,6 +76,7 @@ async def broadcast_message_handler(update: Update, context: ContextTypes.DEFAUL
     if not context.user_data.get("awaiting_broadcast_message"):
         return
 
+    mark_text_message_handled(update, context)
     message_text = update.message.text
     broadcast_type = context.user_data.get("broadcast_type", "all")
 

@@ -19,7 +19,11 @@ from apps.payments.schemas import (
     PaymentRefundResponse,
     PaymentVerifyResponse,
 )
-from core.dependencies import get_current_admin, get_current_user, get_db_session
+from core.dependencies import (
+    get_current_admin,
+    get_current_user,
+    get_transaction_session,
+)
 from core.exceptions import NotFoundError, PaymentError, ValidationError
 from infrastructure.payments.factory import get_payment_provider, process_payment
 
@@ -35,7 +39,7 @@ router = APIRouter()
 async def initiate_payment(
     data: PaymentInitiateRequest,
     current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_transaction_session),
 ) -> PaymentInitiateResponse:
     """
     Initiate a payment for an order.
@@ -57,6 +61,11 @@ async def initiate_payment(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Payment provider does not match the order payment method",
+        )
+    if method == "cash_on_delivery":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cash on delivery does not use online payment initiation",
         )
 
     if data.currency.strip().upper() != "ETB":
@@ -131,7 +140,7 @@ async def verify_payment(
     transaction_id: str,
     method: str,
     current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_transaction_session),
 ) -> PaymentVerifyResponse:
     """
     Verify payment status.
@@ -218,7 +227,7 @@ async def verify_payment(
 async def process_refund(
     data: PaymentRefundRequest,
     current_user: dict = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_transaction_session),
 ) -> PaymentRefundResponse:
     """
     Process a refund (admin only).

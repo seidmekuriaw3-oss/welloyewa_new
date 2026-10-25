@@ -80,7 +80,9 @@ class ProductStatus(CaseInsensitiveStrEnum):
     """Product status."""
 
     DRAFT = "draft"
+    PENDING = "pending"
     ACTIVE = "active"
+    REJECTED = "rejected"
     OUT_OF_STOCK = "out_of_stock"
     DISCONTINUED = "discontinued"
 

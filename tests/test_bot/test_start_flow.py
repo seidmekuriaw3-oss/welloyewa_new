@@ -141,6 +141,29 @@ async def test_menu_callback_handles_help_back_unknown_and_unauthorized_admin():
 
 
 @pytest.mark.asyncio
+async def test_menu_callback_ignores_expired_query():
+    from telegram.error import BadRequest
+
+    from bot.handlers.start import menu_callback
+
+    update = make_update(user_id=123)
+    query = Mock()
+    query.id = "expired-query"
+    query.data = "menu_help"
+    query.answer = AsyncMock(
+        side_effect=BadRequest(
+            "Query is too old and response timeout expired or query id is invalid"
+        )
+    )
+    update.callback_query = query
+    context = make_context("en")
+
+    await menu_callback(update, context)
+
+    query.answer.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_noop_callback_acknowledges_query():
     from bot.handlers.start import noop_callback
 

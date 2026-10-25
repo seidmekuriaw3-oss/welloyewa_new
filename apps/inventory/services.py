@@ -63,7 +63,15 @@ class InventoryService:
             raise NotFoundError("Inventory", f"product_id={product_id}")
 
         old_quantity = inventory.quantity
-        updated = await self.inventory_repo.update(inventory.id, data.dict(exclude_unset=True))
+        update_data = data.dict(exclude_unset=True)
+        reason = update_data.pop("reason", None)
+        updated = await self.inventory_repo.update(
+            inventory.id,
+            update_data,
+            partial=False,
+        )
+        if updated is None:
+            raise NotFoundError("Inventory", f"product_id={product_id}")
 
         # Log quantity change
         if data.quantity is not None and data.quantity != old_quantity:
@@ -73,11 +81,11 @@ class InventoryService:
                 quantity=data.quantity - old_quantity,
                 previous_quantity=old_quantity,
                 new_quantity=data.quantity,
-                reason=data.reason or "Manual adjustment",
+                reason=reason or "Manual adjustment",
             )
 
             # Check stock levels and emit events
-            await self._check_stock_alerts(inventory)
+            await self._check_stock_alerts(updated)
 
         return updated
 

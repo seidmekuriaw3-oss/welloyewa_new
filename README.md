@@ -158,9 +158,10 @@ Keep both processes running. Quick Tunnel URLs are temporary and must not be use
 alembic upgrade head
 $env:PYTHONPATH=(Get-Location).Path
 python scripts/seed_db.py
+python scripts/seed_data.py
 ```
 
-The seed script is for development only. It creates sample categories, vendor data, products, customers, and orders. Do not run it against production. Back up production before migrations.
+These seed scripts are for development only. The product catalog seed includes illustrative Pexels stock photos for 20 sample products; replace them with seller-provided photos before live sales. Do not run the seed scripts against production.
 
 ## Telegram bot
 

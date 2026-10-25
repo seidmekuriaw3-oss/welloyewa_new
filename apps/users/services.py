@@ -369,12 +369,17 @@ class VendorService:
 
     async def approve_vendor(self, vendor_id: int, admin_id: int) -> Vendor:
         """Approve a vendor application."""
+        current = await self.get_vendor(vendor_id)
+        if current.is_approved:
+            raise ValidationError(f"Vendor {vendor_id} is already approved")
         vendor = await self.vendor_repo.update(
             vendor_id,
             {
                 "is_approved": True,
                 "approved_at": datetime.utcnow(),
                 "approved_by": admin_id,
+                "rejected_at": None,
+                "rejection_reason": None,
             },
         )
 
@@ -386,6 +391,11 @@ class VendorService:
 
     async def reject_vendor(self, vendor_id: int, reason: str) -> Vendor:
         """Reject a vendor application."""
+        current = await self.get_vendor(vendor_id)
+        if current.is_approved:
+            raise ValidationError(f"Approved vendor {vendor_id} cannot be rejected")
+        if current.rejected_at is not None:
+            raise ValidationError(f"Vendor {vendor_id} is already rejected")
         vendor = await self.vendor_repo.update(
             vendor_id,
             {

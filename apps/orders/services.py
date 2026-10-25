@@ -15,6 +15,7 @@ from apps.orders.repository import OrderItemRepository, OrderRepository
 from apps.orders.schemas import OrderCreate, OrderStatusUpdate
 from apps.products.services import ProductService
 from apps.users.services import UserService
+from core.constants import ProductStatus
 from core.constants import OrderStatus, PaymentStatus
 from core.events import (
     ORDER_CANCELLED,
@@ -69,6 +70,8 @@ class OrderService:
 
         for item in data.items:
             product = await self.product_service.get_product(item.product_id)
+            if product.status != ProductStatus.ACTIVE:
+                raise NotFoundError("Product", item.product_id)
             if product.vendor_id:
                 vendor_ids.add(product.vendor_id)
 
@@ -129,7 +132,16 @@ class OrderService:
             await self.order_item_repo.create(item_data)
 
             # Reserve stock
-            await self.product_service.reserve_stock(item_data["product_id"], item_data["quantity"])
+            reserved = await self.product_service.reserve_stock(
+                item_data["product_id"], item_data["quantity"]
+            )
+            if not reserved:
+                product = await self.product_service.get_product(item_data["product_id"])
+                raise InsufficientStockError(
+                    product.name,
+                    item_data["quantity"],
+                    product.stock_quantity,
+                )
 
         # Add order history
         await self._add_history(order.id, None, OrderStatus.PENDING.value, user_id, "Order created")
@@ -277,6 +289,11 @@ class OrderService:
         for item in vendor_items:
             if not self._is_valid_transition(item.vendor_status, data.status):
                 raise OrderStatusError(item.vendor_status, data.status)
+            if (
+                data.status == OrderStatus.CANCELLED.value
+                and order.status != OrderStatus.CANCELLED.value
+            ):
+                await self.product_service.release_stock(item.product_id, item.quantity)
             item.vendor_status = data.status
         all_statuses = {item.vendor_status for item in items}
         if all_statuses == {OrderStatus.DELIVERED.value}:

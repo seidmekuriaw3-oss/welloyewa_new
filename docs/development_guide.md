@@ -55,6 +55,7 @@ alembic upgrade head
 
 # 6. Seed database (optional)
 python scripts/seed_db.py
+python scripts/seed_data.py
 
 # 7. Run development server
 uvicorn main:app --reload

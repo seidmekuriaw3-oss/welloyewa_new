@@ -4,11 +4,13 @@
 """Admin handlers for user management."""
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.helpers import escape_markdown
 from telegram.ext import ContextTypes
 
 from apps.users.services import UserService, VendorService
+from core.config import settings
 from core.logger import logger
-from infrastructure.database.session import get_db_session
+from infrastructure.database.session import transaction_session
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -57,9 +59,9 @@ async def list_users(
     page_size = 5  # smaller page so per-user buttons fit
 
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             user_service = UserService(db)
-            filters = {}
+            filters = {"is_deleted": False}
             if role:
                 filters["role"] = role
             if status_filter:
@@ -70,7 +72,6 @@ async def list_users(
                 limit=page_size,
                 offset=(page - 1) * page_size,
             )
-            break
     except Exception as exc:
         logger.error("list_users error: %s", exc)
         await query.message.edit_text(
@@ -95,25 +96,34 @@ async def list_users(
     keyboard = []
     for user in users:
         emoji = STATUS_EMOJI.get(str(user.status), "👤")
+        full_name = escape_markdown(str(user.full_name), version=1)
+        username = escape_markdown(str(user.username or "N/A"), version=1)
+        phone = escape_markdown(str(user.phone_number or "N/A"), version=1)
+        user_role = escape_markdown(str(user.role), version=1)
         text += (
-            f"{emoji} *{user.full_name}* (ID:{user.id})\n"
-            f"   @{user.username or 'N/A'} | 📞 {user.phone_number or 'N/A'}\n"
-            f"   ⭐ {user.role} | 📅 {user.created_at.strftime('%Y-%m-%d')}\n\n"
+            f"{emoji} *{full_name}* (ID:{user.id})\n"
+            f"   @{username} | 📞 {phone}\n"
+            f"   ⭐ {user_role} | 📅 {user.created_at.strftime('%Y-%m-%d')}\n\n"
         )
         row = []
-        if str(user.status) != "suspended":
-            row.append(
-                InlineKeyboardButton(
-                    f"🚫 አግድ ({user.id})", callback_data=f"admin_suspend_user_{user.id}"
+        is_admin_account = user.telegram_id in settings.admin_ids_list or str(user.role) in {
+            "admin",
+            "super_admin",
+        }
+        if not is_admin_account:
+            if str(user.status) != "suspended":
+                row.append(
+                    InlineKeyboardButton(
+                        f"🚫 አግድ ({user.id})", callback_data=f"admin_suspend_user_{user.id}"
+                    )
                 )
-            )
-        else:
-            row.append(
-                InlineKeyboardButton(
-                    f"✅ ፍቅ ({user.id})", callback_data=f"admin_unsuspend_user_{user.id}"
+            else:
+                row.append(
+                    InlineKeyboardButton(
+                        f"✅ ፍቅ ({user.id})", callback_data=f"admin_unsuspend_user_{user.id}"
+                    )
                 )
-            )
-        keyboard.append(row)
+            keyboard.append(row)
 
     # Pagination
     nav = []
@@ -140,6 +150,7 @@ async def list_suspended_users(update: Update, context: ContextTypes.DEFAULT_TYP
 async def prompt_search_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Ask admin to type a search query."""
     query = update.callback_query
+    context.user_data["admin_state"] = None
     context.user_data["admin_awaiting_user_search"] = True
     await query.message.reply_text("🔍 ለመፈለግ ስም፣ ስልክ ወይም @username ይላኩ።")
 
@@ -155,17 +166,20 @@ async def list_vendors(
     page_size = 8
 
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             vendor_service = VendorService(db)
-            if pending_only:
-                vendors = await vendor_service.vendor_repo.get_pending_vendors(limit=page_size)
-                total = len(vendors)
-            else:
-                vendors, total = await vendor_service.vendor_repo.get_all_with_count(
-                    limit=page_size,
-                    offset=(page - 1) * page_size,
-                )
-            break
+            filters = (
+                {"is_approved": False, "rejected_at": None}
+                if pending_only
+                else None
+            )
+            vendors, total = await vendor_service.vendor_repo.get_all_with_count(
+                filters=filters,
+                limit=page_size,
+                offset=(page - 1) * page_size,
+                order_by="created_at",
+                order_desc=True,
+            )
     except Exception as exc:
         logger.error("list_vendors error: %s", exc)
         await query.message.edit_text(
@@ -248,10 +262,21 @@ async def do_suspend_user(update: Update, context: ContextTypes.DEFAULT_TYPE, us
     """Suspend a user."""
     query = update.callback_query
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             user_service = UserService(db)
-            await user_service.user_repo.update(user_id, {"status": "suspended"})
-            break
+            user = await user_service.user_repo.get_by_id(user_id)
+            if not user or user.is_deleted:
+                raise ValueError(f"User {user_id} does not exist")
+            if user.telegram_id in settings.admin_ids_list or user.role in {
+                "admin",
+                "super_admin",
+            }:
+                raise ValueError("Administrator accounts cannot be suspended here")
+            if user.status == "suspended":
+                raise ValueError(f"User {user_id} is already suspended")
+            updated = await user_service.user_repo.update(user_id, {"status": "suspended"})
+            if not updated:
+                raise ValueError(f"User {user_id} could not be updated")
         await query.message.edit_text(
             f"🚫 ተጠቃሚው (ID: {user_id}) ታግዷል።",
             reply_markup=_users_back_keyboard(),
@@ -259,7 +284,8 @@ async def do_suspend_user(update: Update, context: ContextTypes.DEFAULT_TYPE, us
     except Exception as exc:
         logger.error("Suspend user %s error: %s", user_id, exc)
         await query.message.edit_text(
-            "❌ ተጠቃሚውን ለማገድ ስህተት ተፈጥሯል።", reply_markup=_users_back_keyboard()
+            "❌ ተጠቃሚውን ማገድ አልተቻለም። የአስተዳደር መለያ አይደለም ወይም ሁኔታውን ያረጋግጡ።",
+            reply_markup=_users_back_keyboard(),
         )
 
 
@@ -269,10 +295,16 @@ async def do_unsuspend_user(
     """Lift a user suspension."""
     query = update.callback_query
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             user_service = UserService(db)
-            await user_service.user_repo.update(user_id, {"status": "active"})
-            break
+            user = await user_service.user_repo.get_by_id(user_id)
+            if not user or user.is_deleted:
+                raise ValueError(f"User {user_id} does not exist")
+            if user.status != "suspended":
+                raise ValueError(f"User {user_id} is not suspended")
+            updated = await user_service.user_repo.update(user_id, {"status": "active"})
+            if not updated:
+                raise ValueError(f"User {user_id} could not be updated")
         await query.message.edit_text(
             f"✅ ተጠቃሚው (ID: {user_id}) ታደሰ።",
             reply_markup=_users_back_keyboard(),
@@ -280,7 +312,8 @@ async def do_unsuspend_user(
     except Exception as exc:
         logger.error("Unsuspend user %s error: %s", user_id, exc)
         await query.message.edit_text(
-            "❌ ተጠቃሚውን ለማፈታት ስህተት ተፈጥሯል።", reply_markup=_users_back_keyboard()
+            "❌ ተጠቃሚውን ማፈታት አልተቻለም። የተጠቃሚውን ሁኔታ ያረጋግጡ።",
+            reply_markup=_users_back_keyboard(),
         )
 
 
@@ -291,10 +324,9 @@ async def do_approve_vendor(
     query = update.callback_query
     admin_id = update.effective_user.id
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             vendor_service = VendorService(db)
             await vendor_service.approve_vendor(vendor_id, admin_id)
-            break
         await query.message.edit_text(
             f"✅ ሻጩ (ID: {vendor_id}) ፀድቋል!",
             reply_markup=_users_back_keyboard(),
@@ -312,10 +344,9 @@ async def do_reject_vendor(
     """Reject a vendor by DB vendor ID."""
     query = update.callback_query
     try:
-        async for db in get_db_session():
+        async with transaction_session() as db:
             vendor_service = VendorService(db)
             await vendor_service.reject_vendor(vendor_id, reason="Admin rejection")
-            break
         await query.message.edit_text(
             f"❌ ሻጩ (ID: {vendor_id}) ውድቅ ሆኗል።",
             reply_markup=_users_back_keyboard(),

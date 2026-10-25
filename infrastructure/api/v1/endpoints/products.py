@@ -19,11 +19,13 @@ from apps.products.schemas import (
     ReviewSummaryResponse,
 )
 from apps.products.services import CategoryService, ProductService, ReviewService
+from core.constants import ProductCategory, ProductStatus
 from core.dependencies import (
     get_current_admin,
     get_current_user,
     get_current_vendor,
     get_db_session,
+    get_transaction_session,
 )
 from core.exceptions import NotFoundError, PermissionError, ValidationError
 
@@ -39,7 +41,7 @@ router = APIRouter()
 async def get_products(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    category: str | None = Query(None, description="Filter by category"),
+    category: ProductCategory | None = Query(None, description="Filter by category"),
     vendor_id: int | None = Query(None, description="Filter by vendor"),
     min_price: float | None = Query(None, ge=0),
     max_price: float | None = Query(None, ge=0),
@@ -65,14 +67,11 @@ async def get_products(
             offset=(page - 1) * page_size,
         )
     else:
-        filters = {}
-        if category:
-            filters["category"] = category
-        if vendor_id is not None:
-            filters["vendor_id"] = vendor_id
-
-        products, total = await product_service.product_repo.get_all_with_count(
-            filters=filters,
+        products, total = await product_service.product_repo.get_public_products(
+            category=category.value if category else None,
+            vendor_id=vendor_id,
+            min_price=min_price,
+            max_price=max_price,
             limit=page_size,
             offset=(page - 1) * page_size,
         )
@@ -152,7 +151,7 @@ async def get_category_tree(
 async def create_category(
     data: CategoryCreate,
     current_user: dict = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_transaction_session),
 ) -> CategoryResponse:
     """Create a new category (admin only)."""
     category_service = CategoryService(db)
@@ -168,7 +167,7 @@ async def update_category(
     category_id: int,
     data: CategoryUpdate,
     current_user: dict = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_transaction_session),
 ) -> CategoryResponse:
     """Update a category (admin only)."""
     category_service = CategoryService(db)
@@ -177,13 +176,15 @@ async def update_category(
         return CategoryResponse.model_validate(category)
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    except ValidationError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
 
 @router.delete("/categories/{category_id}", response_model=MessageResponse)
 async def delete_category(
     category_id: int,
     current_user: dict = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_transaction_session),
 ) -> MessageResponse:
     """Delete a category (admin only)."""
     category_service = CategoryService(db)
@@ -192,6 +193,8 @@ async def delete_category(
         return MessageResponse(message=f"Category {category_id} deleted successfully")
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    except ValidationError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
 
 # ============================
@@ -203,22 +206,23 @@ async def delete_category(
 async def get_my_products(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    status: str | None = Query(None, description="Filter by status"),
+    status: ProductStatus | None = Query(None, description="Filter by status"),
     current_user: dict = Depends(get_current_vendor),
     db: AsyncSession = Depends(get_db_session),
 ) -> PaginatedResponse[ProductResponse]:
     """Get current vendor's products."""
     product_service = ProductService(db)
     if current_user.get("vendor_id"):
-        products = await product_service.get_vendor_products(
+        products, total = await product_service.product_repo.get_by_vendor_with_count(
             vendor_id=current_user["vendor_id"],
-            status=status,
+            status=status.value if status else None,
             limit=page_size,
             offset=(page - 1) * page_size,
         )
-        total = len(products)
     else:
-        filters = {"status": status} if status else None
+        filters = {"is_deleted": False}
+        if status:
+            filters["status"] = status
         products, total = await product_service.product_repo.get_all_with_count(
             filters=filters,
             limit=page_size,
@@ -240,7 +244,7 @@ async def get_my_products(
 @router.get("/{product_id}", response_model=ProductResponse)
 async def get_product(
     product_id: int,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_transaction_session),
 ) -> ProductResponse:
     """
     Get product by ID.
@@ -251,6 +255,8 @@ async def get_product(
 
     try:
         product = await product_service.get_product(product_id)
+        if product.status != ProductStatus.ACTIVE:
+            raise NotFoundError("Product", product_id)
         # Increment view count in background
         await product_service.increment_view_count(product_id)
         return ProductResponse.model_validate(product)
@@ -262,7 +268,7 @@ async def get_product(
 async def create_product(
     data: ProductCreate,
     current_user: dict = Depends(get_current_vendor),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_transaction_session),
 ) -> ProductResponse:
     """
     Create a new product (vendor only).
@@ -275,6 +281,8 @@ async def create_product(
     try:
         product = await product_service.create_product(vendor_id, data)
         return ProductResponse.model_validate(product)
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except ValidationError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
@@ -284,7 +292,7 @@ async def update_product(
     product_id: int,
     data: ProductUpdate,
     current_user: dict = Depends(get_current_vendor),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_transaction_session),
 ) -> ProductResponse:
     """
     Update a product (vendor only).
@@ -301,13 +309,15 @@ async def update_product(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except PermissionError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
+    except ValidationError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
 
 @router.delete("/{product_id}", response_model=MessageResponse)
 async def delete_product(
     product_id: int,
     current_user: dict = Depends(get_current_vendor),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_transaction_session),
 ) -> MessageResponse:
     """
     Delete a product (vendor only).
@@ -375,7 +385,7 @@ async def create_product_review(
     product_id: int,
     data: ReviewCreate,
     current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_transaction_session),
 ) -> ReviewResponse:
     """
     Create a review for a product.
