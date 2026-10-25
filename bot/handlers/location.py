@@ -15,6 +15,7 @@ from telegram.ext import ContextTypes
 
 from apps.users.schemas import UserUpdate
 from apps.users.services import UserService
+from bot.handlers.callback_utils import answer_callback_query
 from bot.handlers.text_routing import mark_text_message_handled
 from bot.localization import tr
 from infrastructure.database.session import transaction_session
@@ -96,7 +97,8 @@ async def location_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     Handle location-related callbacks.
     """
     query = update.callback_query
-    await query.answer()
+    if not await answer_callback_query(query):
+        return
 
     if query.data == "share_location":
         # Telegram only supports request_location on a ReplyKeyboard button,

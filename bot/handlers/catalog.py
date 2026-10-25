@@ -11,6 +11,7 @@ from telegram.ext import ContextTypes
 from telegram.helpers import escape_markdown
 
 from apps.products.services import CategoryService, ProductService
+from bot.handlers.callback_utils import answer_callback_query
 from bot.handlers.text_routing import consume_handled_text
 from bot.localization import get_language, tr
 from core.config import settings
@@ -88,7 +89,6 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await query.message.reply_text(
                 message_text, parse_mode="Markdown", reply_markup=reply_markup
             )
-        await query.answer()
     else:
         await update.effective_message.reply_text(
             message_text, parse_mode="Markdown", reply_markup=reply_markup
@@ -98,7 +98,8 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle category selection: cat_<id>"""
     query = update.callback_query
-    await query.answer()
+    if not await answer_callback_query(query):
+        return
     category_id = int(query.data.split("_")[1])
     context.user_data["current_category"] = category_id
     context.user_data["current_page"] = 1
@@ -108,7 +109,8 @@ async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def category_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle category pagination: cat_page_<category_id>_<page>"""
     query = update.callback_query
-    await query.answer()
+    if not await answer_callback_query(query):
+        return
     parts = query.data.split("_")
     category_id = int(parts[2])
     page = int(parts[3])
@@ -206,7 +208,8 @@ async def product_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     Shows product photo (if available) + full details + action buttons.
     """
     query = update.callback_query
-    await query.answer()
+    if not await answer_callback_query(query):
+        return
 
     product_id = int(query.data.split("_")[1])
 
@@ -368,6 +371,14 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             await update.effective_message.reply_text(
                 tr(context, "checkout_session_expired")
             )
+        return
+
+    if context.user_data.get("updating_field") or context.user_data.get(
+        "vendor_application"
+    ):
+        from bot.handlers.profile import profile_text_handler
+
+        await profile_text_handler(update, context)
         return
 
     text = update.effective_message.text.strip()

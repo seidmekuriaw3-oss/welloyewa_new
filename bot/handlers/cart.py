@@ -6,6 +6,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from apps.products.services import ProductService
+from bot.handlers.callback_utils import answer_callback_query, edit_callback_message
 from bot.localization import get_language, tr, translate
 from core.logger import logger
 from core.utils.currency import format_etb
@@ -44,6 +45,8 @@ async def cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     cart = _get_cart(context)
 
     if action.startswith("add_to_cart_"):
+        if not await answer_callback_query(query, tr(context, "cart_added")):
+            return
         product_id = int(action.split("_")[3])
         found = False
         for item in cart:
@@ -54,10 +57,10 @@ async def cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         if not found:
             cart.append({"product_id": product_id, "quantity": 1})
         _save_cart(context, cart)
-        await query.answer(tr(context, "cart_added"))
         return
 
-    await query.answer()
+    if not await answer_callback_query(query):
+        return
 
     if action.startswith("cart_remove_"):
         product_id = int(action.split("_")[2])
@@ -80,10 +83,7 @@ async def cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     elif action == "cart_clear":
         _save_cart(context, [])
-        try:
-            await query.message.edit_text(tr(context, "cart_empty"), parse_mode="Markdown")
-        except Exception:
-            pass
+        await edit_callback_message(query, tr(context, "cart_empty"), parse_mode="Markdown")
         return
 
     elif action == "cart_refresh":
@@ -92,16 +92,12 @@ async def cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # Refresh display
     cart = _get_cart(context)
     if not cart:
-        try:
-            await query.message.edit_text(tr(context, "cart_empty"), parse_mode="Markdown")
-        except Exception:
-            pass
+        await edit_callback_message(query, tr(context, "cart_empty"), parse_mode="Markdown")
         return
     cart_text, reply_markup = await _build_cart_view(cart, context)
-    try:
-        await query.message.edit_text(cart_text, parse_mode="Markdown", reply_markup=reply_markup)
-    except Exception:
-        pass
+    await edit_callback_message(
+        query, cart_text, parse_mode="Markdown", reply_markup=reply_markup
+    )
 
 
 async def _build_cart_view(cart: list, context: ContextTypes.DEFAULT_TYPE = None):

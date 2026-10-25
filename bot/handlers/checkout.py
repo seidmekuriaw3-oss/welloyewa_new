@@ -21,6 +21,7 @@ from apps.orders.services import OrderService
 from apps.products.services import ProductService
 from apps.users.models import UserAddress
 from apps.users.services import UserService
+from bot.handlers.callback_utils import answer_callback_query
 from bot.handlers.cart import clear_cart, get_user_cart
 from bot.handlers.location import reverse_geocode
 from bot.handlers.text_routing import mark_text_message_handled
@@ -90,15 +91,16 @@ async def start_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     Shows address selection or address entry form.
     """
     user_id = update.effective_user.id
-    context.user_data["checkout_in_progress"] = True
-    context.user_data["checkout_conversation_active"] = True
 
     if update.callback_query:
-        await update.callback_query.answer()
+        if not await answer_callback_query(update.callback_query):
+            return ConversationHandler.END
         target_message = update.callback_query.message
     else:
         target_message = update.message
 
+    context.user_data["checkout_in_progress"] = True
+    context.user_data["checkout_conversation_active"] = True
     context.user_data.pop("checkout_address_id", None)
     context.user_data.pop("checkout_pending_address", None)
     context.user_data.pop("checkout_recipient_name", None)
@@ -171,7 +173,8 @@ async def address_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     Stores selected address and asks for delivery recipient details.
     """
     query = update.callback_query
-    await query.answer()
+    if not await answer_callback_query(query):
+        return SELECT_ADDRESS
     context.user_data["checkout_conversation_active"] = True
 
     if query.data == "addr_new":
@@ -378,7 +381,8 @@ async def payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     Stores payment method and shows order confirmation.
     """
     query = update.callback_query
-    await query.answer()
+    if not await answer_callback_query(query):
+        return SELECT_PAYMENT
     context.user_data["checkout_conversation_active"] = True
 
     if query.data == "pay_back":
@@ -514,7 +518,8 @@ async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     Creates the order and processes payment.
     """
     query = update.callback_query
-    await query.answer()
+    if not await answer_callback_query(query):
+        return CONFIRM_ORDER
 
     if query.data in {"confirm_no", "checkout_cancel"}:
         await query.message.edit_text(tr(context, "order_cancelled"))

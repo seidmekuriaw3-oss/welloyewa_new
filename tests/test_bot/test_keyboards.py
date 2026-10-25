@@ -14,11 +14,11 @@ class TestInlineKeyboards:
         """Test main menu keyboard creation."""
         from bot.keyboards.inline import main_menu_keyboard
 
-        keyboard = main_menu_keyboard()
+        keyboard = main_menu_keyboard("en")
 
         assert keyboard is not None
-        # Main menu should have 7 buttons
-        assert len(keyboard.inline_keyboard) >= 7
+        assert keyboard.inline_keyboard[0][0].text == "🛍️ Products"
+        assert keyboard.inline_keyboard[-1][0].callback_data == "menu_feedback"
 
     def test_product_keyboard_in_stock(self):
         """Test product keyboard when in stock."""
@@ -129,10 +129,12 @@ class TestReplyKeyboards:
         """Test main reply keyboard creation."""
         from bot.keyboards.reply import main_reply_keyboard
 
-        keyboard = main_reply_keyboard()
+        keyboard = main_reply_keyboard("en")
 
         assert keyboard is not None
         assert keyboard.resize_keyboard is True
+        assert [button.text for button in keyboard.keyboard[0]] == ["🛍️ Products", "🔍 Search"]
+        assert keyboard.keyboard[2][0].text == "📦 My Orders"
 
     def test_contact_keyboard(self):
         """Test contact sharing keyboard."""
@@ -156,10 +158,11 @@ class TestReplyKeyboards:
         """Test admin reply keyboard."""
         from bot.keyboards.reply import admin_reply_keyboard
 
-        keyboard = admin_reply_keyboard()
+        keyboard = admin_reply_keyboard("en")
 
         assert keyboard is not None
         assert keyboard.resize_keyboard is True
+        assert [button.text for button in keyboard.keyboard[0]] == ["🔧 Admin", "🛍️ Products"]
 
     def test_cancel_keyboard(self):
         """Test cancel keyboard."""

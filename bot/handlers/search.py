@@ -4,7 +4,6 @@
 """Telegram bot product search and filtering handlers."""
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.error import BadRequest
 from telegram.ext import ContextTypes, ConversationHandler
 from telegram.helpers import escape_markdown
 
@@ -12,7 +11,6 @@ from apps.products.search_engine import ProductSearchEngine
 from bot.handlers.text_routing import mark_text_message_handled
 from bot.localization import get_language, tr
 from core.constants import CATEGORY_NAMES_AMHARIC, ProductCategory
-from core.logger import logger
 from core.utils.currency import format_etb
 from infrastructure.database.session import get_db_session
 
@@ -45,7 +43,10 @@ async def start_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         Next conversation state
     """
     query = update.callback_query
-    await query.answer()
+    from bot.handlers.callback_utils import answer_callback_query
+
+    if not await answer_callback_query(query):
+        return ConversationHandler.END
 
     await query.message.edit_text(
         tr(context, "search_prompt"), parse_mode="Markdown"
@@ -201,13 +202,9 @@ async def filter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     Shows filter options.
     """
     query = update.callback_query
-    try:
-        await query.answer()
-    except BadRequest as exc:
-        message = str(exc).lower()
-        if "query is too old" not in message and "query id is invalid" not in message:
-            raise
-        logger.debug("Ignoring expired search callback query: %s", query.id)
+    from bot.handlers.callback_utils import answer_callback_query
+
+    await answer_callback_query(query)
 
     if query.data == "search_filter":
         # Show filter options
@@ -372,7 +369,10 @@ async def filter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def product_from_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle prod_search_<id> — view a product from within a search result."""
     query = update.callback_query
-    await query.answer()
+    from bot.handlers.callback_utils import answer_callback_query
+
+    if not await answer_callback_query(query):
+        return FILTER_RESULTS
     # Delegate to catalog product_callback (import here to avoid circular)
     from bot.handlers.catalog import product_callback
 

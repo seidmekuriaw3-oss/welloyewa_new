@@ -8,6 +8,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 
 from apps.support.services import TicketService
 from apps.users.services import UserService
+from bot.handlers.callback_utils import answer_callback_query
 from bot.handlers.text_routing import mark_text_message_handled
 from bot.localization import tr
 from core.exceptions import NotFoundError
@@ -18,7 +19,7 @@ from infrastructure.database.session import transaction_session
 WAITING_RATING, WAITING_MESSAGE = range(2)
 
 
-async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     Handle the /feedback command.
 
@@ -45,6 +46,7 @@ async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await update.effective_message.reply_text(
         tr(context, "feedback_rate_prompt"), parse_mode="Markdown", reply_markup=reply_markup
     )
+    return WAITING_RATING
 
 
 async def start_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -55,7 +57,8 @@ async def start_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         Next conversation state
     """
     query = update.callback_query
-    await query.answer()
+    if not await answer_callback_query(query):
+        return ConversationHandler.END
 
     # Show rating buttons
     keyboard = [
@@ -96,7 +99,8 @@ async def rating_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         Next conversation state
     """
     query = update.callback_query
-    await query.answer()
+    if not await answer_callback_query(query):
+        return WAITING_RATING
 
     if query.data == "feedback_cancel":
         await query.message.edit_text(tr(context, "feedback_cancelled"))

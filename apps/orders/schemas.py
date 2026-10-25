@@ -67,8 +67,6 @@ class OrderBase(BaseSchema):
     shipping_phone: str = Field(..., max_length=20, description="Shipping phone number")
     shipping_method: ShippingMethod = Field(ShippingMethod.STANDARD, description="Shipping method")
     customer_notes: str | None = Field(None, max_length=500, description="Customer notes")
-    discount: Decimal | None = Field(0, ge=0, description="Discount amount")
-    shipping_fee: Decimal | None = Field(0, ge=0, description="Shipping fee")
 
 
 class OrderCreate(OrderBase):
@@ -102,7 +100,9 @@ class OrderResponse(OrderBase, IdSchema, TimestampSchema):
     vendor_id: int | None = Field(None, description="Vendor ID")
     status: OrderStatus = Field(..., description="Order status")
     subtotal: Decimal = Field(..., description="Subtotal amount")
+    shipping_fee: Decimal = Field(0, description="Shipping fee")
     tax: Decimal = Field(..., description="Tax amount")
+    discount: Decimal = Field(0, description="Discount amount")
     total: Decimal = Field(..., description="Total amount")
     payment_status: PaymentStatus = Field(..., description="Payment status")
     payment_transaction_id: str | None = Field(None, description="Payment transaction ID")

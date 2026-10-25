@@ -346,7 +346,9 @@ class SalesRepository:
             for row in rows
         ]
 
-    async def get_recent_orders(self, limit: int = 10) -> list[dict[str, Any]]:
+    async def get_recent_orders(
+        self, limit: int = 10, vendor_id: int | None = None
+    ) -> list[dict[str, Any]]:
         """Get recent orders for dashboard."""
         query = (
             select(
@@ -359,9 +361,10 @@ class SalesRepository:
                 User.last_name,
             )
             .join(User, Order.user_id == User.id)
-            .order_by(Order.created_at.desc())
-            .limit(limit)
         )
+        if vendor_id is not None:
+            query = query.where(Order.vendor_id == vendor_id)
+        query = query.order_by(Order.created_at.desc()).limit(limit)
 
         result = await self.db.execute(query)
         rows = result.all()

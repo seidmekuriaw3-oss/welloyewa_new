@@ -175,10 +175,13 @@ class ProductAnalyticsService:
         self,
         product_id: int,
         days: int = 30,
+        vendor_id: int | None = None,
     ) -> dict[str, Any]:
         """Get performance metrics for a specific product."""
         product = await self.product_repo.get_by_id(product_id)
         if not product:
+            raise NotFoundError("Product", product_id)
+        if vendor_id is not None and product.vendor_id != vendor_id:
             raise NotFoundError("Product", product_id)
 
         # Get sales data
@@ -260,7 +263,9 @@ class DashboardService:
         monthly_sales = await self.sales_service.get_sales_summary(month_start, now, vendor_id)
 
         # Orders
-        recent_orders = await self.sales_service.sales_repo.get_recent_orders(limit=10)
+        recent_orders = await self.sales_service.sales_repo.get_recent_orders(
+            limit=10, vendor_id=vendor_id
+        )
 
         # Top products
         top_products = await self.sales_service.get_top_products(
@@ -268,7 +273,7 @@ class DashboardService:
         )
 
         # Active users
-        active_users = await self.user_service.get_active_users(days=7)
+        active_users = await self.user_service.get_active_users(days=7) if vendor_id is None else 0
 
         # Low stock
         low_stock = await self.product_service.get_low_stock_report(vendor_id)

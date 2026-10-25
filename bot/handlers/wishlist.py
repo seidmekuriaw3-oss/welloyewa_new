@@ -6,6 +6,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from apps.products.services import ProductService
+from bot.handlers.callback_utils import answer_callback_query, edit_callback_message
 from bot.localization import get_language, translate, tr
 from core.logger import logger
 from core.utils.currency import format_etb
@@ -29,8 +30,8 @@ async def wishlist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if not wishlist:
         msg = tr(context, "wishlist_empty")
         if update.callback_query:
-            await update.callback_query.message.edit_text(msg, parse_mode="Markdown")
-            await update.callback_query.answer()
+            await answer_callback_query(update.callback_query)
+            await edit_callback_message(update.callback_query, msg, parse_mode="Markdown")
         else:
             await update.effective_message.reply_text(msg, parse_mode="Markdown")
         return
@@ -38,10 +39,13 @@ async def wishlist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     wishlist_text, reply_markup = await _build_wishlist_view(wishlist, context)
 
     if update.callback_query:
-        await update.callback_query.message.edit_text(
-            wishlist_text, parse_mode="Markdown", reply_markup=reply_markup
+        await answer_callback_query(update.callback_query)
+        await edit_callback_message(
+            update.callback_query,
+            wishlist_text,
+            parse_mode="Markdown",
+            reply_markup=reply_markup,
         )
-        await update.callback_query.answer()
     else:
         await update.effective_message.reply_text(
             wishlist_text, parse_mode="Markdown", reply_markup=reply_markup
@@ -55,16 +59,18 @@ async def wishlist_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     wishlist = _get_wishlist(context)
 
     if action.startswith("add_to_wishlist_"):
+        if any(i["product_id"] == int(action.split("_")[3]) for i in wishlist):
+            await answer_callback_query(query, tr(context, "wishlist_already_added"))
+            return
+        if not await answer_callback_query(query, tr(context, "wishlist_added")):
+            return
         product_id = int(action.split("_")[3])
-        if not any(i["product_id"] == product_id for i in wishlist):
-            wishlist.append({"product_id": product_id, "added_at": datetime.utcnow().isoformat()})
-            _save_wishlist(context, wishlist)
-            await query.answer(tr(context, "wishlist_added"))
-        else:
-            await query.answer(tr(context, "wishlist_already_added"))
+        wishlist.append({"product_id": product_id, "added_at": datetime.utcnow().isoformat()})
+        _save_wishlist(context, wishlist)
         return
 
-    await query.answer()
+    if not await answer_callback_query(query):
+        return
 
     if action.startswith("wishlist_remove_"):
         product_id = int(action.split("_")[2])
@@ -82,28 +88,19 @@ async def wishlist_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     elif action == "wishlist_clear":
         _save_wishlist(context, [])
-        try:
-            await query.message.edit_text(tr(context, "wishlist_empty"), parse_mode="Markdown")
-        except Exception:
-            pass
+        await edit_callback_message(query, tr(context, "wishlist_empty"), parse_mode="Markdown")
         return
 
     # Refresh display
     wishlist = _get_wishlist(context)
     if not wishlist:
-        try:
-            await query.message.edit_text(tr(context, "wishlist_empty"), parse_mode="Markdown")
-        except Exception:
-            pass
+        await edit_callback_message(query, tr(context, "wishlist_empty"), parse_mode="Markdown")
         return
 
     wishlist_text, reply_markup = await _build_wishlist_view(wishlist, context)
-    try:
-        await query.message.edit_text(
-            wishlist_text, parse_mode="Markdown", reply_markup=reply_markup
-        )
-    except Exception:
-        pass
+    await edit_callback_message(
+        query, wishlist_text, parse_mode="Markdown", reply_markup=reply_markup
+    )
 
 
 async def _build_wishlist_view(

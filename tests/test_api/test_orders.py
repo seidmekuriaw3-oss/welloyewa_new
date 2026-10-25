@@ -28,6 +28,25 @@ class TestOrderEndpoints:
         assert "status" in data
         assert "total" in data
 
+    async def test_create_order_ignores_client_supplied_discount(
+        self, client: AsyncClient, sample_user_data, sample_order_data, auth_token
+    ):
+        """Client input must not grant an unauthorized order discount."""
+        await client.post("/api/v1/users/register", json=sample_user_data)
+        order_data = {**sample_order_data, "discount": 100000, "shipping_fee": 0}
+        headers = {"Authorization": f"******"}
+
+        response = await client.post("/api/v1/orders/", json=order_data, headers=headers)
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["discount"] == 0
+        expected_shipping_fee = 0 if data["subtotal"] >= 1000 else 50
+        assert data["shipping_fee"] == expected_shipping_fee
+        assert data["total"] == pytest.approx(
+            data["subtotal"] + data["shipping_fee"] + data["tax"]
+        )
+
     async def test_create_order_with_invalid_product(
         self, client: AsyncClient, sample_user_data, auth_token
     ):
@@ -140,6 +159,23 @@ class TestOrderTrackingEndpoints:
         response = await client.get("/api/v1/orders/track/ORD12345")
 
         assert response.status_code == 400
+
+    async def test_track_order_rejects_unmatched_contact(
+        self, client: AsyncClient, sample_user_data, sample_order_data, auth_token
+    ):
+        """Order number alone must not reveal order tracking details."""
+        await client.post("/api/v1/users/register", json=sample_user_data)
+        headers = {"Authorization": f"******"}
+        create_response = await client.post(
+            "/api/v1/orders/", json=sample_order_data, headers=headers
+        )
+        order_number = create_response.json()["order_number"]
+
+        response = await client.get(
+            f"/api/v1/orders/track/{order_number}?email=attacker@example.com"
+        )
+
+        assert response.status_code == 404
 
 
 class TestVendorOrderEndpoints:

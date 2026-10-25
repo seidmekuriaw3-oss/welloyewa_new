@@ -7,6 +7,8 @@ from typing import Any
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from bot.localization import translate
+
 
 class InlineKeyboardBuilder:
     """Builder class for creating inline keyboards."""
@@ -72,16 +74,17 @@ class InlineKeyboardBuilder:
         return self
 
 
-def main_menu_keyboard() -> InlineKeyboardMarkup:
-    """Create main menu keyboard."""
+def main_menu_keyboard(lang: str = "am") -> InlineKeyboardMarkup:
+    """Create a localized main menu keyboard."""
     keyboard = [
-        [InlineKeyboardButton("🛍️ ምርቶች", callback_data="menu_products")],
-        [InlineKeyboardButton("🔍 ፈልግ", callback_data="menu_search")],
-        [InlineKeyboardButton("🛒 ቅርጫት", callback_data="menu_cart")],
-        [InlineKeyboardButton("👤 ፕሮፋይል", callback_data="menu_profile")],
-        [InlineKeyboardButton("📦 ትዕዛዞቼ", callback_data="menu_orders")],
-        [InlineKeyboardButton("⭐ ተመራጮች", callback_data="menu_wishlist")],
-        [InlineKeyboardButton("❓ እገዛ", callback_data="menu_help")],
+        [InlineKeyboardButton(translate(lang, "products"), callback_data="menu_products")],
+        [InlineKeyboardButton(translate(lang, "search"), callback_data="menu_search")],
+        [InlineKeyboardButton(translate(lang, "cart"), callback_data="menu_cart")],
+        [InlineKeyboardButton(translate(lang, "profile"), callback_data="menu_profile")],
+        [InlineKeyboardButton(translate(lang, "orders"), callback_data="menu_orders")],
+        [InlineKeyboardButton(translate(lang, "wishlist"), callback_data="menu_wishlist")],
+        [InlineKeyboardButton(translate(lang, "help"), callback_data="menu_help")],
+        [InlineKeyboardButton(translate(lang, "feedback"), callback_data="menu_feedback")],
     ]
     return InlineKeyboardMarkup(keyboard)
 

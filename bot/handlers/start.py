@@ -8,15 +8,17 @@ from telegram import (
     Update,
     WebAppInfo,
 )
-from telegram.error import BadRequest
+from telegram.error import TelegramError
 from telegram.ext import ContextTypes
+from telegram.helpers import escape_markdown
 
 from apps.users.schemas import UserUpdate
 from apps.users.services import UserService
 from core.config import settings
 from core.logger import logger
 from infrastructure.database.session import get_db_session, transaction_session
-from bot.localization import SUPPORTED_LANGUAGES, translate
+from bot.localization import SUPPORTED_LANGUAGES, get_language, translate
+from bot.handlers.callback_utils import answer_callback_query, edit_callback_message
 
 # ---------------------------------------------------------------------------
 # Shared UI builders
@@ -99,12 +101,25 @@ def _build_main_menu(is_admin: bool = False, lang: str = "am") -> InlineKeyboard
 
 
 def _build_language_keyboard() -> InlineKeyboardMarkup:
-    """Language selection keyboard shown to brand-new users."""
+    """Build onboarding language choices and direct store navigation actions."""
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("🇪🇹 አማርኛ", callback_data="onboard_lang_am")],
             [InlineKeyboardButton("🌐 English", callback_data="onboard_lang_en")],
             [InlineKeyboardButton("🟢 Oromiffa", callback_data="onboard_lang_om")],
+            [
+                InlineKeyboardButton(
+                    "🛍️ Browse Products / ምርቶች",
+                    callback_data="menu_products",
+                ),
+                _build_store_button("🌐 Open Store / ሱቅ"),
+            ],
+            [
+                InlineKeyboardButton(
+                    "☰ Main Menu / ዋና ምናሌ",
+                    callback_data="menu_back",
+                )
+            ],
         ]
     )
 
@@ -126,6 +141,54 @@ def _build_phone_keyboard(lang: str = "am") -> ReplyKeyboardMarkup:
         one_time_keyboard=True,
         resize_keyboard=True,
         input_field_placeholder=placeholders.get(lang, placeholders["am"]),
+    )
+
+
+async def _send_start_welcome(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    caption: str,
+    reply_markup: InlineKeyboardMarkup,
+) -> None:
+    """Send the bot's current Telegram profile photo with a welcome caption."""
+    photo_cache_key = "start_profile_photo_file_id"
+    photo_file_id = context.bot_data.get(photo_cache_key)
+
+    if photo_cache_key not in context.bot_data:
+        try:
+            bot_user = await context.bot.get_me()
+            profile_photos = await context.bot.get_user_profile_photos(
+                bot_user.id, limit=1
+            )
+        except TelegramError as exc:
+            logger.warning("Could not retrieve bot profile photo: %s", exc)
+            profile_photos = None
+
+        photo_file_id = (
+            profile_photos.photos[0][-1].file_id
+            if profile_photos and profile_photos.total_count and profile_photos.photos
+            else None
+        )
+        context.bot_data[photo_cache_key] = photo_file_id
+
+    if photo_file_id:
+        try:
+            await context.bot.send_photo(
+                chat_id=update.effective_chat.id,
+                photo=photo_file_id,
+                caption=caption,
+                parse_mode="Markdown",
+                reply_markup=reply_markup,
+            )
+            return
+        except TelegramError as exc:
+            context.bot_data.pop(photo_cache_key, None)
+            logger.warning("Could not send bot profile photo in /start: %s", exc)
+
+    await update.effective_message.reply_text(
+        caption,
+        parse_mode="Markdown",
+        reply_markup=reply_markup,
     )
 
 
@@ -197,15 +260,17 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     is_admin = tg_user.id in settings.admin_ids_list
 
     if is_new_user:
-        # Step 1: ask language — written in all three so everyone understands
-        await update.message.reply_text(
-            "🌟 *ዎሎየዋ ስቶር* — *Wolloyewa Store* 🌟\n\n"
-            "🇪🇹 እንኳን ደህና መጡ! ቋንቋዎን ይምረጡ።\n"
-            "🌐 Welcome! Please choose your language.\n"
-            "🟢 Baga nagaan dhufte! Afaan filadhu.\n\n"
-            "⬇️  ⬇️  ⬇️",
-            parse_mode="Markdown",
-            reply_markup=_build_language_keyboard(),
+        welcome_text = (
+            "🌟 *ወሎየዋ ስቶር | Wolloyewa Store*\n\n"
+            "እንኳን ደህና መጡ! በአንድ ቦታ ምርቶችን ይመልከቱ፣ ይፈልጉ፣ "
+            "ወደ ቅርጫት ይጨምሩ እና ትዕዛዝዎን ይከታተሉ።\n"
+            "Welcome! Discover products, search, shop your cart, and keep track of your orders.\n"
+            "Baga nagaan dhuftan! Meeshaalee argadhaa, barbaadaa, bitadhaa; "
+            "ajajawwan keessanis hordofaa.\n\n"
+            "🌐 *ቋንቋዎን ይምረጡ | Choose your language | Afaan filadhaa*"
+        )
+        await _send_start_welcome(
+            update, context, welcome_text, _build_language_keyboard()
         )
         context.user_data["onboarding"] = True
 
@@ -217,10 +282,29 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         elif context.user_data.get("user", {}).get("language"):
             lang = context.user_data["user"]["language"]
 
+        safe_first_name = escape_markdown(tg_user.first_name or "User", version=1)
         greetings = {
-            "am": f"👤 ሰላም, *{tg_user.first_name}*! እንኳን ደህና መጡ 🎉",
-            "en": f"👤 Hello, *{tg_user.first_name}*! Welcome back 🎉",
-            "om": f"👤 Akkam, *{tg_user.first_name}*! Baga nagaan deebitee 🎉",
+            "am": (
+                f"👋 ሰላም *{safe_first_name}*፣ እንኳን ወደ ወሎየዋ ስቶር በደህና ተመለሱ!\n\n"
+                "🛍️ ምርቶችን ይመልከቱ እና ይፈልጉ\n"
+                "🛒 ወደ ቅርጫት ጨምረው ትዕዛዝ ያስገቡ\n"
+                "📦 ትዕዛዝዎን እና ፕሮፋይልዎን ያስተዳድሩ\n\n"
+                "👇 ለመቀጠል ከታች ያለውን ምናሌ ይጠቀሙ።"
+            ),
+            "en": (
+                f"👋 Welcome back to Wolloyewa Store, *{safe_first_name}*!\n\n"
+                "🛍️ Browse and search products\n"
+                "🛒 Add items to your cart and place an order\n"
+                "📦 Manage your orders and profile\n\n"
+                "👇 Choose an option below to get started."
+            ),
+            "om": (
+                f"👋 *{safe_first_name}*, gara Wolloyewa Store nagaan deebi'uu keessaniif baga gammaddan!\n\n"
+                "🛍️ Meeshaalee ilaalaa fi barbaadaa\n"
+                "🛒 Kuusaatti dabalaa, ajaja galchaa\n"
+                "📦 Ajajawwan fi profaayila keessan bulchaa\n\n"
+                "👇 Itti fufuuf filannoo armaan gadii tuqaa."
+            ),
         }
         nudge = {
             "am": "\n\n⚠️ ስልክ ቁጥርዎ ገና አልተመዘገበም — ከፕሮፋይልዎ ሊያስገቡ ይችላሉ።",
@@ -232,10 +316,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         if phone_missing:
             text += nudge.get(lang, nudge["am"])
 
-        await update.message.reply_text(
-            text,
-            parse_mode="Markdown",
-            reply_markup=_build_main_menu(is_admin, lang),
+        await _send_start_welcome(
+            update, context, text, _build_main_menu(is_admin, lang)
         )
 
 
@@ -253,9 +335,10 @@ async def onboard_language_callback(update: Update, context: ContextTypes.DEFAUL
     query = update.callback_query
     lang = query.data.removeprefix("onboard_lang_")
     if lang not in SUPPORTED_LANGUAGES:
-        await query.answer("Unsupported language.", show_alert=True)
+        await answer_callback_query(query, "Unsupported language.", show_alert=True)
         return
-    await query.answer()
+    if not await answer_callback_query(query):
+        return
     tg_user = update.effective_user
 
     # Save language to DB
@@ -297,9 +380,23 @@ async def onboard_language_callback(update: Update, context: ContextTypes.DEFAUL
         ),
     }
 
-    # Edit the language-selection message, then send the phone-share keyboard
-    # (edit removes the language buttons, new message carries the reply keyboard)
-    await query.edit_message_text(ack.get(lang, ack["am"]), parse_mode="Markdown")
+    # Preserve the welcome photo while replacing its language picker with the
+    # selected language's next-step instructions.
+    remove_language_keyboard = InlineKeyboardMarkup(
+        [], api_kwargs={"inline_keyboard": []}
+    )
+    if query.message.photo:
+        await query.edit_message_caption(
+            caption=ack.get(lang, ack["am"]),
+            parse_mode="Markdown",
+            reply_markup=remove_language_keyboard,
+        )
+    else:
+        await query.edit_message_text(
+            ack.get(lang, ack["am"]),
+            parse_mode="Markdown",
+            reply_markup=remove_language_keyboard,
+        )
 
     await update.effective_message.reply_text(
         "⬇️",
@@ -321,7 +418,7 @@ async def onboard_language_callback(update: Update, context: ContextTypes.DEFAUL
 async def _show_callback_text(query, text: str, **kwargs) -> None:
     """Edit a text message or reply when the callback came from a photo."""
     if query.message.text is not None:
-        await query.edit_message_text(text, **kwargs)
+        await edit_callback_message(query, text, **kwargs)
     else:
         await query.message.reply_text(text, **kwargs)
 
@@ -329,13 +426,7 @@ async def _show_callback_text(query, text: str, **kwargs) -> None:
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Route all menu_* callback queries to the right handler."""
     query = update.callback_query
-    try:
-        await query.answer()
-    except BadRequest as exc:
-        message = str(exc).lower()
-        if "query is too old" not in message and "query id is invalid" not in message:
-            raise
-        logger.debug("Ignoring expired menu callback query: %s", getattr(query, "id", None))
+    if not await answer_callback_query(query):
         return
 
     action = query.data.removeprefix("menu_")
@@ -447,7 +538,17 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def noop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Acknowledge intentionally inert/status buttons without leaving a spinner."""
-    await update.callback_query.answer()
+    await answer_callback_query(update.callback_query)
+
+
+async def unknown_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Acknowledge unmatched or stale inline buttons with a recovery hint."""
+    query = update.callback_query
+    await answer_callback_query(
+        query,
+        translate(get_language(context), "stale_button"),
+        show_alert=True,
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -25,7 +25,6 @@ from apps.analytics.services import (
 )
 from core.dependencies import (
     get_current_admin,
-    get_current_user,
     get_current_vendor,
     get_db_session,
 )
@@ -41,7 +40,7 @@ router = APIRouter()
 
 @router.get("/dashboard", response_model=DashboardSummary)
 async def get_dashboard_summary(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_vendor),
     db: AsyncSession = Depends(get_db_session),
 ) -> DashboardSummary:
     """
@@ -51,7 +50,7 @@ async def get_dashboard_summary(
     """
     dashboard_service = DashboardService(db)
 
-    vendor_id = current_user.get("vendor_id") if current_user.get("is_vendor") else None
+    vendor_id = current_user.get("vendor_id") if current_user["role"] == "vendor" else None
 
     summary = await dashboard_service.get_dashboard_summary(vendor_id)
     return DashboardSummary(**summary)
@@ -91,7 +90,7 @@ async def get_daily_sales(
     sales_service = SalesAnalyticsService(db)
 
     # Vendor can only see their own data
-    if current_user.get("is_vendor") and not vendor_id:
+    if current_user["role"] == "vendor":
         vendor_id = current_user.get("vendor_id")
 
     return await sales_service.get_daily_sales(days, vendor_id)
@@ -109,7 +108,7 @@ async def get_monthly_sales(
     """
     sales_service = SalesAnalyticsService(db)
 
-    if current_user.get("is_vendor") and not vendor_id:
+    if current_user["role"] == "vendor":
         vendor_id = current_user.get("vendor_id")
 
     return await sales_service.get_monthly_sales(months, vendor_id)
@@ -135,7 +134,7 @@ async def get_sales_summary(
     if not end_date:
         end_date = datetime.utcnow()
 
-    if current_user.get("is_vendor") and not vendor_id:
+    if current_user["role"] == "vendor":
         vendor_id = current_user.get("vendor_id")
 
     summary = await sales_service.get_sales_summary(start_date, end_date, vendor_id)
@@ -155,7 +154,7 @@ async def get_top_products(
     """
     sales_service = SalesAnalyticsService(db)
 
-    if current_user.get("is_vendor") and not vendor_id:
+    if current_user["role"] == "vendor":
         vendor_id = current_user.get("vendor_id")
 
     return await sales_service.get_top_products(limit, days, vendor_id)
@@ -249,7 +248,8 @@ async def get_product_performance(
     product_service = ProductAnalyticsService(db)
 
     try:
-        return await product_service.get_product_performance(product_id, days)
+        vendor_id = current_user.get("vendor_id") if current_user["role"] == "vendor" else None
+        return await product_service.get_product_performance(product_id, days, vendor_id)
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
@@ -264,7 +264,7 @@ async def get_low_stock_report(
     """
     product_service = ProductAnalyticsService(db)
 
-    vendor_id = current_user.get("vendor_id") if current_user.get("is_vendor") else None
+    vendor_id = current_user.get("vendor_id") if current_user["role"] == "vendor" else None
 
     return await product_service.get_low_stock_report(vendor_id)
 
@@ -279,7 +279,7 @@ async def get_inventory_analytics(
     """
     product_service = ProductAnalyticsService(db)
 
-    vendor_id = current_user.get("vendor_id") if current_user.get("is_vendor") else None
+    vendor_id = current_user.get("vendor_id") if current_user["role"] == "vendor" else None
 
     return await product_service.get_inventory_analytics(vendor_id)
 

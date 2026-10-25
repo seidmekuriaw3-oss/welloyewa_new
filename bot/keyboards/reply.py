@@ -5,6 +5,8 @@
 
 from telegram import KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 
+from bot.localization import translate
+
 
 class ReplyKeyboardBuilder:
     """Builder class for creating reply keyboards."""
@@ -70,50 +72,50 @@ class ReplyKeyboardBuilder:
         return self
 
 
-def main_reply_keyboard() -> ReplyKeyboardMarkup:
-    """Create main reply keyboard."""
+def main_reply_keyboard(lang: str = "am") -> ReplyKeyboardMarkup:
+    """Create the localized main reply keyboard."""
     keyboard = [
-        ["🛍️ ምርቶች", "🔍 ፈልግ"],
-        ["🛒 ቅርጫት", "👤 ፕሮፋይል"],
-        ["📦 ትዕዛዞቼ", "⭐ ተመራጮች"],
-        ["❓ እገዛ", "💬 ግብረ መልስ"],
+        [translate(lang, "products"), translate(lang, "search")],
+        [translate(lang, "cart"), translate(lang, "profile")],
+        [translate(lang, "orders"), translate(lang, "wishlist")],
+        [translate(lang, "help"), translate(lang, "feedback")],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
-def contact_keyboard() -> ReplyKeyboardMarkup:
+def contact_keyboard(lang: str = "am") -> ReplyKeyboardMarkup:
     """Create keyboard with contact sharing button."""
     keyboard = [
-        [KeyboardButton("📞 ስልክ ቁጥሬን አጋራ", request_contact=True)],
-        ["🔙 ወደ ኋላ"],
+        [KeyboardButton(translate(lang, "phone_share"), request_contact=True)],
+        [translate(lang, "back")],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
 
 
-def location_keyboard() -> ReplyKeyboardMarkup:
+def location_keyboard(lang: str = "am") -> ReplyKeyboardMarkup:
     """Create keyboard with location sharing button."""
     keyboard = [
-        [KeyboardButton("📍 ቦታዬን አጋራ", request_location=True)],
-        ["🏙️ ከተማ አስገባ"],
-        ["🔙 ወደ ኋላ"],
+        [KeyboardButton(translate(lang, "location_share"), request_location=True)],
+        [translate(lang, "enter_city")],
+        [translate(lang, "back")],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
 
 
-def admin_reply_keyboard() -> ReplyKeyboardMarkup:
-    """Create admin reply keyboard."""
+def admin_reply_keyboard(lang: str = "am") -> ReplyKeyboardMarkup:
+    """Create the localized admin reply keyboard."""
     keyboard = [
-        ["📊 ዳሽቦርድ", "📦 ምርቶች"],
-        ["📋 ትዕዛዞች", "👥 ተጠቃሚዎች"],
-        ["🏪 ሻጮች", "📊 ሪፖርቶች"],
-        ["⚙️ ቅንብሮች", "🔙 ወደ ምናሌ"],
+        [translate(lang, "admin"), translate(lang, "products")],
+        [translate(lang, "orders"), translate(lang, "vendors")],
+        [translate(lang, "reports"), translate(lang, "help")],
+        [translate(lang, "settings"), translate(lang, "home")],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
-def cancel_keyboard() -> ReplyKeyboardMarkup:
-    """Create cancel keyboard (just a cancel button)."""
-    keyboard = [["❌ ሰርዝ"]]
+def cancel_keyboard(lang: str = "am") -> ReplyKeyboardMarkup:
+    """Create a localized cancel keyboard."""
+    keyboard = [[translate(lang, "cancel")]]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
 
 
@@ -122,13 +124,13 @@ def remove_keyboard() -> ReplyKeyboardRemove:
     return ReplyKeyboardRemove()
 
 
-def number_keyboard() -> ReplyKeyboardMarkup:
+def number_keyboard(lang: str = "am") -> ReplyKeyboardMarkup:
     """Create number selection keyboard (1-9)."""
     keyboard = [
         ["1", "2", "3"],
         ["4", "5", "6"],
         ["7", "8", "9"],
-        ["0", "❌ ሰርዝ"],
+        ["0", translate(lang, "cancel")],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
 

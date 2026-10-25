@@ -9,6 +9,7 @@ import re
 import traceback
 
 from telegram import Update
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from core.config import settings
@@ -17,6 +18,20 @@ from core.logger import logger
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Log the error and send a message to the developer."""
+    if isinstance(context.error, BadRequest):
+        message = str(context.error).casefold()
+        if any(
+            marker in message
+            for marker in (
+                "query is too old",
+                "query id is invalid",
+                "query is already answered",
+                "message is not modified",
+            )
+        ):
+            logger.debug("Ignoring expired or unchanged Telegram callback: %s", message)
+            return
+
     logger.error("Exception while handling an update:", exc_info=context.error)
 
     tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)

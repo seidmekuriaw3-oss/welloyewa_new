@@ -64,7 +64,11 @@ async def test_user_repository_loads_addresses_eagerly_for_telegram_lookup():
     await repository.get_by_telegram(12345)
 
     assert selected
-    assert "addresses" in str(selected[0])
+    assert any(
+        getattr(path_item, "key", None) == "addresses"
+        for option in selected[0]._with_options
+        for path_item in option.path
+    )
 
 
 @pytest.mark.asyncio
@@ -156,6 +160,55 @@ async def test_profile_email_input_is_not_reprocessed_as_product_search():
 
     message.reply_text.assert_awaited_once()
     assert "valid email address" in message.reply_text.await_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_profile_update_keeps_field_active_after_database_failure(monkeypatch):
+    from sqlalchemy.exc import OperationalError
+
+    @asynccontextmanager
+    async def broken_transaction():
+        raise OperationalError("update user", {}, RuntimeError("database unavailable"))
+        yield
+
+    monkeypatch.setattr(profile, "transaction_session", broken_transaction)
+    monkeypatch.setattr("bot.middlewares.auth.auth_middleware.invalidate", Mock())
+    message = SimpleNamespace(
+        text="customer@gmail.com",
+        reply_text=AsyncMock(),
+    )
+    update = SimpleNamespace(
+        update_id=170,
+        effective_message=message,
+        effective_user=SimpleNamespace(id=42),
+        callback_query=None,
+    )
+    context = SimpleNamespace(
+        user_data={"updating_field": "email", "language": "en"}
+    )
+
+    await profile.profile_text_handler(update, context)
+
+    assert context.user_data["updating_field"] == "email"
+    assert "could not save your email" in message.reply_text.await_args.args[0].lower()
+
+
+@pytest.mark.asyncio
+async def test_catalog_text_router_sends_profile_edits_to_profile_handler(monkeypatch):
+    message = SimpleNamespace(text="customer@example.com", reply_text=AsyncMock())
+    update = SimpleNamespace(
+        update_id=171,
+        effective_message=message,
+        callback_query=None,
+    )
+    context = SimpleNamespace(user_data={"updating_field": "email"})
+    profile_input = AsyncMock()
+    monkeypatch.setattr(profile, "profile_text_handler", profile_input)
+
+    await catalog.text_message_handler(update, context)
+
+    profile_input.assert_awaited_once_with(update, context)
+    message.reply_text.assert_not_awaited()
 
 
 @pytest.mark.asyncio

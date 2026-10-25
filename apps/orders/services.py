@@ -14,6 +14,7 @@ from apps.orders.models import Order, OrderHistory, OrderItem
 from apps.orders.repository import OrderItemRepository, OrderRepository
 from apps.orders.schemas import OrderCreate, OrderStatusUpdate
 from apps.products.services import ProductService
+from apps.users.repository import UserRepository
 from apps.users.services import UserService
 from core.constants import ProductStatus
 from core.constants import OrderStatus, PaymentStatus
@@ -97,9 +98,10 @@ class OrderService:
             )
 
         # Calculate totals
-        shipping_fee = Decimal(str(data.shipping_fee or 0))
+        shipping_fee = Decimal("0") if subtotal >= Decimal("1000") else Decimal("50")
         tax = subtotal * Decimal("0.15")  # 15% VAT
-        total = subtotal + shipping_fee + tax - Decimal(str(data.discount or 0))
+        discount = Decimal("0")
+        total = subtotal + shipping_fee + tax
 
         # Create order
         order_data = {
@@ -113,7 +115,7 @@ class OrderService:
             "subtotal": subtotal,
             "shipping_fee": shipping_fee,
             "tax": tax,
-            "discount": Decimal(str(data.discount or 0)),
+            "discount": discount,
             "total": total,
             "payment_method": data.payment_method,
             "payment_status": PaymentStatus.PENDING.value,
@@ -387,6 +389,7 @@ class OrderTrackingService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.order_repo = OrderRepository(db)
+        self.user_repo = UserRepository(db)
 
     async def track_order(self, order_number: str, email_or_phone: str) -> Order | None:
         """Track order by number and contact info."""
@@ -394,7 +397,24 @@ class OrderTrackingService:
         if not order:
             return None
 
-        # Verify contact info (simplified)
+        contact = email_or_phone.strip()
+        user = await self.user_repo.get_by_id(order.user_id)
+        if not user:
+            return None
+
+        if "@" in contact:
+            if not user.email or contact.casefold() != user.email.strip().casefold():
+                return None
+        else:
+            if any(not character.isdigit() and character not in "+- ()." for character in contact):
+                return None
+            provided_phone = "".join(character for character in contact if character.isdigit())
+            order_phone = "".join(
+                character for character in order.shipping_phone if character.isdigit()
+            )
+            if not provided_phone or provided_phone != order_phone:
+                return None
+
         return order
 
     async def get_tracking_status(self, order_id: int) -> dict[str, Any]:

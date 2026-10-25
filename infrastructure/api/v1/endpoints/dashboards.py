@@ -34,7 +34,7 @@ router = APIRouter()
 
 @router.get("/summary", response_model=DashboardSummary)
 async def get_dashboard_summary(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_vendor),
     db: AsyncSession = Depends(get_db_session),
 ) -> DashboardSummary:
     """
@@ -46,7 +46,7 @@ async def get_dashboard_summary(
 
     # Determine user type for filtering
     vendor_id = None
-    if current_user.get("is_vendor"):
+    if current_user["role"] == "vendor":
         vendor_id = current_user.get("vendor_id")
 
     summary = await dashboard_service.get_dashboard_summary(vendor_id)
@@ -56,7 +56,7 @@ async def get_dashboard_summary(
 @router.get("/kpi", response_model=dict[str, Any])
 async def get_kpi_metrics(
     period: str = Query("today", pattern="^(today|week|month|year)$"),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_vendor),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     """
@@ -80,7 +80,7 @@ async def get_kpi_metrics(
         start_date = now - timedelta(days=365)
         end_date = now
 
-    vendor_id = current_user.get("vendor_id") if current_user.get("is_vendor") else None
+    vendor_id = current_user.get("vendor_id") if current_user["role"] == "vendor" else None
 
     summary = await sales_service.get_sales_summary(start_date, end_date, vendor_id)
 
@@ -106,7 +106,7 @@ async def get_kpi_metrics(
 @router.get("/sales/overview", response_model=dict[str, Any])
 async def get_sales_overview(
     days: int = Query(30, ge=1, le=90),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_vendor),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     """
@@ -116,7 +116,7 @@ async def get_sales_overview(
     """
     sales_service = SalesAnalyticsService(db)
 
-    vendor_id = current_user.get("vendor_id") if current_user.get("is_vendor") else None
+    vendor_id = current_user.get("vendor_id") if current_user["role"] == "vendor" else None
 
     daily_sales = await sales_service.get_daily_sales(days, vendor_id)
 
@@ -153,7 +153,7 @@ async def get_sales_overview(
 async def get_top_products_dashboard(
     limit: int = Query(10, ge=1, le=50),
     days: int = Query(30, ge=1, le=90),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_vendor),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[dict[str, Any]]:
     """
@@ -163,7 +163,7 @@ async def get_top_products_dashboard(
     """
     sales_service = SalesAnalyticsService(db)
 
-    vendor_id = current_user.get("vendor_id") if current_user.get("is_vendor") else None
+    vendor_id = current_user.get("vendor_id") if current_user["role"] == "vendor" else None
 
     return await sales_service.get_top_products(limit, days, vendor_id)
 

@@ -444,6 +444,8 @@ async def handle_admin_photo_input(update: Update, context: ContextTypes.DEFAULT
     1. admin_state == 'waiting_product_image'  → download & attach to product
     2. No state → ask which product to attach to (show picker)
     """
+    if context.user_data.get("updating_field") == "profile_picture":
+        return
     if not _is_admin(update):
         return
 

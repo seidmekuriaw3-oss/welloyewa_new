@@ -19,6 +19,12 @@ from core.logger import logger
 def setup_dispatcher(application: Application) -> Application:
     """Set up the dispatcher with all handlers and middlewares."""
     logger.info("Setting up bot dispatcher...")
+    text_message_filter = (
+        filters.UpdateType.MESSAGE & filters.TEXT & ~filters.COMMAND
+    )
+    non_text_message_filter = (
+        filters.UpdateType.MESSAGE & filters.ALL & ~filters.COMMAND & ~filters.TEXT
+    )
 
     # ── Import all handler modules ──────────────────────────────────────────
     from bot.handlers import (
@@ -27,6 +33,7 @@ def setup_dispatcher(application: Application) -> Application:
         cart,
         catalog,
         checkout,
+        conversation_navigation,
         deep_linking,
         errors,
         feedback,
@@ -97,7 +104,7 @@ def setup_dispatcher(application: Application) -> Application:
     application.add_handler(CallbackQueryHandler(catalog.category_callback, pattern="^cat_"))
     # Product detail & add-to-cart / add-to-wishlist from product view
     application.add_handler(
-        CallbackQueryHandler(catalog.product_callback, pattern="^prod_(?!admin_)")
+        CallbackQueryHandler(catalog.product_callback, pattern="^prod_(?!admin_|search_)")
     )
     # Leave checkout callbacks for the Checkout ConversationHandler below.
     application.add_handler(
@@ -159,33 +166,107 @@ def setup_dispatcher(application: Application) -> Application:
         states={
             checkout.SELECT_ADDRESS: [
                 CallbackQueryHandler(
+                    conversation_navigation.cancel_to_menu,
+                    pattern=conversation_navigation.MENU_BACK_CALLBACK,
+                ),
+                MessageHandler(
+                    conversation_navigation.CANCEL_TEXT_FILTER,
+                    conversation_navigation.cancel_to_menu,
+                ),
+                CallbackQueryHandler(
                     checkout.address_callback, pattern="^(addr_|checkout_cancel$)"
                 ),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, checkout.new_address_handler),
-                MessageHandler(filters.LOCATION, checkout.new_address_handler),
+                MessageHandler(text_message_filter, checkout.new_address_handler),
+                MessageHandler(
+                    filters.UpdateType.MESSAGE & filters.LOCATION,
+                    checkout.new_address_handler,
+                ),
+                MessageHandler(
+                    non_text_message_filter,
+                    conversation_navigation.invalid_conversation_input,
+                ),
             ],
             checkout.SELECT_RECIPIENT_NAME: [
+                CallbackQueryHandler(
+                    conversation_navigation.cancel_to_menu,
+                    pattern=conversation_navigation.MENU_BACK_CALLBACK,
+                ),
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND,
+                    conversation_navigation.CANCEL_TEXT_FILTER,
+                    conversation_navigation.cancel_to_menu,
+                ),
+                MessageHandler(
+                    text_message_filter,
                     checkout.recipient_name_handler,
+                ),
+                MessageHandler(
+                    non_text_message_filter,
+                    conversation_navigation.invalid_conversation_input,
                 ),
             ],
             checkout.SELECT_RECIPIENT_PHONE: [
-                MessageHandler(filters.CONTACT, checkout.recipient_phone_handler),
+                CallbackQueryHandler(
+                    conversation_navigation.cancel_to_menu,
+                    pattern=conversation_navigation.MENU_BACK_CALLBACK,
+                ),
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND,
+                    conversation_navigation.CANCEL_TEXT_FILTER,
+                    conversation_navigation.cancel_to_menu,
+                ),
+                MessageHandler(
+                    filters.UpdateType.MESSAGE & filters.CONTACT,
                     checkout.recipient_phone_handler,
+                ),
+                MessageHandler(
+                    text_message_filter,
+                    checkout.recipient_phone_handler,
+                ),
+                MessageHandler(
+                    non_text_message_filter,
+                    conversation_navigation.invalid_conversation_input,
                 ),
             ],
             checkout.SELECT_PAYMENT: [
                 CallbackQueryHandler(
+                    conversation_navigation.cancel_to_menu,
+                    pattern=conversation_navigation.MENU_BACK_CALLBACK,
+                ),
+                MessageHandler(
+                    conversation_navigation.CANCEL_TEXT_FILTER,
+                    conversation_navigation.cancel_to_menu,
+                ),
+                CallbackQueryHandler(
                     checkout.payment_callback, pattern="^(pay_|checkout_cancel$)"
+                ),
+                MessageHandler(
+                    non_text_message_filter,
+                    conversation_navigation.invalid_conversation_input,
+                ),
+                MessageHandler(
+                    text_message_filter,
+                    conversation_navigation.invalid_conversation_input,
                 ),
             ],
             checkout.CONFIRM_ORDER: [
                 CallbackQueryHandler(
+                    conversation_navigation.cancel_to_menu,
+                    pattern=conversation_navigation.MENU_BACK_CALLBACK,
+                ),
+                MessageHandler(
+                    conversation_navigation.CANCEL_TEXT_FILTER,
+                    conversation_navigation.cancel_to_menu,
+                ),
+                CallbackQueryHandler(
                     checkout.confirm_callback,
                     pattern="^(confirm_|retry_payment$|checkout_cancel$)",
+                ),
+                MessageHandler(
+                    non_text_message_filter,
+                    conversation_navigation.invalid_conversation_input,
+                ),
+                MessageHandler(
+                    text_message_filter,
+                    conversation_navigation.invalid_conversation_input,
                 ),
             ],
         },
@@ -205,14 +286,42 @@ def setup_dispatcher(application: Application) -> Application:
         ],
         states={
             search.WAITING_QUERY: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, search.search_query_handler),
+                CallbackQueryHandler(
+                    conversation_navigation.cancel_to_menu,
+                    pattern=conversation_navigation.MENU_BACK_CALLBACK,
+                ),
+                MessageHandler(
+                    conversation_navigation.CANCEL_TEXT_FILTER,
+                    conversation_navigation.cancel_to_menu,
+                ),
+                MessageHandler(text_message_filter, search.search_query_handler),
                 CommandHandler("search", search.start_search),
+                MessageHandler(
+                    non_text_message_filter,
+                    conversation_navigation.invalid_conversation_input,
+                ),
             ],
             search.FILTER_RESULTS: [
+                CallbackQueryHandler(
+                    conversation_navigation.cancel_to_menu,
+                    pattern=conversation_navigation.MENU_BACK_CALLBACK,
+                ),
+                MessageHandler(
+                    conversation_navigation.CANCEL_TEXT_FILTER,
+                    conversation_navigation.cancel_to_menu,
+                ),
                 CallbackQueryHandler(search.filter_callback, pattern="^filter_"),
                 CallbackQueryHandler(search.filter_callback, pattern="^search_"),
                 CallbackQueryHandler(search.filter_callback, pattern="^sort_"),
                 CallbackQueryHandler(search.product_from_search, pattern="^prod_search_"),
+                MessageHandler(
+                    non_text_message_filter,
+                    conversation_navigation.invalid_conversation_input,
+                ),
+                MessageHandler(
+                    text_message_filter,
+                    conversation_navigation.invalid_conversation_input,
+                ),
             ],
         },
         fallbacks=[CommandHandler("cancel", search.cancel_search)],
@@ -237,10 +346,36 @@ def setup_dispatcher(application: Application) -> Application:
         ],
         states={
             feedback.WAITING_RATING: [
-                CallbackQueryHandler(feedback.rating_callback, pattern="^rate_"),
+                CallbackQueryHandler(
+                    conversation_navigation.cancel_to_menu,
+                    pattern=conversation_navigation.MENU_BACK_CALLBACK,
+                ),
+                MessageHandler(
+                    conversation_navigation.CANCEL_TEXT_FILTER,
+                    conversation_navigation.cancel_to_menu,
+                ),
+                CallbackQueryHandler(
+                    feedback.rating_callback, pattern="^(rate_|feedback_cancel$)"
+                ),
+                MessageHandler(
+                    non_text_message_filter,
+                    conversation_navigation.invalid_conversation_input,
+                ),
             ],
             feedback.WAITING_MESSAGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, feedback.message_handler),
+                CallbackQueryHandler(
+                    conversation_navigation.cancel_to_menu,
+                    pattern=conversation_navigation.MENU_BACK_CALLBACK,
+                ),
+                MessageHandler(
+                    conversation_navigation.CANCEL_TEXT_FILTER,
+                    conversation_navigation.cancel_to_menu,
+                ),
+                MessageHandler(text_message_filter, feedback.message_handler),
+                MessageHandler(
+                    non_text_message_filter,
+                    conversation_navigation.invalid_conversation_input,
+                ),
             ],
         },
         fallbacks=[CommandHandler("cancel", feedback.cancel_feedback)],
@@ -252,6 +387,7 @@ def setup_dispatcher(application: Application) -> Application:
     # Keep this after the conversation entry points so menu_search/menu_feedback
     # are claimed by their conversations and retain their next-message state.
     application.add_handler(CallbackQueryHandler(start.menu_callback, pattern="^menu_"))
+    application.add_handler(CallbackQueryHandler(start.unknown_callback))
 
     logger.info("Conversation handlers registered")
 
@@ -259,17 +395,33 @@ def setup_dispatcher(application: Application) -> Application:
     # Keep location handling after checkout/search state handlers so location
     # shares meant for an active conversation are not swallowed by the global
     # profile/location fallback.
-    application.add_handler(MessageHandler(filters.LOCATION, location.location_message_handler), group=1)
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE & filters.LOCATION,
+            location.location_message_handler,
+        ),
+        group=1,
+    )
     # Contact handler: saves phone on sharing AND completes new-user onboarding
     application.add_handler(
-        MessageHandler(filters.CONTACT, profile.contact_handler), group=1
+        MessageHandler(
+            filters.UpdateType.MESSAGE & filters.CONTACT, profile.contact_handler
+        ),
+        group=1,
+    )
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE & filters.PHOTO,
+            profile.profile_photo_handler,
+        ),
+        group=1,
     )
 
     # Admin text-input state handler — must run BEFORE the general text handler
     if admin_input is not None:
         application.add_handler(
             MessageHandler(
-                filters.TEXT & ~filters.COMMAND,
+                text_message_filter,
                 admin_input.handle_admin_text_input,
             ),
             group=0,
@@ -284,8 +436,7 @@ def setup_dispatcher(application: Application) -> Application:
         )
 
     application.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, catalog.text_message_handler),
-        group=1,
+        MessageHandler(text_message_filter, catalog.text_message_handler), group=1
     )
 
     logger.info("Message handlers registered")
