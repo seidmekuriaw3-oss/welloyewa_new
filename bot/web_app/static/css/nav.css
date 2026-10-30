@@ -211,6 +211,7 @@
   font-size: 32px; font-weight: 800;
   border: 3px solid rgba(255,255,255,.35);
   flex-shrink: 0;
+  overflow: hidden;
 }
 .dash-name { font-size: 20px; font-weight: 800; }
 .dash-sub { font-size: 13px; opacity: .8; margin-top: 2px; }

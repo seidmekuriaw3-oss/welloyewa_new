@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Telegram bot dispatcher - registers all handlers and middlewares."""
 
+import re
+from functools import partial
+
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -12,6 +15,7 @@ from telegram.ext import (
     filters,
 )
 
+from bot.keyboards.reply import main_reply_button_actions
 from bot.middlewares.auth import ensure_user_registered
 from core.logger import logger
 
@@ -24,6 +28,13 @@ def setup_dispatcher(application: Application) -> Application:
     )
     non_text_message_filter = (
         filters.UpdateType.MESSAGE & filters.ALL & ~filters.COMMAND & ~filters.TEXT
+    )
+    main_reply_filter = filters.Regex(
+        re.compile(
+            "^(?:"
+            + "|".join(re.escape(label) for label in main_reply_button_actions())
+            + ")$"
+        )
     )
 
     # ── Import all handler modules ──────────────────────────────────────────
@@ -42,6 +53,7 @@ def setup_dispatcher(application: Application) -> Application:
         search,
         start,
         vendor,
+        vendor_registration,
         wishlist,
     )
 
@@ -64,6 +76,87 @@ def setup_dispatcher(application: Application) -> Application:
     application.add_handler(TypeHandler(Update, ensure_user_registered), group=-1)
     logger.info("Auth middleware registered (group -1)")
 
+    # Register vendor onboarding before other conversations so its active step
+    # receives text/documents even when another conversation was previously open.
+    vendor_states = {
+        step: [
+            CallbackQueryHandler(
+                vendor_registration.application_callback,
+                pattern="^vendor_application_cancel$",
+            ),
+            CallbackQueryHandler(
+                vendor_registration.application_navigation_callback,
+                pattern="^vendor_application_back$",
+            ),
+            CallbackQueryHandler(
+                vendor_registration.application_choice_callback,
+                pattern="^vendor_choice_",
+            ),
+            *(
+                [
+                    MessageHandler(
+                        filters.UpdateType.MESSAGE
+                        & (filters.PHOTO | filters.Document.ALL),
+                        partial(vendor_registration.handle_document, step_index=step),
+                    )
+                ]
+                if step == 2
+                else []
+            ),
+            MessageHandler(
+                main_reply_filter,
+                conversation_navigation.cancel_to_menu,
+            ),
+            MessageHandler(
+                text_message_filter,
+                partial(vendor_registration.handle_text, step_index=step),
+            ),
+        ]
+        for step in range(vendor_registration.VENDOR_STEP_COUNT)
+    }
+    vendor_states[vendor_registration.VENDOR_CONFIRM_STATE] = [
+        CallbackQueryHandler(
+            vendor_registration.application_callback,
+            pattern="^vendor_application_(confirm|cancel)$",
+        ),
+        CallbackQueryHandler(
+            vendor_registration.application_navigation_callback,
+            pattern="^vendor_application_back$",
+        ),
+        CallbackQueryHandler(
+            vendor_registration.application_choice_callback,
+            pattern="^vendor_choice_",
+        ),
+        MessageHandler(
+            main_reply_filter,
+            conversation_navigation.cancel_to_menu,
+        ),
+        MessageHandler(
+            text_message_filter,
+            partial(
+                vendor_registration.handle_text,
+                step_index=vendor_registration.VENDOR_CONFIRM_STATE,
+            ),
+        ),
+    ]
+    vendor_conversation = ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(
+                vendor_registration.start_application,
+                pattern="^profile_become_vendor$",
+            )
+        ],
+        states=vendor_states,
+        fallbacks=[
+            CommandHandler("cancel", vendor_registration.cancel_application),
+        ],
+        allow_reentry=True,
+        name="vendor_registration_conversation",
+        persistent=True,
+    )
+    application.add_handler(vendor_conversation, group=0)
+    logger.info("Vendor registration conversation registered")
+
     # ── Onboarding callbacks (highest priority — before menu and catalog) ────
     # Handles language selection during new-user onboarding (Step 1)
     application.add_handler(
@@ -81,6 +174,7 @@ def setup_dispatcher(application: Application) -> Application:
     # registering them again here would shadow the conversation — omitted.
     application.add_handler(CommandHandler("cart", cart.cart_command))
     application.add_handler(CommandHandler("profile", profile.profile_command))
+
     application.add_handler(CommandHandler("orders", profile.orders_command))
     application.add_handler(CommandHandler("wishlist", wishlist.wishlist_command))
     application.add_handler(CommandHandler("location", location.location_command))
@@ -173,6 +267,10 @@ def setup_dispatcher(application: Application) -> Application:
                     conversation_navigation.CANCEL_TEXT_FILTER,
                     conversation_navigation.cancel_to_menu,
                 ),
+                MessageHandler(
+                    main_reply_filter,
+                    conversation_navigation.cancel_to_menu,
+                ),
                 CallbackQueryHandler(
                     checkout.address_callback, pattern="^(addr_|checkout_cancel$)"
                 ),
@@ -196,6 +294,10 @@ def setup_dispatcher(application: Application) -> Application:
                     conversation_navigation.cancel_to_menu,
                 ),
                 MessageHandler(
+                    main_reply_filter,
+                    conversation_navigation.cancel_to_menu,
+                ),
+                MessageHandler(
                     text_message_filter,
                     checkout.recipient_name_handler,
                 ),
@@ -211,6 +313,10 @@ def setup_dispatcher(application: Application) -> Application:
                 ),
                 MessageHandler(
                     conversation_navigation.CANCEL_TEXT_FILTER,
+                    conversation_navigation.cancel_to_menu,
+                ),
+                MessageHandler(
+                    main_reply_filter,
                     conversation_navigation.cancel_to_menu,
                 ),
                 MessageHandler(
@@ -235,6 +341,10 @@ def setup_dispatcher(application: Application) -> Application:
                     conversation_navigation.CANCEL_TEXT_FILTER,
                     conversation_navigation.cancel_to_menu,
                 ),
+                MessageHandler(
+                    main_reply_filter,
+                    conversation_navigation.cancel_to_menu,
+                ),
                 CallbackQueryHandler(
                     checkout.payment_callback, pattern="^(pay_|checkout_cancel$)"
                 ),
@@ -254,6 +364,10 @@ def setup_dispatcher(application: Application) -> Application:
                 ),
                 MessageHandler(
                     conversation_navigation.CANCEL_TEXT_FILTER,
+                    conversation_navigation.cancel_to_menu,
+                ),
+                MessageHandler(
+                    main_reply_filter,
                     conversation_navigation.cancel_to_menu,
                 ),
                 CallbackQueryHandler(
@@ -294,6 +408,10 @@ def setup_dispatcher(application: Application) -> Application:
                     conversation_navigation.CANCEL_TEXT_FILTER,
                     conversation_navigation.cancel_to_menu,
                 ),
+                MessageHandler(
+                    main_reply_filter,
+                    conversation_navigation.cancel_to_menu,
+                ),
                 MessageHandler(text_message_filter, search.search_query_handler),
                 CommandHandler("search", search.start_search),
                 MessageHandler(
@@ -308,6 +426,10 @@ def setup_dispatcher(application: Application) -> Application:
                 ),
                 MessageHandler(
                     conversation_navigation.CANCEL_TEXT_FILTER,
+                    conversation_navigation.cancel_to_menu,
+                ),
+                MessageHandler(
+                    main_reply_filter,
                     conversation_navigation.cancel_to_menu,
                 ),
                 CallbackQueryHandler(search.filter_callback, pattern="^filter_"),
@@ -354,6 +476,10 @@ def setup_dispatcher(application: Application) -> Application:
                     conversation_navigation.CANCEL_TEXT_FILTER,
                     conversation_navigation.cancel_to_menu,
                 ),
+                MessageHandler(
+                    main_reply_filter,
+                    conversation_navigation.cancel_to_menu,
+                ),
                 CallbackQueryHandler(
                     feedback.rating_callback, pattern="^(rate_|feedback_cancel$)"
                 ),
@@ -369,6 +495,10 @@ def setup_dispatcher(application: Application) -> Application:
                 ),
                 MessageHandler(
                     conversation_navigation.CANCEL_TEXT_FILTER,
+                    conversation_navigation.cancel_to_menu,
+                ),
+                MessageHandler(
+                    main_reply_filter,
                     conversation_navigation.cancel_to_menu,
                 ),
                 MessageHandler(text_message_filter, feedback.message_handler),
@@ -416,6 +546,13 @@ def setup_dispatcher(application: Application) -> Application:
         ),
         group=1,
     )
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.MESSAGE & filters.Document.ALL,
+            profile.profile_photo_handler,
+        ),
+        group=1,
+    )
 
     # Admin text-input state handler — must run BEFORE the general text handler
     if admin_input is not None:
@@ -435,6 +572,10 @@ def setup_dispatcher(application: Application) -> Application:
             group=0,
         )
 
+    application.add_handler(
+        MessageHandler(main_reply_filter, start.main_reply_handler),
+        group=1,
+    )
     application.add_handler(
         MessageHandler(text_message_filter, catalog.text_message_handler), group=1
     )

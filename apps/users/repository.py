@@ -185,6 +185,12 @@ class VendorRepository(BaseRepository[Vendor]):
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
+    async def get_by_tin(self, tin_number: str) -> Vendor | None:
+        """Get vendor by tax identification number."""
+        query = select(Vendor).where(Vendor.tin_number == tin_number)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
     async def get_approved_vendors(
         self,
         limit: int = 100,

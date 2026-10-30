@@ -7,8 +7,9 @@ from telegram.error import BadRequest
 from telegram.ext import ContextTypes, ConversationHandler, filters
 
 from bot.handlers.callback_utils import answer_callback_query
-from bot.localization import get_language, translate
 from bot.handlers.text_routing import mark_text_message_handled
+from bot.keyboards.reply import main_reply_keyboard
+from bot.localization import get_language, translate
 from core.config import settings
 
 CANCEL_TEXT_FILTER = filters.UpdateType.MESSAGE & filters.Regex(
@@ -22,7 +23,10 @@ MENU_BACK_CALLBACK = r"^menu_(?:back|main|start)$"
 
 def _clear_conversation_data(context: ContextTypes.DEFAULT_TYPE) -> None:
     for key in tuple(context.user_data):
-        if key.startswith(("checkout_", "search_")) or key == "feedback_rating":
+        if (
+            key.startswith(("checkout_", "search_", "vendor_application_"))
+            or key == "feedback_rating"
+        ):
             context.user_data.pop(key, None)
 
 
@@ -62,6 +66,10 @@ async def cancel_to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif update.effective_message:
         await update.effective_message.reply_text(text, reply_markup=reply_markup)
 
+    await update.effective_message.reply_text(
+        translate(language, "menu_keyboard_hint"),
+        reply_markup=main_reply_keyboard(language),
+    )
     return ConversationHandler.END
 
 

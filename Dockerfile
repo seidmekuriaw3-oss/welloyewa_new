@@ -7,7 +7,7 @@
 # ============================
 # STAGE 1: Builder
 # ============================
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -44,13 +44,14 @@ COPY pyproject.toml poetry.lock* ./
 RUN python -m venv /opt/venv && \
     /opt/venv/bin/pip install --upgrade pip && \
     poetry config virtualenvs.create false && \
+    poetry config installer.max-workers 4 && \
     VIRTUAL_ENV=/opt/venv PATH="/opt/venv/bin:$PATH" \
     poetry install --no-interaction --no-ansi --no-root --only main
 
 # ============================
 # STAGE 2: Development
 # ============================
-FROM python:3.11-slim as development
+FROM python:3.11-slim AS development
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -98,7 +99,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 # ============================
 # STAGE 3: Production
 # ============================
-FROM python:3.11-slim as production
+FROM python:3.11-slim AS production
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -153,21 +154,10 @@ CMD ["sh", "-c", "alembic upgrade head && exec gunicorn main:app --workers ${WEB
 # ============================
 # STAGE 4: Worker (Celery)
 # ============================
-FROM production as worker
+FROM production AS worker
 
 # Set environment variables for worker
 ENV CELERY_WORKER=true
-
-# Switch back to root for additional installations
-USER root
-
-# Install additional tools for worker
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    procps \
-    && rm -rf /var/lib/apt/lists/*
-
-# Switch to non-root user
-USER appuser
 
 # Celery worker command
 CMD ["celery", "-A", "infrastructure.workers.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
@@ -175,7 +165,7 @@ CMD ["celery", "-A", "infrastructure.workers.celery_app", "worker", "--loglevel=
 # ============================
 # STAGE 5: Beat (Scheduled Tasks)
 # ============================
-FROM production as beat
+FROM production AS beat
 
 # Set environment variables for beat
 ENV CELERY_BEAT=true
@@ -186,7 +176,7 @@ CMD ["celery", "-A", "infrastructure.workers.celery_app", "beat", "--loglevel=in
 # ============================
 # STAGE 6: Flower (Monitoring)
 # ============================
-FROM production as flower
+FROM production AS flower
 
 # Set environment variables for flower
 ENV FLOWER=true

@@ -126,7 +126,9 @@ class RedisPersistence(BasePersistence):
 
     async def refresh_user_data(self, user_id: int, user_data: dict[str, Any]) -> None:
         persisted_data = self._load_data("user_data").get(user_id, {})
-        user_data.update(persisted_data)
+        merged_data = {**persisted_data, **user_data}
+        user_data.clear()
+        user_data.update(merged_data)
         self.user_data[user_id] = user_data
 
     async def flush(self) -> None:
@@ -241,7 +243,9 @@ class JSONFilePersistence(BasePersistence):
 
     async def refresh_user_data(self, user_id: int, user_data: dict[str, Any]) -> None:
         persisted_data = self._load_section("user_data").get(user_id, {})
-        user_data.update(persisted_data)
+        merged_data = {**persisted_data, **user_data}
+        user_data.clear()
+        user_data.update(merged_data)
         self.user_data[user_id] = user_data
 
     async def flush(self) -> None:
@@ -288,7 +292,7 @@ async def init_bot() -> Application:
         )
         persistence = JSONFilePersistence(filepath="bot_data.json")
 
-    _application = (
+    application = (
         ApplicationBuilder()
         .token(settings.TELEGRAM_BOT_TOKEN)
         .persistence(persistence)
@@ -300,28 +304,32 @@ async def init_bot() -> Application:
         .build()
     )
 
-    _bot = _application.bot
-
     # Register all handlers
+    from bot.handlers import register_handlers
+
+    await register_handlers(application)
+    logger.info("Telegram bot handlers registered successfully")
+
     try:
-        from bot.handlers import register_handlers
+        await application.initialize()
+    except Exception:
+        await application.bot.shutdown()
+        raise
 
-        await register_handlers(_application)
-        logger.info("Telegram bot handlers registered successfully")
-    except Exception as e:
-        logger.warning(f"Could not register handlers in init_bot: {e}")
-
-    logger.info(f"Bot initialized: {await _bot.get_me()}")
-    return _application
+    _application = application
+    _bot = application.bot
+    logger.info("Telegram bot initialized: %s", _bot.bot.username)
+    return application
 
 
 async def shutdown_bot() -> None:
     """Shutdown the Telegram bot gracefully."""
-    global _application
+    global _application, _bot
     if _application:
         logger.info("Shutting down bot...")
         await _application.shutdown()
         _application = None
+        _bot = None
         logger.info("Bot shutdown complete")
 
 

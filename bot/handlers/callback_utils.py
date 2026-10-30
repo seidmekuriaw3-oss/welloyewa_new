@@ -20,7 +20,15 @@ def _is_stale_callback_error(error: BadRequest) -> bool:
 async def answer_callback_query(query, text: str | None = None, show_alert: bool = False) -> bool:
     """Acknowledge a callback promptly; return False when Telegram has expired it."""
     try:
-        await query.answer(text=text, show_alert=show_alert)
+        if text is None:
+            if show_alert:
+                await query.answer(show_alert=True)
+            else:
+                await query.answer()
+        elif show_alert:
+            await query.answer(text, show_alert=True)
+        else:
+            await query.answer(text)
     except BadRequest as exc:
         if not _is_stale_callback_error(exc):
             raise

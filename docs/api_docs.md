@@ -290,7 +290,7 @@ POST /webhook/cbe-birr
 
 Telegram:
 ```
-POST /webhook/telegram
+POST /api/v1/webhook/telegram
 ```
 
 ## SDK Examples

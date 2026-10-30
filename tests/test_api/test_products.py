@@ -170,38 +170,40 @@ class TestCategoryEndpoints:
 class TestVendorProductEndpoints:
     """Tests for vendor product management endpoints."""
 
-    async def test_get_vendor_products(self, client: AsyncClient, sample_user_data, auth_token):
-        """Test getting vendor's products."""
+    async def test_pending_vendor_cannot_access_products(
+        self, client: AsyncClient, sample_user_data, sample_vendor_application_data, auth_token
+    ):
+        """A submitted but unapproved application must not grant vendor access."""
         # Register as vendor
         await client.post("/api/v1/users/register", json=sample_user_data)
-        vendor_data = {"business_name": "Test Vendor"}
+        vendor_data = sample_vendor_application_data
         headers = {"Authorization": f"Bearer {auth_token}"}
         await client.post("/api/v1/users/vendor/register", json=vendor_data, headers=headers)
 
         # Get vendor products
         response = await client.get("/api/v1/products/vendor/products", headers=headers)
 
-        assert response.status_code == 200
-        data = response.json()
-        assert "items" in data
+        assert response.status_code == 403
 
     async def test_create_product(
-        self, client: AsyncClient, sample_user_data, sample_product_data, auth_token
+        self,
+        client: AsyncClient,
+        sample_user_data,
+        sample_product_data,
+        sample_vendor_application_data,
+        auth_token,
     ):
-        """Test creating a product (vendor only)."""
+        """A pending vendor application cannot create products."""
         # Register as vendor
         await client.post("/api/v1/users/register", json=sample_user_data)
-        vendor_data = {"business_name": "Test Vendor"}
+        vendor_data = sample_vendor_application_data
         headers = {"Authorization": f"Bearer {auth_token}"}
         await client.post("/api/v1/users/vendor/register", json=vendor_data, headers=headers)
 
         # Create product
         response = await client.post("/api/v1/products/", json=sample_product_data, headers=headers)
 
-        assert response.status_code == 201
-        data = response.json()
-        assert data["name"] == sample_product_data["name"]
-        assert "id" in data
+        assert response.status_code == 403
 
 
 __all__ = [

@@ -14,11 +14,12 @@ from telegram.helpers import escape_markdown
 
 from apps.users.schemas import UserUpdate
 from apps.users.services import UserService
+from bot.handlers.callback_utils import answer_callback_query, edit_callback_message
+from bot.keyboards.reply import main_reply_button_actions, main_reply_keyboard
+from bot.localization import SUPPORTED_LANGUAGES, get_language, translate
 from core.config import settings
 from core.logger import logger
 from infrastructure.database.session import get_db_session, transaction_session
-from bot.localization import SUPPORTED_LANGUAGES, get_language, translate
-from bot.handlers.callback_utils import answer_callback_query, edit_callback_message
 
 # ---------------------------------------------------------------------------
 # Shared UI builders
@@ -149,8 +150,9 @@ async def _send_start_welcome(
     context: ContextTypes.DEFAULT_TYPE,
     caption: str,
     reply_markup: InlineKeyboardMarkup,
+    reply_keyboard: ReplyKeyboardMarkup | None = None,
 ) -> None:
-    """Send the bot's current Telegram profile photo with a welcome caption."""
+    """Send the welcome screen and, when provided, the persistent reply menu."""
     photo_cache_key = "start_profile_photo_file_id"
     photo_file_id = context.bot_data.get(photo_cache_key)
 
@@ -180,6 +182,11 @@ async def _send_start_welcome(
                 parse_mode="Markdown",
                 reply_markup=reply_markup,
             )
+            if reply_keyboard:
+                await update.effective_message.reply_text(
+                    translate(get_language(context), "menu_keyboard_hint"),
+                    reply_markup=reply_keyboard,
+                )
             return
         except TelegramError as exc:
             context.bot_data.pop(photo_cache_key, None)
@@ -190,6 +197,11 @@ async def _send_start_welcome(
         parse_mode="Markdown",
         reply_markup=reply_markup,
     )
+    if reply_keyboard:
+        await update.effective_message.reply_text(
+            translate(get_language(context), "menu_keyboard_hint"),
+            reply_markup=reply_keyboard,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +282,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             "🌐 *ቋንቋዎን ይምረጡ | Choose your language | Afaan filadhaa*"
         )
         await _send_start_welcome(
-            update, context, welcome_text, _build_language_keyboard()
+            update,
+            context,
+            welcome_text,
+            _build_language_keyboard(),
+            main_reply_keyboard("am"),
         )
         context.user_data["onboarding"] = True
 
@@ -317,7 +333,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             text += nudge.get(lang, nudge["am"])
 
         await _send_start_welcome(
-            update, context, text, _build_main_menu(is_admin, lang)
+            update,
+            context,
+            text,
+            _build_main_menu(is_admin, lang),
+            main_reply_keyboard(lang),
         )
 
 
@@ -536,6 +556,52 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await _show_callback_text(query, "❓ /start")
 
 
+async def main_reply_handler(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Route the persistent reply-keyboard shortcuts to their existing screens."""
+    text = update.effective_message.text.strip()
+    action = main_reply_button_actions().get(text)
+    if action is None:
+        return
+    context.user_data.pop("updating_field", None)
+
+    if action == "browse_store":
+        from bot.handlers.catalog import menu_command
+
+        await menu_command(update, context)
+    elif action == "cart":
+        from bot.handlers.cart import cart_command
+
+        await cart_command(update, context)
+    elif action == "wishlist":
+        from bot.handlers.wishlist import wishlist_command
+
+        await wishlist_command(update, context)
+    elif action == "search":
+        from bot.handlers.search import search_command
+
+        await search_command(update, context)
+    elif action == "profile":
+        from bot.handlers.profile import profile_command
+
+        await profile_command(update, context)
+    elif action == "vendor_panel":
+        from bot.handlers.profile import show_vendor_panel
+
+        await show_vendor_panel(update, context)
+    elif action == "orders":
+        from bot.handlers.profile import orders_command
+
+        await orders_command(update, context)
+    elif action == "help":
+        await help_command(update, context)
+    elif action == "web_app":
+        await update.effective_message.reply_text(
+            translate(get_language(context), "web_app_unavailable")
+        )
+
+
 async def noop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Acknowledge intentionally inert/status buttons without leaving a spinner."""
     await answer_callback_query(update.callback_query)
@@ -593,7 +659,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             "*Bulchiinsa:* /admin · /stats · /broadcast"
         ),
     }
-    await update.message.reply_text(texts.get(lang, texts["am"]), parse_mode="Markdown")
+    await update.message.reply_text(
+        texts.get(lang, texts["am"]),
+        parse_mode="Markdown",
+        reply_markup=main_reply_keyboard(lang),
+    )
 
 
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -603,7 +673,10 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         "en": "❌ Unknown command. Use /help.",
         "om": "❌ Ajaja hin beekamne. /help fayyadami.",
     }
-    await update.message.reply_text(msgs.get(lang, msgs["am"]))
+    await update.message.reply_text(
+        msgs.get(lang, msgs["am"]),
+        reply_markup=main_reply_keyboard(lang),
+    )
 
 
 async def shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -637,6 +710,7 @@ __all__ = [
     "_build_phone_keyboard",
     "help_command",
     "menu_callback",
+    "main_reply_handler",
     "noop_callback",
     "onboard_language_callback",
     "shop_command",

@@ -25,13 +25,22 @@ async def test_persistence_refresh_methods_match_ptb_and_update_data_in_place(
     persisted = {
         "bot_data": {"shared": "persisted"},
         "chat_data": {42: {"chat_setting": "persisted"}},
-        "user_data": {42: {"user_setting": "persisted"}},
+        "user_data": {
+            42: {
+                "user_setting": "persisted",
+                "vendor_application_draft": {"business_name": "stale"},
+            }
+        },
     }
     monkeypatch.setattr(persistence, load, lambda name: persisted[name])
 
     bot_data = {"local": "kept"}
     chat_data = {"local": "kept"}
-    user_data = {"local": "kept"}
+    current_draft = {
+        "business_name": "Current Store",
+        "business_license": "ABC12345",
+    }
+    user_data = {"local": "kept", "vendor_application_draft": current_draft}
 
     await persistence.refresh_bot_data(bot_data)
     await persistence.refresh_chat_data(42, chat_data)
@@ -39,7 +48,11 @@ async def test_persistence_refresh_methods_match_ptb_and_update_data_in_place(
 
     assert bot_data == {"local": "kept", "shared": "persisted"}
     assert chat_data == {"local": "kept", "chat_setting": "persisted"}
-    assert user_data == {"local": "kept", "user_setting": "persisted"}
+    assert user_data == {
+        "local": "kept",
+        "user_setting": "persisted",
+        "vendor_application_draft": current_draft,
+    }
     assert persistence.bot_data is bot_data
     assert persistence.chat_data[42] is chat_data
     assert persistence.user_data[42] is user_data
@@ -56,6 +69,7 @@ class TestBotPersistence:
         mock_bot = AsyncMock()
         mock_bot.get_me.return_value = {"id": 123}
         mock_app.bot = mock_bot
+        mock_app.initialize = AsyncMock()
 
         builder = Mock()
         builder.token.return_value = builder
@@ -80,6 +94,6 @@ class TestBotPersistence:
                     application = await bot_instance.init_bot()
 
                     assert application is mock_app
+                    mock_app.initialize.assert_awaited_once()
                     json_persistence_cls.assert_called_once_with(filepath="bot_data.json")
                     builder.persistence.assert_called_once_with("json_persistence")
-                    mock_bot.get_me.assert_awaited_once()

@@ -197,8 +197,12 @@ class TestProfileHandler:
                 )
                 mock_service.get_user_by_telegram.return_value = mock_user
                 mock_service.get_user_stats.return_value = {"total_orders": 0, "total_spent": 0}
+                with patch("bot.handlers.profile.VendorService") as mock_vendor_service:
+                    mock_vendor_service.return_value.get_vendor_by_user = AsyncMock(
+                        return_value=None
+                    )
 
-                await profile_command(mock_update, mock_context)
+                    await profile_command(mock_update, mock_context)
 
                 mock_update.message.reply_text.assert_called_once()
 
@@ -266,8 +270,11 @@ class TestProfileHandler:
                     "total_spent": None,
                     "average_order_value": None,
                 }
-
-                await profile_command(mock_update, mock_context)
+                with patch("bot.handlers.profile.VendorService") as vendor_service:
+                    vendor_service.return_value.get_vendor_by_user = AsyncMock(
+                        return_value=None
+                    )
+                    await profile_command(mock_update, mock_context)
 
         text = mock_update.message.reply_text.await_args.args[0]
         assert "Not set" in text
@@ -334,13 +341,214 @@ class TestProfileHandler:
                 service_factory.return_value = service
                 service.get_user_by_telegram.return_value = user
                 service.get_user_stats.return_value = {}
-
-                await profile_command(update, context)
+                with patch("bot.handlers.profile.VendorService") as vendor_service:
+                    vendor_service.return_value.get_vendor_by_user = AsyncMock(
+                        return_value=None
+                    )
+                    await profile_command(update, context)
 
         context.bot.send_photo.assert_awaited_once()
         assert context.bot.send_photo.await_args.kwargs["photo"] == "telegram-user-photo"
         assert context.bot.send_photo.await_args.kwargs["caption"]
         assert context.bot.send_photo.await_args.kwargs["reply_markup"]
+        assert context.bot.get_user_profile_photos.await_args_list[0].kwargs == {
+            "user_id": 123456789,
+            "limit": 1,
+        }
+        assert context.bot.get_user_profile_photos.await_args_list[1].kwargs == {
+            "user_id": 999,
+            "limit": 1,
+        }
+
+    @pytest.mark.asyncio
+    async def test_profile_photo_candidates_fall_back_to_store_banner_if_user_has_no_photo(self):
+        from bot.handlers.profile import _profile_photo_candidates
+
+        context = _context()
+        context.bot.get_user_profile_photos.side_effect = [
+            SimpleNamespace(photos=[]),
+            SimpleNamespace(
+                photos=[[SimpleNamespace(file_id="store-banner-photo")]]
+            ),
+        ]
+        context.bot.get_me.return_value = SimpleNamespace(id=999)
+
+        candidates = await _profile_photo_candidates(
+            context,
+            user_id=123456789,
+            stored_photo=None,
+        )
+
+        assert candidates == ["store-banner-photo"]
+        assert context.bot.get_user_profile_photos.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_web_app_profile_photo_proxies_telegram_avatar(self):
+        from bot.web_app.router import get_user_profile_photo
+
+        fake_bot = AsyncMock()
+        fake_bot.__aenter__.return_value = fake_bot
+        fake_bot.get_user_profile_photos.return_value = SimpleNamespace(
+            photos=[[SimpleNamespace(file_id="telegram-user-photo")]]
+        )
+        fake_bot.get_file.return_value = SimpleNamespace(
+            file_path="photos/user.jpg",
+            download_as_bytearray=AsyncMock(return_value=b"user-photo-bytes"),
+        )
+        db_user = SimpleNamespace(
+            telegram_id=123456789,
+            profile_picture="uploaded-photo",
+        )
+
+        with (
+            patch("bot.web_app.router.Bot", return_value=fake_bot),
+            patch("bot.web_app.router.settings.TELEGRAM_BOT_TOKEN", "test-token"),
+            patch("bot.web_app.router.UserService") as service_factory,
+        ):
+            service_factory.return_value.get_user = AsyncMock(return_value=db_user)
+            response = await get_user_profile_photo(
+                current_user={"id": 1},
+                db=AsyncMock(),
+            )
+
+        assert response.body == b"user-photo-bytes"
+        assert response.media_type == "image/jpeg"
+        fake_bot.get_file.assert_awaited_once_with("telegram-user-photo")
+
+    @pytest.mark.asyncio
+    async def test_web_app_profile_photo_falls_back_to_store_banner(self):
+        from bot.web_app.router import get_user_profile_photo
+
+        fake_bot = AsyncMock()
+        fake_bot.__aenter__.return_value = fake_bot
+        fake_bot.get_user_profile_photos.side_effect = [
+            SimpleNamespace(photos=[]),
+            SimpleNamespace(photos=[[SimpleNamespace(file_id="store-banner")]]),
+        ]
+        fake_bot.get_me.return_value = SimpleNamespace(id=999)
+        fake_bot.get_file.return_value = SimpleNamespace(
+            file_path="photos/banner.jpg",
+            download_as_bytearray=AsyncMock(return_value=b"banner-bytes"),
+        )
+        db_user = SimpleNamespace(telegram_id=123456789, profile_picture=None)
+
+        with (
+            patch("bot.web_app.router.Bot", return_value=fake_bot),
+            patch("bot.web_app.router.settings.TELEGRAM_BOT_TOKEN", "test-token"),
+            patch("bot.web_app.router.UserService") as service_factory,
+        ):
+            service_factory.return_value.get_user = AsyncMock(return_value=db_user)
+            response = await get_user_profile_photo(
+                current_user={"id": 1},
+                db=AsyncMock(),
+            )
+
+        assert response.body == b"banner-bytes"
+        fake_bot.get_file.assert_awaited_once_with("store-banner")
+
+    @pytest.mark.asyncio
+    async def test_web_app_profile_update_saves_user_fields_and_creates_address(self):
+        from bot.web_app.router import WebProfileUpdate, update_web_user_profile
+
+        user = SimpleNamespace(
+            id=7,
+            first_name="New",
+            last_name="Name",
+            username="tester",
+            phone_number="+251911111111",
+            email="new@example.com",
+            language="am",
+            city="Addis Ababa",
+            telegram_id=123,
+            created_at=None,
+        )
+        db = AsyncMock()
+        db.execute.return_value = SimpleNamespace(scalar_one_or_none=lambda: None)
+        service = AsyncMock()
+        service.get_user.return_value = user
+
+        with patch("bot.web_app.router.UserService", return_value=service):
+            response = await update_web_user_profile(
+                WebProfileUpdate(
+                    first_name="New",
+                    last_name="",
+                    phone_number="+251911111111",
+                    email="",
+                    address_line1="Bole Road",
+                    city="Addis Ababa",
+                ),
+                current_user={"id": 7},
+                db=db,
+            )
+
+        assert service.update_user.await_count == 1
+        assert service.update_user.await_args.args[0] == 7
+        assert service.update_user.await_args.args[1].first_name == "New"
+        assert service.update_user.await_args.args[1].last_name is None
+        assert service.update_user.await_args.args[1].email is None
+        assert service.update_user.await_args.kwargs["partial"] is False
+        address = db.add.call_args.args[0]
+        assert address.user_id == 7
+        assert address.address_line1 == "Bole Road"
+        assert address.city == "Addis Ababa"
+        assert address.is_default is True
+        db.commit.assert_awaited_once()
+        assert response["first_name"] == "New"
+
+    @pytest.mark.asyncio
+    async def test_web_app_profile_update_removes_default_address(self):
+        from bot.web_app.router import WebProfileUpdate, update_web_user_profile
+
+        user = SimpleNamespace(
+            id=7,
+            first_name="Name",
+            last_name=None,
+            username=None,
+            phone_number=None,
+            email=None,
+            language="am",
+            city=None,
+            telegram_id=123,
+            created_at=None,
+        )
+        address = SimpleNamespace(
+            address_line1="Road",
+            address_line2=None,
+            city="City",
+            subcity=None,
+            woreda=None,
+            house_number=None,
+            landmark=None,
+            is_default=True,
+        )
+        db = AsyncMock()
+        db.execute.return_value = SimpleNamespace(scalar_one_or_none=lambda: address)
+        service = AsyncMock()
+        service.get_user.return_value = user
+
+        with patch("bot.web_app.router.UserService", return_value=service):
+            await update_web_user_profile(
+                WebProfileUpdate(delete_address=True),
+                current_user={"id": 7},
+                db=db,
+            )
+
+        db.delete.assert_awaited_once_with(address)
+        db.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_web_app_returns_public_telegram_bot_link(self):
+        from bot.web_app.router import get_telegram_bot_link
+
+        fake_bot = AsyncMock()
+        fake_bot.__aenter__.return_value = fake_bot
+        fake_bot.get_me.return_value = SimpleNamespace(username="WolloyewaStoreBot")
+        with (
+            patch("bot.web_app.router.Bot", return_value=fake_bot),
+            patch("bot.web_app.router.settings.TELEGRAM_BOT_TOKEN", "test-token"),
+        ):
+            result = await get_telegram_bot_link()
+        assert result == {"url": "https://t.me/WolloyewaStoreBot"}
 
     @pytest.mark.asyncio
     async def test_profile_photo_send_retries_banner_after_telegram_network_error(self):

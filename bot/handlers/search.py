@@ -31,6 +31,9 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.effective_message.reply_text(
         tr(context, "search_prompt"),
         parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton(tr(context, "cancel"), callback_data="menu_back")]]
+        ),
     )
     return WAITING_QUERY
 
@@ -49,7 +52,11 @@ async def start_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         return ConversationHandler.END
 
     await query.message.edit_text(
-        tr(context, "search_prompt"), parse_mode="Markdown"
+        tr(context, "search_prompt"),
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton(tr(context, "cancel"), callback_data="menu_back")]]
+        ),
     )
 
     return WAITING_QUERY
@@ -116,6 +123,22 @@ async def perform_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.effective_message.reply_text(
             tr(context, "no_search_results", query=escape_markdown(query, version=1)),
             parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            tr(context, "search_new"),
+                            callback_data="search_new",
+                        )
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            tr(context, "cancel"),
+                            callback_data="menu_back",
+                        )
+                    ],
+                ]
+            ),
         )
         return
 
@@ -359,7 +382,11 @@ async def filter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     elif query.data == "search_new":
         await query.message.edit_text(
-            tr(context, "search_prompt"), parse_mode="Markdown"
+            tr(context, "search_prompt"),
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton(tr(context, "cancel"), callback_data="menu_back")]]
+            ),
         )
         return WAITING_QUERY
 

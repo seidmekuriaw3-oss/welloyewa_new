@@ -6,8 +6,8 @@
     <title>{% block title %}ወሎዮ ሱቅ{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="/app/static/images/favicon.svg">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="/app/static/css/style.css">
-    <link rel="stylesheet" href="/app/static/css/nav.css?v=3">
+    <link rel="stylesheet" href="/app/static/css/style.css?v=profile-avatar">
+    <link rel="stylesheet" href="/app/static/css/nav.css?v=profile-avatar">
     {% block head %}{% endblock %}
 <style>
 /* ── Search autocomplete dropdown ── */
@@ -87,7 +87,7 @@
 <aside class="side-drawer" id="sideDrawer">
     <div class="drawer-top">
         <div class="drawer-user-info">
-            <div class="drawer-avatar" id="drawerAvatar">👤</div>
+            <div class="drawer-avatar user-profile-avatar" id="drawerAvatar">👤</div>
             <div>
                 <div class="drawer-username" id="drawerName">ወሎዮ ሱቅ</div>
                 <div class="drawer-usub" id="drawerSub">Ethiopian Online Store</div>
@@ -112,6 +112,9 @@
         </a>
         <a href="/app/dashboard" class="drawer-item {% if page == 'dashboard' %}active{% endif %}">
             <span class="di-icon">👤</span><span>ገጽታ</span>
+        </a>
+        <a href="/app/admin" id="drawerAdminLink" class="drawer-item {% if page == 'admin' %}active{% endif %}" style="display:none">
+            <span class="di-icon">🔧</span><span>አስተዳደር</span>
         </a>
         <div class="drawer-divider"></div>
         <a href="/app/" class="drawer-item">
@@ -233,9 +236,32 @@
     </a>
 </nav>
 
-<script src="/app/static/js/app.js"></script>
+<script src="/app/static/js/app.js?v=profile-avatar"></script>
 
 <script>
+async function showAdminNavigation() {
+    const adminLink = document.getElementById('drawerAdminLink');
+    if (!adminLink || !window.getWebAppAccessToken) return;
+
+    const token = await window.getWebAppAccessToken();
+    if (!token) return;
+
+    try {
+        const requestOptions = { headers: { Authorization: `Bearer ${token}` } };
+        let response = await fetch('/app/api/admin/session', requestOptions);
+        if (response.status === 401) {
+            const refreshedToken = await window.getWebAppAccessToken(true);
+            if (!refreshedToken) return;
+            requestOptions.headers.Authorization = `Bearer ${refreshedToken}`;
+            response = await fetch('/app/api/admin/session', requestOptions);
+        }
+        if (response.ok) adminLink.style.display = 'flex';
+    } catch (error) {
+        console.warn('Could not verify admin navigation access.', error);
+    }
+}
+showAdminNavigation();
+
 // ── Drawer ──────────────────────────────────────────────────
 function openDrawer() {
     document.getElementById('sideDrawer').classList.add('open');

@@ -12,9 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.analytics.services import DashboardService, SalesAnalyticsService
 from apps.common.schemas import MessageResponse, PaginatedResponse
 from apps.orders.repository import OrderRepository
+from apps.users.repository import UserRepository
 from apps.users.services import UserService, VendorService
 from core.dependencies import get_current_admin, get_db_session
-from core.exceptions import NotFoundError
+from core.exceptions import NotFoundError, ValidationError
 from infrastructure.backup.automated_backup import create_backup, list_backups, restore_backup
 from infrastructure.backup.point_in_time_recovery import (
     create_recovery_point,
@@ -288,16 +289,37 @@ async def admin_approve_vendor(
     vendor_service = VendorService(db)
 
     try:
-        await vendor_service.approve_vendor(vendor_id, current_user["id"])
+        vendor = await vendor_service.approve_vendor(vendor_id, current_user["id"])
+        user = await UserRepository(db).get_by_id(vendor.user_id)
+        await db.commit()
+        try:
+            from bot.bot_instance import get_bot
+            from bot.handlers.vendor_registration import notify_applicant
+
+            await notify_applicant(
+                get_bot(),
+                user.telegram_id if user else None,
+                approved=True,
+            )
+        except RuntimeError as exc:
+            logger.error(
+                "Vendor %s approved but Telegram notification is unavailable (%s)",
+                vendor_id,
+                type(exc).__name__,
+            )
         return MessageResponse(message=f"Vendor {vendor_id} approved successfully")
     except NotFoundError as e:
+        await db.rollback()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    except ValidationError as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
 
 
 @router.post("/vendors/{vendor_id}/reject", response_model=MessageResponse)
 async def admin_reject_vendor(
     vendor_id: int,
-    reason: str = Query(...),
+    reason: str = Query(..., min_length=3, max_length=500),
     current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db_session),
 ) -> MessageResponse:
@@ -307,10 +329,31 @@ async def admin_reject_vendor(
     vendor_service = VendorService(db)
 
     try:
-        await vendor_service.reject_vendor(vendor_id, reason)
+        vendor = await vendor_service.reject_vendor(vendor_id, reason)
+        user = await UserRepository(db).get_by_id(vendor.user_id)
+        await db.commit()
+        try:
+            from bot.bot_instance import get_bot
+            from bot.handlers.vendor_registration import notify_applicant
+
+            await notify_applicant(
+                get_bot(),
+                user.telegram_id if user else None,
+                approved=False,
+            )
+        except RuntimeError as exc:
+            logger.error(
+                "Vendor %s rejected but Telegram notification is unavailable (%s)",
+                vendor_id,
+                type(exc).__name__,
+            )
         return MessageResponse(message=f"Vendor {vendor_id} rejected")
     except NotFoundError as e:
+        await db.rollback()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    except ValidationError as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
 
 
 # ============================

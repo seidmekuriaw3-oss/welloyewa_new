@@ -6,28 +6,96 @@
 import hashlib
 import hmac
 import json
+import mimetypes
 import urllib.parse
 from decimal import Decimal
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from apps.orders.services import OrderService
 from apps.products.services import ProductService
+from apps.users.models import UserAddress
+from apps.users.schemas import UserUpdate
 from apps.users.services import UserService
 from core.config import settings
-from core.dependencies import get_current_user, get_db_session, get_transaction_session
+from core.dependencies import (
+    get_current_admin,
+    get_current_user,
+    get_db_session,
+    get_transaction_session,
+)
+from core.exceptions import NotFoundError, ValidationError
 from core.logger import logger
+from telegram import Bot
+from telegram.error import TelegramError
 
 # Setup templates
 templates_dir = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(templates_dir))
 
 web_app_router = APIRouter(prefix="/app", tags=["Web App"])
+_telegram_bot_link_cache: str | None = None
+
+
+class WebProfileUpdate(BaseModel):
+    """Fields editable by the authenticated Web App profile form."""
+
+    model_config = {"extra": "forbid"}
+
+    first_name: str | None = Field(None, max_length=100)
+    last_name: str | None = Field(None, max_length=100)
+    phone_number: str | None = Field(None, max_length=20)
+    email: EmailStr | None = None
+    address_line1: str | None = Field(None, max_length=255)
+    address_line2: str | None = Field(None, max_length=255)
+    city: str | None = Field(None, max_length=100)
+    subcity: str | None = Field(None, max_length=100)
+    woreda: str | None = Field(None, max_length=50)
+    house_number: str | None = Field(None, max_length=50)
+    landmark: str | None = Field(None, max_length=255)
+    delete_address: bool = False
+
+    @field_validator(
+        "first_name",
+        "last_name",
+        "phone_number",
+        "address_line1",
+        "address_line2",
+        "city",
+        "subcity",
+        "woreda",
+        "house_number",
+        "landmark",
+        mode="before",
+    )
+    @classmethod
+    def strip_optional_text(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            return value or None
+        return value
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            return value or None
+        return value
+
+    @field_validator("first_name")
+    @classmethod
+    def require_first_name_when_supplied(cls, value):
+        if value is None:
+            raise ValueError("First name cannot be empty.")
+        return value
 
 
 # ---------------------------------------------------------------------------
@@ -225,6 +293,11 @@ async def dashboard_page(request: Request):
     return templates.TemplateResponse(request, "dashboard.html", {**_BASE_CTX, "page": "dashboard"})
 
 
+@web_app_router.get("/admin", response_class=HTMLResponse)
+async def admin_page(request: Request):
+    return templates.TemplateResponse(request, "admin.html", {**_BASE_CTX, "page": "admin"})
+
+
 @web_app_router.get("/profile", response_class=HTMLResponse)
 async def profile_page(request: Request):
     return templates.TemplateResponse(request, "profile.html", {**_BASE_CTX, "page": "profile"})
@@ -372,6 +445,16 @@ async def api_web_login(body: WebLoginRequest, db=Depends(get_db_session)):
 
     logger.info("Web login: user_id=%s phone=%s", user.id, phone)
     return _web_auth_response(user)
+
+
+@web_app_router.get("/api/admin/session")
+async def web_admin_session(current_user: dict = Depends(get_current_admin)):
+    """Return the authenticated admin identity for Web App navigation."""
+    return {
+        "id": current_user["id"],
+        "role": current_user["role"],
+        "is_admin": True,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1016,6 +1099,13 @@ async def get_user_profile(
     user = await user_service.get_user(current_user["id"])
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    address_result = await db.execute(
+        select(UserAddress)
+        .where(UserAddress.user_id == user.id)
+        .order_by(UserAddress.is_default.desc(), UserAddress.id.desc())
+        .limit(1)
+    )
+    address = address_result.scalar_one_or_none()
     return {
         "id": user.id,
         "first_name": user.first_name,
@@ -1026,8 +1116,237 @@ async def get_user_profile(
         "email": user.email or "",
         "language": user.language,
         "city": user.city or "",
+        "address": (
+            {
+                "address_line1": address.address_line1,
+                "address_line2": address.address_line2 or "",
+                "city": address.city,
+                "subcity": address.subcity or "",
+                "woreda": address.woreda or "",
+                "house_number": address.house_number or "",
+                "landmark": address.landmark or "",
+            }
+            if address
+            else None
+        ),
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }
+
+
+@web_app_router.put("/api/user/profile")
+async def update_web_user_profile(
+    data: WebProfileUpdate,
+    current_user=Depends(get_current_user),
+    db=Depends(get_transaction_session),
+):
+    """Update the authenticated user's personal details and primary delivery address."""
+    user_service = UserService(db)
+    try:
+        user = await user_service.get_user(current_user["id"])
+        payload = data.model_dump(exclude_unset=True)
+        delete_address = payload.pop("delete_address", False)
+
+        user_fields = {
+            field: payload[field]
+            for field in ("first_name", "last_name", "phone_number", "email", "city", "subcity", "woreda")
+            if field in payload
+        }
+        if user_fields:
+            await user_service.update_user(
+                user.id,
+                UserUpdate(**user_fields),
+                partial=False,
+            )
+
+        address_fields = {
+            field: payload[field]
+            for field in (
+                "address_line1",
+                "address_line2",
+                "city",
+                "subcity",
+                "woreda",
+                "house_number",
+                "landmark",
+            )
+            if field in payload
+        }
+        address_result = await db.execute(
+            select(UserAddress)
+            .where(UserAddress.user_id == user.id)
+            .order_by(UserAddress.is_default.desc(), UserAddress.id.desc())
+            .limit(1)
+        )
+        address = address_result.scalar_one_or_none()
+
+        if delete_address:
+            if address:
+                await db.delete(address)
+        elif address_fields:
+            address_line1 = address_fields.get(
+                "address_line1",
+                address.address_line1 if address else None,
+            )
+            city = address_fields.get("city", address.city if address else None)
+            if not address_line1 or not city:
+                raise HTTPException(
+                    status_code=422,
+                    detail="A delivery address requires both address line and city.",
+                )
+
+            recipient_phone = payload.get("phone_number", user.phone_number)
+            if not recipient_phone:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Add a phone number before saving a delivery address.",
+                )
+            recipient_name = " ".join(
+                part
+                for part in (
+                    payload.get("first_name", user.first_name),
+                    payload.get("last_name", user.last_name),
+                )
+                if part
+            )
+            address_values = {
+                **address_fields,
+                "address_line1": address_line1,
+                "city": city,
+                "recipient_name": recipient_name,
+                "recipient_phone": recipient_phone,
+                "is_default": True,
+            }
+            if address:
+                for field, value in address_values.items():
+                    setattr(address, field, value)
+            else:
+                db.add(UserAddress(user_id=user.id, **address_values))
+
+        await db.commit()
+    except HTTPException:
+        await db.rollback()
+        raise
+    except NotFoundError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValidationError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except IntegrityError as exc:
+        await db.rollback()
+        logger.warning("Duplicate profile value for user %s: %s", current_user["id"], exc)
+        raise HTTPException(
+            status_code=409,
+            detail="That phone number or email address is already in use.",
+        ) from exc
+    except Exception:
+        await db.rollback()
+        logger.exception("Could not update profile for user %s", current_user["id"])
+        raise HTTPException(status_code=500, detail="Could not save profile changes.")
+
+    return await get_user_profile(current_user=current_user, db=db)
+
+
+@web_app_router.get("/api/user/profile/photo")
+async def get_user_profile_photo(
+    current_user=Depends(get_current_user),
+    db=Depends(get_db_session),
+) -> Response:
+    """Proxy the authenticated user's Telegram avatar without exposing the bot token."""
+    if not settings.TELEGRAM_BOT_TOKEN:
+        raise HTTPException(status_code=503, detail="Telegram bot is not configured")
+
+    user = await UserService(db).get_user(current_user["id"])
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    try:
+        async with Bot(token=settings.TELEGRAM_BOT_TOKEN) as bot:
+            photo_ids: list[str] = []
+
+            if user.telegram_id:
+                try:
+                    photos = await bot.get_user_profile_photos(
+                        user_id=user.telegram_id,
+                        limit=1,
+                    )
+                    if photos.photos and photos.photos[0]:
+                        photo_ids.append(photos.photos[0][-1].file_id)
+                except TelegramError as exc:
+                    logger.warning(
+                        "Could not retrieve Telegram profile photo for user %s: %s",
+                        user.telegram_id,
+                        exc,
+                    )
+
+            if user.profile_picture:
+                photo_ids.append(user.profile_picture)
+
+            for file_id in dict.fromkeys(photo_ids):
+                try:
+                    telegram_file = await bot.get_file(file_id)
+                    image_data = await telegram_file.download_as_bytearray()
+                    media_type = mimetypes.guess_type(telegram_file.file_path or "")[0]
+                    if media_type not in {"image/jpeg", "image/png", "image/webp"}:
+                        media_type = "image/jpeg"
+                    return Response(
+                        content=bytes(image_data),
+                        media_type=media_type,
+                        headers={
+                            "Cache-Control": "private, max-age=300",
+                            "X-Content-Type-Options": "nosniff",
+                        },
+                    )
+                except TelegramError as exc:
+                    logger.warning("Could not download profile photo: %s", exc)
+
+            try:
+                bot_user = await bot.get_me()
+                banner = await bot.get_user_profile_photos(
+                    user_id=bot_user.id,
+                    limit=1,
+                )
+                if banner.photos and banner.photos[0]:
+                    telegram_file = await bot.get_file(banner.photos[0][-1].file_id)
+                    image_data = await telegram_file.download_as_bytearray()
+                    media_type = mimetypes.guess_type(telegram_file.file_path or "")[0]
+                    if media_type not in {"image/jpeg", "image/png", "image/webp"}:
+                        media_type = "image/jpeg"
+                    return Response(
+                        content=bytes(image_data),
+                        media_type=media_type,
+                        headers={
+                            "Cache-Control": "private, max-age=300",
+                            "X-Content-Type-Options": "nosniff",
+                        },
+                    )
+            except TelegramError as exc:
+                logger.warning("Could not retrieve the store banner photo: %s", exc)
+    except TelegramError as exc:
+        logger.exception("Telegram profile image service is unavailable: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not retrieve profile photo") from exc
+
+    raise HTTPException(status_code=404, detail="No profile photo is available")
+
+
+@web_app_router.get("/api/bot-link")
+async def get_telegram_bot_link() -> dict[str, str]:
+    """Return the public t.me link for this configured Telegram bot."""
+    global _telegram_bot_link_cache
+    if _telegram_bot_link_cache:
+        return {"url": _telegram_bot_link_cache}
+    if not settings.TELEGRAM_BOT_TOKEN:
+        raise HTTPException(status_code=503, detail="Telegram bot is not configured")
+    try:
+        async with Bot(token=settings.TELEGRAM_BOT_TOKEN) as bot:
+            bot_user = await bot.get_me()
+    except TelegramError as exc:
+        logger.exception("Could not retrieve Telegram bot username: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not retrieve Telegram bot link") from exc
+    if not bot_user.username:
+        raise HTTPException(status_code=404, detail="Telegram bot has no public username")
+    _telegram_bot_link_cache = f"https://t.me/{bot_user.username}"
+    return {"url": _telegram_bot_link_cache}
 
 
 __all__ = ["web_app_router"]

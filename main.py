@@ -124,13 +124,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                         raise net_err
 
             if settings.TELEGRAM_WEBHOOK_URL:
-                try:
-                    if await set_webhook():
-                        logger.info("Telegram webhook configured")
-                except Exception as hook_err:
-                    logger.warning("Telegram webhook setup failed: %s", type(hook_err).__name__)
+                if not await set_webhook():
+                    raise RuntimeError("Telegram webhook could not be configured")
+                logger.info("Telegram webhook configured")
+                await application_instance.start()
+                logger.info("Telegram webhook update processor started")
 
-        # Start polling only in development mode (not when deployed) and avoid duplicate local sessions
+        # Polling is only intended for local development. Deployed instances use webhooks.
         _is_deployed = os.environ.get("REPLIT_DEPLOYMENT", "").strip() == "1"
         if (
             settings.ENVIRONMENT == "development"
@@ -140,7 +140,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             and not settings.TELEGRAM_WEBHOOK_URL
         ):
             logger.info("Starting Telegram bot in POLLING mode...")
-            await application_instance.initialize()
             for _attempt in range(5):
                 try:
                     await application_instance.bot.delete_webhook(drop_pending_updates=True)
@@ -192,20 +191,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown
     logger.info("Shutting down application...")
 
-    if (
-        application_instance
-        and settings.ENVIRONMENT == "development"
-        and not os.environ.get("REPLIT_DEPLOYMENT", "").strip() == "1"
-    ):
+    if application_instance:
         try:
-            logger.info("Stopping Telegram bot polling...")
             if application_instance.updater and application_instance.updater.running:
                 await application_instance.updater.stop()
             if application_instance.running:
+                logger.info("Stopping Telegram application...")
                 await application_instance.stop()
-            await application_instance.shutdown()
         except Exception as e:
-            logger.error(f"Error stopping bot polling: {e}")
+            logger.error("Error stopping Telegram application: %s", type(e).__name__)
 
     if stop_scheduler:
         try:

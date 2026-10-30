@@ -50,6 +50,79 @@ const cart = {
 // Init badge on load
 document.addEventListener('DOMContentLoaded', () => cart.updateBadge());
 
+let webAppAuthPromise = null;
+
+async function getWebAppAccessToken(forceRefresh = false) {
+  if (forceRefresh) localStorage.removeItem('wolloyewa_access_token');
+  const existingToken = localStorage.getItem('wolloyewa_access_token');
+  if (existingToken) return existingToken;
+
+  const telegramApp = window.Telegram && window.Telegram.WebApp;
+  if (!telegramApp || !telegramApp.initData) return null;
+  if (webAppAuthPromise) return webAppAuthPromise;
+
+  webAppAuthPromise = (async () => {
+    const response = await fetch(`${API_BASE}/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ init_data: telegramApp.initData })
+    });
+    if (!response.ok) {
+      console.warn('Could not authenticate Telegram Web App user.', response.status);
+      return null;
+    }
+    const data = await response.json();
+    if (!data.access_token) {
+      console.warn('Telegram Web App authentication returned no access token.');
+      return null;
+    }
+    localStorage.setItem('wolloyewa_access_token', data.access_token);
+    return data.access_token;
+  })();
+
+  try {
+    return await webAppAuthPromise;
+  } catch (error) {
+    console.warn('Could not authenticate Telegram Web App user.', error);
+    return null;
+  } finally {
+    webAppAuthPromise = null;
+  }
+}
+
+async function loadUserProfileAvatars() {
+  let token = await getWebAppAccessToken();
+  const avatars = document.querySelectorAll('.user-profile-avatar');
+  if (!token || !avatars.length) return;
+
+  try {
+    let response = await fetch(`${API_BASE}/user/profile/photo`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (response.status === 401) {
+      token = await getWebAppAccessToken(true);
+      if (!token) return;
+      response = await fetch(`${API_BASE}/user/profile/photo`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    }
+    if (!response.ok) return;
+
+    const imageUrl = URL.createObjectURL(await response.blob());
+    avatars.forEach(avatar => {
+      const image = document.createElement('img');
+      image.src = imageUrl;
+      image.alt = 'Profile photo';
+      avatar.replaceChildren(image);
+    });
+  } catch (error) {
+    console.warn('Could not load the profile photo.', error);
+  }
+}
+
+window.getWebAppAccessToken = getWebAppAccessToken;
+document.addEventListener('DOMContentLoaded', loadUserProfileAvatars);
+
 // Toast notification
 function showToast(msg, duration = 2500) {
   let toast = document.getElementById('toast');

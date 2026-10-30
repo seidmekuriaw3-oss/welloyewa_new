@@ -4,20 +4,74 @@
 {% block content %}
 <main class="profile-page">
     <section class="profile-hero">
-        <div class="profile-avatar" id="profileAvatar">👤</div>
+        <div class="profile-avatar user-profile-avatar" id="profileAvatar" aria-label="Profile photo">👤</div>
         <div>
             <h1 id="profileName">ወሎዮ ሱቅ ደንበኛ</h1>
             <p id="profilePhone">የመለያ መረጃ</p>
         </div>
     </section>
     <section class="profile-card">
-        <h2>የግል መረጃ</h2>
-        <dl>
-            <div><dt>ሙሉ ስም</dt><dd id="profileFullName">—</dd></div>
-            <div><dt>ስልክ</dt><dd id="profilePhoneValue">—</dd></div>
-            <div><dt>ኢሜይል</dt><dd id="profileEmail">—</dd></div>
-        </dl>
+        <h2>የግል መረጃዎን ያስተካክሉ</h2>
         <p id="profileError" class="form-error" role="alert"></p>
+        <p id="profileSuccess" class="profile-success" role="status" hidden></p>
+        <form id="profileForm" hidden>
+            <div class="profile-form-grid">
+                <div class="form-group">
+                    <label for="profileFirstName">ስም *</label>
+                    <input id="profileFirstName" name="first_name" maxlength="100" required autocomplete="given-name">
+                </div>
+                <div class="form-group">
+                    <label for="profileLastName">የአባት ስም</label>
+                    <input id="profileLastName" name="last_name" maxlength="100" autocomplete="family-name">
+                </div>
+                <div class="form-group">
+                    <label for="profilePhoneInput">ስልክ ቁጥር</label>
+                    <input id="profilePhoneInput" name="phone_number" type="tel" maxlength="20" autocomplete="tel">
+                </div>
+                <div class="form-group">
+                    <label for="profileEmailInput">ኢሜይል</label>
+                    <input id="profileEmailInput" name="email" type="email" maxlength="254" autocomplete="email">
+                </div>
+            </div>
+            <h3 class="profile-section-title">የመላኪያ አድራሻ</h3>
+            <div class="profile-form-grid">
+                <div class="form-group profile-field-wide">
+                    <label for="profileAddressLine1">የመኖሪያ አድራሻ / መንገድ</label>
+                    <input id="profileAddressLine1" name="address_line1" maxlength="255" autocomplete="address-line1">
+                </div>
+                <div class="form-group profile-field-wide">
+                    <label for="profileAddressLine2">ተጨማሪ አድራሻ</label>
+                    <input id="profileAddressLine2" name="address_line2" maxlength="255" autocomplete="address-line2">
+                </div>
+                <div class="form-group">
+                    <label for="profileCity">ከተማ *</label>
+                    <input id="profileCity" name="city" maxlength="100" autocomplete="address-level2">
+                </div>
+                <div class="form-group">
+                    <label for="profileSubcity">ክፍለ ከተማ</label>
+                    <input id="profileSubcity" name="subcity" maxlength="100">
+                </div>
+                <div class="form-group">
+                    <label for="profileWoreda">ወረዳ</label>
+                    <input id="profileWoreda" name="woreda" maxlength="50">
+                </div>
+                <div class="form-group">
+                    <label for="profileHouseNumber">የቤት ቁጥር</label>
+                    <input id="profileHouseNumber" name="house_number" maxlength="50">
+                </div>
+                <div class="form-group profile-field-wide">
+                    <label for="profileLandmark">መለያ ምልክት</label>
+                    <input id="profileLandmark" name="landmark" maxlength="255">
+                </div>
+            </div>
+            <div class="profile-actions">
+                <button class="btn-primary" id="saveProfileButton" type="submit">ለውጦችን አስቀምጥ</button>
+                <button class="btn-secondary" id="removeAddressButton" type="button" hidden>አድራሻውን አስወግድ</button>
+            </div>
+        </form>
+        <a class="profile-telegram-link" id="telegramBotLink" href="#" target="_blank" rel="noopener noreferrer" hidden>
+            ✈️ Telegram Bot-ийг ይክፈቱ
+        </a>
         <button class="btn-primary" type="button" onclick="window.location.href='/app/orders'">ትዕዛዞቼን ይመልከቱ</button>
     </section>
 </main>
@@ -26,23 +80,172 @@
 {% block scripts %}
 <script>
 (async function loadProfile() {
-    const token = localStorage.getItem('wolloyewa_access_token');
-    if (!token) return;
-    const response = await fetch('/app/api/user/profile', {
+    let token = await window.getWebAppAccessToken();
+    if (!token) {
+        document.getElementById('profileError').textContent = 'መረጃውን ለማየት እባክዎ በቴሌግራም ይግቡ።';
+        return;
+    }
+    let response = await fetch('/app/api/user/profile', {
         headers: { Authorization: `Bearer ${token}` },
     });
+    if (response.status === 401) {
+        token = await window.getWebAppAccessToken(true);
+        if (!token) return;
+        response = await fetch('/app/api/user/profile', {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+    }
     if (!response.ok) {
         document.getElementById('profileError').textContent = 'የመለያ መረጃ መጫን አልተቻለም።';
         return;
     }
     const user = await response.json();
-    const name = user.full_name || 'ወሎዮ ሱቅ ደንበኛ';
+    document.getElementById('profileForm').hidden = false;
+    const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'ወሎዮ ሱቅ ደንበኛ';
     document.getElementById('profileName').textContent = name;
-    document.getElementById('profileFullName').textContent = name;
-    document.getElementById('profilePhone').textContent = user.phone || 'የመለያ መረጃ';
-    document.getElementById('profilePhoneValue').textContent = user.phone || '—';
-    document.getElementById('profileEmail').textContent = user.email || '—';
-    document.getElementById('profileAvatar').textContent = name.charAt(0).toUpperCase();
+    document.getElementById('profilePhone').textContent = user.phone_number || 'የመለያ መረጃ';
+    document.getElementById('profileFirstName').value = user.first_name || '';
+    document.getElementById('profileLastName').value = user.last_name || '';
+    document.getElementById('profilePhoneInput').value = user.phone_number || '';
+    document.getElementById('profileEmailInput').value = user.email || '';
+    const address = user.address || {};
+    document.getElementById('profileAddressLine1').value = address.address_line1 || '';
+    document.getElementById('profileAddressLine2').value = address.address_line2 || '';
+    document.getElementById('profileCity').value = address.city || '';
+    document.getElementById('profileSubcity').value = address.subcity || '';
+    document.getElementById('profileWoreda').value = address.woreda || '';
+    document.getElementById('profileHouseNumber').value = address.house_number || '';
+    document.getElementById('profileLandmark').value = address.landmark || '';
+    document.getElementById('removeAddressButton').hidden = !user.address;
+    const avatar = document.getElementById('profileAvatar');
+    if (!avatar.querySelector('img')) {
+        avatar.textContent = name.charAt(0).toUpperCase();
+    }
+
+    const form = document.getElementById('profileForm');
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const error = document.getElementById('profileError');
+        const success = document.getElementById('profileSuccess');
+        const saveButton = document.getElementById('saveProfileButton');
+        error.textContent = '';
+        success.hidden = true;
+        const formData = new FormData(form);
+        const payload = {
+            first_name: formData.get('first_name'),
+            last_name: formData.get('last_name'),
+            phone_number: formData.get('phone_number'),
+            email: formData.get('email'),
+        };
+        const addressValues = Object.fromEntries(
+            ['address_line1', 'address_line2', 'city', 'subcity', 'woreda', 'house_number', 'landmark']
+                .map(field => [field, String(formData.get(field) || '').trim()])
+        );
+        if (Object.values(addressValues).some(Boolean)) Object.assign(payload, addressValues);
+
+        saveButton.disabled = true;
+        try {
+            let accessToken = await window.getWebAppAccessToken();
+            if (!accessToken) throw new Error('እባክዎ ዳግም ግብተው ይሞክሩ።');
+            let saveResponse = await fetch('/app/api/user/profile', {
+                method: 'PUT',
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+            if (saveResponse.status === 401) {
+                accessToken = await window.getWebAppAccessToken(true);
+                if (!accessToken) throw new Error('እባክዎ ዳግም ግብተው ይሞክሩ።');
+                saveResponse = await fetch('/app/api/user/profile', {
+                    method: 'PUT',
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+            }
+            if (!saveResponse.ok) {
+                const result = await saveResponse.json().catch(() => ({}));
+                const detail = Array.isArray(result.detail)
+                    ? result.detail.map(item => item.msg).join(' ')
+                    : result.detail;
+                throw new Error(detail || 'የፕሮፋይል መረጃውን ማስቀመጥ አልተቻለም።');
+            }
+            const saved = await saveResponse.json();
+            document.getElementById('profileName').textContent =
+                [saved.first_name, saved.last_name].filter(Boolean).join(' ') || 'ወሎዮ ሱቅ ደንበኛ';
+            document.getElementById('profilePhone').textContent = saved.phone_number || 'የመለያ መረጃ';
+            document.getElementById('removeAddressButton').hidden = !saved.address;
+            success.textContent = 'የፕሮፋይል መረጃዎ ተቀምጧል።';
+            success.hidden = false;
+        } catch (saveError) {
+            error.textContent = saveError.message || 'ለውጦቹን ማስቀመጥ አልተቻለም።';
+        } finally {
+            saveButton.disabled = false;
+        }
+    });
+
+    document.getElementById('removeAddressButton').addEventListener('click', async event => {
+        const button = event.currentTarget;
+        const error = document.getElementById('profileError');
+        const success = document.getElementById('profileSuccess');
+        if (!window.confirm('የተመዘገበውን የመላኪያ አድራሻ ማስወገድ ይፈልጋሉ?')) return;
+        error.textContent = '';
+        success.hidden = true;
+        button.disabled = true;
+        try {
+            let accessToken = await window.getWebAppAccessToken();
+            if (!accessToken) throw new Error('ዳግም ይግቡና እንደገና ይሞክሩ።');
+            let removeResponse = await fetch('/app/api/user/profile', {
+                method: 'PUT',
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ delete_address: true }),
+            });
+            if (removeResponse.status === 401) {
+                accessToken = await window.getWebAppAccessToken(true);
+                if (!accessToken) throw new Error('ዳግም ይግቡና እንደገና ይሞክሩ።');
+                removeResponse = await fetch('/app/api/user/profile', {
+                    method: 'PUT',
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ delete_address: true }),
+                });
+            }
+            if (!removeResponse.ok) throw new Error('አድራሻውን ማስወገድ አልተቻለም።');
+            ['profileAddressLine1', 'profileAddressLine2', 'profileCity', 'profileSubcity',
+                'profileWoreda', 'profileHouseNumber', 'profileLandmark']
+                .forEach(id => { document.getElementById(id).value = ''; });
+            button.hidden = true;
+            success.textContent = 'የመላኪያ አድራሻው ተወግዷል።';
+            success.hidden = false;
+        } catch (removeError) {
+            error.textContent = removeError.message || 'አድራሻውን ማስወገድ አልተቻለም።';
+        } finally {
+            button.disabled = false;
+        }
+    });
+})();
+
+(async function loadTelegramBotLink() {
+    try {
+        const response = await fetch('/app/api/bot-link');
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!data.url || !/^https:\/\/t\.me\/[A-Za-z0-9_]+$/.test(data.url)) return;
+        const link = document.getElementById('telegramBotLink');
+        link.href = data.url;
+        link.hidden = false;
+    } catch (error) {
+        console.warn('Could not load the Telegram bot link.', error);
+    }
 })();
 refreshAllBadges();
 </script>

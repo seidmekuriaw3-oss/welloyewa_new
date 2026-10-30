@@ -107,6 +107,7 @@ def test_checkout_schemas_validate_cart_constraints():
         ("register_page", "register.html"),
         ("categories_page", "categories.html"),
         ("dashboard_page", "dashboard.html"),
+        ("admin_page", "admin.html"),
         ("profile_page", "profile.html"),
         ("cart_page", "cart.html"),
         ("checkout_page", "checkout.html"),
@@ -326,3 +327,28 @@ async def test_my_orders_requires_telegram_authentication_in_development(monkeyp
 
     assert exc.value.status_code == 401
     db.execute.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_configured_telegram_admin_is_authorized_even_without_admin_database_role(monkeypatch):
+    from core.config import settings
+    from core.dependencies import get_current_admin
+
+    monkeypatch.setattr(settings, "ADMIN_IDS", "42,99")
+    current_user = {"id": 7, "telegram_id": 42, "role": "customer"}
+
+    assert await get_current_admin(current_user) == current_user
+
+
+@pytest.mark.asyncio
+async def test_non_admin_user_is_rejected_from_admin_dependency(monkeypatch):
+    from core.config import settings
+    from core.dependencies import get_current_admin
+    from core.exceptions import PermissionError
+
+    monkeypatch.setattr(settings, "ADMIN_IDS", "42,99")
+
+    with pytest.raises(PermissionError) as exc:
+        await get_current_admin({"id": 8, "telegram_id": 100, "role": "customer"})
+
+    assert exc.value.status_code == 403

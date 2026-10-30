@@ -373,8 +373,8 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             )
         return
 
-    if context.user_data.get("updating_field") or context.user_data.get(
-        "vendor_application"
+    if context.user_data.get("updating_field") or (
+        "vendor_application_step" in context.user_data
     ):
         from bot.handlers.profile import profile_text_handler
 

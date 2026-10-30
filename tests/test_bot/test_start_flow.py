@@ -69,6 +69,46 @@ def test_keyboard_builders_cover_languages_and_admin_state():
     assert admin.inline_keyboard[-1][0].callback_data == "menu_admin"
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("action", "module_path", "function_name"),
+    [
+        ("browse_store", "bot.handlers.catalog", "menu_command"),
+        ("cart", "bot.handlers.cart", "cart_command"),
+        ("wishlist", "bot.handlers.wishlist", "wishlist_command"),
+        ("search", "bot.handlers.search", "search_command"),
+        ("profile", "bot.handlers.profile", "profile_command"),
+        ("vendor_panel", "bot.handlers.profile", "show_vendor_panel"),
+        ("orders", "bot.handlers.profile", "orders_command"),
+        ("help", "bot.handlers.start", "help_command"),
+        ("web_app", "bot.handlers.start", "reply_text"),
+    ],
+)
+async def test_main_reply_keyboard_routes_to_screen(action, module_path, function_name):
+    from bot.handlers.start import main_reply_handler
+    from bot.keyboards.reply import main_reply_button_actions
+
+    update = make_update()
+    update.effective_message.text = next(
+        label for label, value in main_reply_button_actions().items() if value == action
+    )
+    update.effective_message.reply_text = AsyncMock()
+    context = make_context()
+    handler = AsyncMock()
+
+    if action == "web_app":
+        with patch("bot.handlers.start.translate", return_value="Web App unavailable"):
+            await main_reply_handler(update, context)
+        update.effective_message.reply_text.assert_awaited_once_with(
+            "Web App unavailable"
+        )
+    else:
+        with patch(f"{module_path}.{function_name}", handler):
+            await main_reply_handler(update, context)
+
+        handler.assert_awaited_once_with(update, context)
+
+
 def test_start_keyboard_uses_web_app_button_when_public_url_is_configured():
     from bot.handlers.start import _build_language_keyboard
 

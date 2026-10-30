@@ -27,6 +27,7 @@ from bot.keyboards.reply import (
     cancel_keyboard,
     contact_keyboard,
     location_keyboard,
+    main_reply_button_actions,
     main_reply_keyboard,
 )
 
@@ -49,6 +50,7 @@ __all__ = [
     "contact_keyboard",
     "location_keyboard",
     "main_menu_keyboard",
+    "main_reply_button_actions",
     "main_reply_keyboard",
     "pagination_keyboard",
     "product_keyboard",

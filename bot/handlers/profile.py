@@ -173,38 +173,6 @@ _T = {
         "en": "❌ We could not save your email.",
         "om": "❌ Imeelii kee olkaa'uu hin dandeenye.",
     },
-    # ── Vendor application ───────────────────────────────────────────────────
-    "vendor_apply_title": {
-        "am": "🏪 *ሻጅ ለመሆን ማመልከቻ*",
-        "en": "🏪 *Vendor Application*",
-        "om": "🏪 *Iyyannoo Gurgurtaa*",
-    },
-    "vendor_apply_body": {
-        "am": (
-            "ሻጅ ለመሆን ከዚህ በታች ያለውን ፎርም ይሙሉ:\n\n"
-            "1. የንግድ ስም\n"
-            "2. የንግድ ፈቃድ ቁጥር\n"
-            "3. የግብር ተመዝጋቢ ቁጥር (TIN)\n"
-            "4. የንግድ አድራሻ\n\n"
-            "እባክዎ መረጃዎችን በመልዕክት ይላኩ።"
-        ),
-        "en": (
-            "Fill in the form below to become a vendor:\n\n"
-            "1. Business name\n"
-            "2. Business license number\n"
-            "3. Tax ID (TIN)\n"
-            "4. Business address\n\n"
-            "Please send the information as a message."
-        ),
-        "om": (
-            "Gurgurtaa ta'uuf foormii armaan gadii guuti:\n\n"
-            "1. Maqaa daldalaa\n"
-            "2. Lakkoofsa hayyama daldalaa\n"
-            "3. Lakkoofsa gibiraa (TIN)\n"
-            "4. Teessoo daldalaa\n\n"
-            "Odeeffannoo ergii."
-        ),
-    },
     # ── Vendor panel ─────────────────────────────────────────────────────────
     "vendor_panel_title": {
         "am": "🏪 *የሻጭ ፓነል*\n\nከዚህ በታች ያሉትን አማራጮች ይምረጡ።",
@@ -421,7 +389,7 @@ async def _telegram_profile_photo_file_id(
         )
         return None
 
-    if not photos.photos:
+    if not photos.photos or not photos.photos[0]:
         return None
     return photos.photos[0][-1].file_id
 
@@ -446,7 +414,7 @@ async def _store_banner_file_id(
         bot_data[cache_key] = None
         return None
 
-    photo_id = photos.photos[0][-1].file_id if photos.photos else None
+    photo_id = photos.photos[0][-1].file_id if photos.photos and photos.photos[0] else None
     bot_data[cache_key] = photo_id
     return photo_id
 
@@ -456,13 +424,13 @@ async def _profile_photo_candidates(
     user_id: int,
     stored_photo: str | None,
 ) -> list[str]:
-    """Build profile-photo candidates, preferring a user-uploaded image."""
+    """Build profile-photo candidates, preferring the user's Telegram avatar."""
     telegram_photo = await _telegram_profile_photo_file_id(context, user_id)
     banner_photo = await _store_banner_file_id(context)
     return list(
         dict.fromkeys(
             photo
-            for photo in (stored_photo, telegram_photo, banner_photo)
+            for photo in (telegram_photo, stored_photo, banner_photo)
             if photo
         )
     )
@@ -599,18 +567,20 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     user = None
     stats = {}
-    has_vendor_profile = False
+    vendor_is_approved = False
+    vendor_application_pending = False
     try:
         async for db in get_db_session():
             user_service = UserService(db)
             user = await user_service.get_user_by_telegram(tg_id)
             if user:
                 stats = await user_service.get_user_stats(user.id)
-                role = getattr(user, "role", None)
-                role_str = role.value if hasattr(role, "value") else str(role)
-                if role_str == "vendor":
-                    vendor = await VendorService(db).get_vendor_by_user(user.id)
-                    has_vendor_profile = vendor is not None
+                vendor = await VendorService(db).get_vendor_by_user(user.id)
+                if vendor:
+                    vendor_is_approved = vendor.is_approved
+                    vendor_application_pending = (
+                        not vendor.is_approved and vendor.rejected_at is None
+                    )
             break
     except SQLAlchemyError:
         logger.exception("Could not load profile data for Telegram user %s", tg_id)
@@ -681,11 +651,10 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         [InlineKeyboardButton(t("btn_update_email", lang), callback_data="profile_update_email")],
         [InlineKeyboardButton(t("btn_change_lang", lang), callback_data="profile_change_language")],
         [InlineKeyboardButton(t("btn_my_orders", lang), callback_data="profile_orders")],
-        [InlineKeyboardButton(t("btn_become_vendor", lang), callback_data="profile_become_vendor")],
         [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_back")],
     ]
 
-    if has_vendor_profile:
+    if vendor_is_approved:
         keyboard.insert(
             0,
             [
@@ -693,6 +662,21 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     t("btn_vendor_panel", lang), callback_data="profile_vendor_panel"
                 )
             ],
+        )
+    elif vendor_application_pending:
+        keyboard.insert(
+            0,
+            [
+                InlineKeyboardButton(
+                    "⏳ Vendor application under review",
+                    callback_data="profile_become_vendor",
+                )
+            ],
+        )
+    else:
+        keyboard.insert(
+            0,
+            [InlineKeyboardButton(t("btn_become_vendor", lang), callback_data="profile_become_vendor")],
         )
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -846,11 +830,9 @@ async def profile_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
 
     elif action == "profile_become_vendor":
-        await query.message.reply_text(
-            f"{t('vendor_apply_title', lang)}\n\n{t('vendor_apply_body', lang)}",
-            parse_mode="Markdown",
-        )
-        context.user_data["vendor_application"] = True
+        from bot.handlers.vendor_registration import start_application
+
+        await start_application(update, context)
 
     elif action == "profile_vendor_panel":
         await show_vendor_panel(update, context)
@@ -1022,6 +1004,19 @@ async def show_vendor_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     """Show vendor dashboard — buttons in the user's saved language."""
     query = update.callback_query
     lang = _get_lang(context)
+    tg_user = update.effective_user
+    vendor_is_approved = False
+    if tg_user:
+        async for db in get_db_session():
+            user = await UserService(db).get_user_by_telegram(tg_user.id)
+            if user:
+                vendor = await VendorService(db).get_vendor_by_user(user.id)
+                vendor_is_approved = bool(vendor and vendor.is_approved)
+            break
+
+    if not vendor_is_approved:
+        await profile_command(update, context)
+        return
 
     keyboard = [
         [InlineKeyboardButton(t("btn_my_products", lang), callback_data="vendor_products")],
@@ -1032,12 +1027,19 @@ async def show_vendor_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         [InlineKeyboardButton(t("btn_back_profile", lang), callback_data="menu_profile")],
     ]
 
-    await _edit_profile_message(
-        query,
-        t("vendor_panel_title", lang),
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
+    if query:
+        await _edit_profile_message(
+            query,
+            t("vendor_panel_title", lang),
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+    else:
+        await update.effective_message.reply_text(
+            t("vendor_panel_title", lang),
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1091,6 +1093,8 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if not saved:
         return
 
+    from bot.keyboards.reply import main_reply_keyboard
+
     if context.user_data.pop("onboarding", False):
         # Onboarding complete — open the main menu in the user's chosen language
         from bot.handlers.start import _build_main_menu
@@ -1104,16 +1108,26 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             parse_mode="Markdown",
             reply_markup=_build_main_menu(is_admin, lang),
         )
+        await update.message.reply_text(
+            tr(context, "menu_keyboard_hint"),
+            reply_markup=main_reply_keyboard(lang),
+        )
+    else:
+        await update.message.reply_text(
+            tr(context, "menu_keyboard_hint"),
+            reply_markup=main_reply_keyboard(lang),
+        )
 
 
 async def profile_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Save text entered after the profile email/update prompts."""
-    field = context.user_data.get("updating_field")
-    if context.user_data.get("vendor_application"):
-        mark_text_message_handled(update, context)
-        context.user_data.pop("vendor_application", None)
-        await update.effective_message.reply_text("✅ ማመልከቻዎ ተቀብሏል። አስተዳደሩ ከገመገመ በኋላ ያሳውቅዎታል።")
+    if "vendor_application_step" in context.user_data:
+        from bot.handlers.vendor_registration import handle_text
+
+        await handle_text(update, context)
         return
+
+    field = context.user_data.get("updating_field")
     message_text = (update.effective_message.text or "").strip().casefold()
     if field and message_text in {
         "cancel",
@@ -1184,6 +1198,12 @@ async def profile_photo_handler(
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
     """Save a user-uploaded Telegram photo file ID as their profile image."""
+    if context.user_data.get("vendor_application_step") == 2:
+        from bot.handlers.vendor_registration import handle_document
+
+        await handle_document(update, context)
+        return
+
     if context.user_data.get("updating_field") != "profile_picture":
         return
 

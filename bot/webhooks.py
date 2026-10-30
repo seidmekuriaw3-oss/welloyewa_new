@@ -5,8 +5,9 @@
 
 import json
 from typing import Any
+from urllib.parse import urlsplit
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from telegram import Update
 
 from bot.bot_instance import get_dispatcher
@@ -21,7 +22,6 @@ router = APIRouter()
 @router.post("/telegram", dependencies=[Depends(verify_webhook_signature)])
 async def telegram_webhook(
     request: Request,
-    background_tasks: BackgroundTasks,
 ) -> dict[str, str]:
     """
     Handle incoming Telegram webhook updates.
@@ -41,8 +41,7 @@ async def telegram_webhook(
                 logger.warning("Invalid webhook secret token")
                 raise HTTPException(status_code=403, detail="Invalid token")
 
-        # Process update in background
-        background_tasks.add_task(process_update, body)
+        await handle_telegram_update(body)
 
         return {"status": "ok"}
 
@@ -72,8 +71,12 @@ async def process_update(update_data: dict[str, Any]) -> None:
 
         logger.debug(f"Processed update: {update.update_id}")
 
-    except Exception as e:
-        logger.error(f"Error processing update: {e}")
+    except Exception:
+        logger.exception(
+            "Telegram update processing failed (update_id=%s)",
+            update_data.get("update_id"),
+        )
+        raise
 
 
 async def set_webhook() -> bool:
@@ -85,25 +88,53 @@ async def set_webhook() -> bool:
     """
     from bot.bot_instance import get_bot
 
-    webhook_url = settings.TELEGRAM_WEBHOOK_URL
-    if not webhook_url:
+    webhook_base_url = (settings.TELEGRAM_WEBHOOK_URL or "").strip()
+    if not webhook_base_url:
         logger.warning("TELEGRAM_WEBHOOK_URL not set, using polling mode")
         return False
 
+    if "://" not in webhook_base_url:
+        webhook_base_url = f"https://{webhook_base_url}"
+
+    parsed = urlsplit(webhook_base_url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        logger.error(
+            "Invalid TELEGRAM_WEBHOOK_URL %r. Use a full HTTPS URL like https://your-domain.example",
+            settings.TELEGRAM_WEBHOOK_URL,
+        )
+        return False
+
     bot = get_bot()
+    path = parsed.path.rstrip("/")
+    webhook_suffix = "/api/v1/webhook/telegram"
+    if path.endswith(webhook_suffix):
+        pass
+    elif path.endswith("/webhook/telegram"):
+        path = f"{path[:-len('/webhook/telegram')]}{webhook_suffix}"
+    elif path.endswith("/api/v1"):
+        path = f"{path}/webhook/telegram"
+    elif path.endswith("/webhook"):
+        path = f"{path[:-len('/webhook')]}{webhook_suffix}"
+    else:
+        path = f"{path}{webhook_suffix}"
+    webhook_url = parsed._replace(path=path, query="", fragment="").geturl()
 
     try:
-        # Set webhook
         await bot.set_webhook(
-            url=f"{webhook_url}/webhook/telegram",
+            url=webhook_url,
             secret_token=settings.TELEGRAM_WEBHOOK_SECRET,
             drop_pending_updates=True,
         )
-        logger.info(f"Webhook set to {webhook_url}/webhook/telegram")
+        logger.info("Telegram webhook configured at %s", webhook_url)
         return True
 
     except Exception as e:
-        logger.error(f"Failed to set webhook: {e}")
+        logger.error(
+            "Failed to set Telegram webhook for %s: %s (%s)",
+            webhook_url,
+            type(e).__name__,
+            e,
+        )
         return False
 
 

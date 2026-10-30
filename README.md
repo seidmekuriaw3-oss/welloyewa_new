@@ -38,7 +38,10 @@ The interface supports Amharic, English, and Afaan Oromoo where translations are
 
 ### Vendors and administrators
 
-- Vendor registration and vendor-scoped product CRUD.
+- Vendor applications use a validated, step-by-step Telegram form for business identity,
+  license upload, location, contact, and payout details. Applications remain pending until
+  an administrator approves them; only approved vendors receive vendor permissions.
+- Vendor-scoped product CRUD.
 - Inventory quantities, thresholds, stock alerts, and order workflows.
 - Sales dashboards, reports, audit logs, broadcasts, and user/vendor administration.
 
@@ -147,10 +150,11 @@ http://127.0.0.1:8080/app/
 ```powershell
 cloudflared tunnel --protocol http2 --url http://localhost:8080
 $env:WEB_APP_URL="https://your-name.trycloudflare.com/app/"
+$env:TELEGRAM_WEBHOOK_URL="https://your-name.trycloudflare.com"
 python main.py
 ```
 
-Keep both processes running. Quick Tunnel URLs are temporary and must not be used for production.
+The bot registers Telegram at `/api/v1/webhook/telegram` automatically, so the value must be a full HTTPS URL with a hostname. Quick Tunnel URLs are temporary and must not be used for production.
 
 ## Database
 

@@ -229,6 +229,17 @@ class VendorBase(BaseSchema):
     business_address: str | None = Field(None, description="Business address")
     business_phone: str | None = Field(None, max_length=20, description="Business phone")
     business_email: EmailStr | None = Field(None, description="Business email")
+    license_document_file_id: str | None = Field(None, max_length=255)
+    license_document_type: str | None = Field(None, max_length=20)
+    business_category: str | None = Field(None, max_length=100)
+    region: str | None = Field(None, max_length=100)
+    city: str | None = Field(None, max_length=100)
+    subcity: str | None = Field(None, max_length=100)
+    specific_location: str | None = None
+    maps_link: str | None = Field(None, max_length=500)
+    bank_name: str | None = Field(None, max_length=100)
+    bank_account_name: str | None = Field(None, max_length=200)
+    bank_account_number: str | None = Field(None, max_length=64)
     website: str | None = Field(None, max_length=255, description="Website URL")
     description: str | None = Field(None, description="Business description")
 
@@ -239,15 +250,98 @@ class VendorCreate(VendorBase):
     pass
 
 
+class VendorApplicationCreate(VendorCreate):
+    """Validated data required to submit a complete vendor application."""
+
+    business_name: str = Field(..., min_length=2, max_length=200)
+    business_license: str = Field(..., min_length=3, max_length=100)
+    tin_number: str = Field(..., min_length=10, max_length=10)
+    license_document_file_id: str = Field(..., min_length=1, max_length=255)
+    license_document_type: str = Field(..., pattern="^(photo|document)$")
+    business_category: str = Field(..., min_length=2, max_length=100)
+    region: str = Field(..., min_length=2, max_length=100)
+    city: str = Field(..., min_length=2, max_length=100)
+    subcity: str = Field(..., min_length=2, max_length=100)
+    specific_location: str = Field(..., min_length=3, max_length=1000)
+    business_address: str = Field(..., min_length=5, max_length=2000)
+    business_phone: str = Field(..., min_length=10, max_length=20)
+    bank_name: str = Field(..., min_length=2, max_length=100)
+    bank_account_name: str = Field(..., min_length=2, max_length=200)
+    bank_account_number: str = Field(..., min_length=6, max_length=64)
+    maps_link: str | None = Field(None, max_length=500)
+
+    @field_validator("business_license")
+    @classmethod
+    def validate_license(cls, value: str) -> str:
+        from core.utils.validators import validate_business_license
+
+        value = value.strip().upper()
+        if not validate_business_license(value):
+            raise ValueError("Invalid Ethiopian business license number")
+        return value
+
+    @field_validator("tin_number")
+    @classmethod
+    def validate_tin(cls, value: str) -> str:
+        from core.utils.validators import validate_ethiopian_tin
+
+        value = value.strip()
+        if not validate_ethiopian_tin(value):
+            raise ValueError("TIN must contain 10 digits")
+        return value
+
+    @field_validator("business_phone")
+    @classmethod
+    def validate_business_phone(cls, value: str) -> str:
+        from core.utils.validators import Validator
+
+        try:
+            return Validator.phone(value, normalize=True)
+        except ValueError as exc:
+            raise ValueError("Invalid Ethiopian phone number") from exc
+
+    @field_validator("bank_account_number")
+    @classmethod
+    def validate_account_number(cls, value: str) -> str:
+        normalized = "".join(value.split()).replace("-", "")
+        if not normalized.isdigit() or not 6 <= len(normalized) <= 34:
+            raise ValueError("Bank account number must contain 6 to 34 digits")
+        return normalized
+
+    @field_validator("maps_link")
+    @classmethod
+    def validate_maps_link(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        from urllib.parse import urlsplit
+
+        normalized = value.strip()
+        parsed = urlsplit(normalized)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("Maps link must be an absolute HTTP(S) URL")
+        return normalized
+
+
 class VendorUpdate(BaseSchema):
     """Schema for updating a vendor."""
 
     business_name: str | None = Field(None, max_length=200)
     business_license: str | None = Field(None, max_length=100)
     tin_number: str | None = Field(None, max_length=50)
+    license_document_file_id: str | None = Field(None, max_length=255)
+    license_document_type: str | None = Field(None, max_length=20)
+    business_category: str | None = Field(None, max_length=100)
+    region: str | None = Field(None, max_length=100)
+    city: str | None = Field(None, max_length=100)
+    subcity: str | None = Field(None, max_length=100)
+    specific_location: str | None = None
     business_address: str | None = None
     business_phone: str | None = Field(None, max_length=20)
     business_email: EmailStr | None = None
+    maps_link: str | None = Field(None, max_length=500)
+    bank_name: str | None = Field(None, max_length=100)
+    bank_account_name: str | None = Field(None, max_length=200)
+    bank_account_number: str | None = Field(None, max_length=64)
     website: str | None = Field(None, max_length=255)
     description: str | None = None
     logo_url: str | None = Field(None, max_length=500)

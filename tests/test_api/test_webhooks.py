@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi import BackgroundTasks, HTTPException
+from fastapi import HTTPException
 from httpx import AsyncClient
 from starlette.requests import Request
 
@@ -96,9 +96,27 @@ async def test_direct_webhook_call_preserves_forbidden_status(monkeypatch):
     )
 
     with pytest.raises(HTTPException) as exc:
-        await telegram_webhook(request, BackgroundTasks())
+        await telegram_webhook(request)
 
     assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_telegram_webhook_processes_update_before_acknowledging(monkeypatch):
+    from bot.webhooks import telegram_webhook
+    from core.config import settings
+
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", "expected-token")
+    payload = {"update_id": 42}
+    request = AsyncMock()
+    request.json.return_value = payload
+    request.headers = {"X-Telegram-Bot-Api-Secret-Token": "expected-token"}
+
+    with patch("bot.webhooks.handle_telegram_update", new_callable=AsyncMock) as handler:
+        result = await telegram_webhook(request)
+
+    assert result == {"status": "ok"}
+    handler.assert_awaited_once_with(payload)
 
 
 @pytest.mark.asyncio
@@ -114,3 +132,55 @@ async def test_webhook_requires_secret_even_when_development_bypass_is_enabled(m
         await verify_webhook_signature(Request({"type": "http"}), None)
 
     assert exc.value.status_code == 503
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("configured_url", "expected_url"),
+    [
+        (
+            "https://store.example",
+            "https://store.example/api/v1/webhook/telegram",
+        ),
+        (
+            "https://store.example/webhook/telegram/",
+            "https://store.example/api/v1/webhook/telegram",
+        ),
+        ("https://store.example/api/v1", "https://store.example/api/v1/webhook/telegram"),
+        ("https://store.example/webhook", "https://store.example/api/v1/webhook/telegram"),
+        ("store.example", "https://store.example/api/v1/webhook/telegram"),
+    ],
+)
+async def test_set_webhook_uses_single_telegram_endpoint(
+    monkeypatch, configured_url: str, expected_url: str
+):
+    from bot.webhooks import set_webhook
+    from core.config import settings
+
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_URL", configured_url)
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", "expected-token")
+
+    bot = AsyncMock()
+    with patch("bot.bot_instance.get_bot", return_value=bot):
+        assert await set_webhook() is True
+
+    bot.set_webhook.assert_awaited_once_with(
+        url=expected_url,
+        secret_token="expected-token",
+        drop_pending_updates=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_set_webhook_rejects_non_https_urls(monkeypatch):
+    from bot.webhooks import set_webhook
+    from core.config import settings
+
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_URL", "http://store.example")
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", "expected-token")
+
+    bot = AsyncMock()
+    with patch("bot.bot_instance.get_bot", return_value=bot):
+        assert await set_webhook() is False
+
+    bot.set_webhook.assert_not_awaited()

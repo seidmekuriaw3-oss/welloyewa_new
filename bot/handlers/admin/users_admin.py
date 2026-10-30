@@ -7,6 +7,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.helpers import escape_markdown
 from telegram.ext import ContextTypes
 
+from apps.users.repository import UserRepository
 from apps.users.services import UserService, VendorService
 from core.config import settings
 from core.logger import logger
@@ -323,10 +324,17 @@ async def do_approve_vendor(
     """Approve a vendor by DB vendor ID."""
     query = update.callback_query
     admin_id = update.effective_user.id
+    telegram_id = None
     try:
         async with transaction_session() as db:
             vendor_service = VendorService(db)
-            await vendor_service.approve_vendor(vendor_id, admin_id)
+            vendor = await vendor_service.approve_vendor(vendor_id, admin_id)
+            user = await UserRepository(db).get_by_id(vendor.user_id)
+            telegram_id = user.telegram_id if user else None
+        if telegram_id:
+            from bot.handlers.vendor_registration import notify_applicant
+
+            await notify_applicant(context.bot, telegram_id, approved=True)
         await query.message.edit_text(
             f"✅ ሻጩ (ID: {vendor_id}) ፀድቋል!",
             reply_markup=_users_back_keyboard(),
@@ -343,10 +351,17 @@ async def do_reject_vendor(
 ) -> None:
     """Reject a vendor by DB vendor ID."""
     query = update.callback_query
+    telegram_id = None
     try:
         async with transaction_session() as db:
             vendor_service = VendorService(db)
-            await vendor_service.reject_vendor(vendor_id, reason="Admin rejection")
+            vendor = await vendor_service.reject_vendor(vendor_id, reason="Admin rejection")
+            user = await UserRepository(db).get_by_id(vendor.user_id)
+            telegram_id = user.telegram_id if user else None
+        if telegram_id:
+            from bot.handlers.vendor_registration import notify_applicant
+
+            await notify_applicant(context.bot, telegram_id, approved=False)
         await query.message.edit_text(
             f"❌ ሻጩ (ID: {vendor_id}) ውድቅ ሆኗል።",
             reply_markup=_users_back_keyboard(),

@@ -16,6 +16,7 @@ from apps.users.schemas import (
     UserLogin,
     UserRegister,
     UserUpdate,
+    VendorApplicationCreate,
     VendorCreate,
     VendorUpdate,
 )
@@ -232,16 +233,37 @@ class UserService:
         """Get user by Telegram ID."""
         return await self.user_repo.get_by_telegram(telegram_id)
 
-    async def update_user(self, user_id: int, data: UserUpdate) -> User:
+    async def update_user(
+        self,
+        user_id: int,
+        data: UserUpdate | dict[str, Any],
+        *,
+        partial: bool = True,
+    ) -> User:
         """Update user information."""
-        # Validate phone if provided
-        if data.phone_number:
-            try:
-                data.phone_number = Validator.phone(data.phone_number, normalize=True)
-            except ValueError as exc:
-                raise ValidationError(f"Invalid phone number: {data.phone_number}") from exc
+        update_data = (
+            data.model_dump(exclude_unset=True)
+            if isinstance(data, UserUpdate)
+            else dict(data)
+        )
 
-        user = await self.user_repo.update(user_id, data.dict(exclude_unset=True))
+        # Validate phone if provided
+        if update_data.get("phone_number"):
+            try:
+                update_data["phone_number"] = Validator.phone(
+                    update_data["phone_number"],
+                    normalize=True,
+                )
+            except ValueError as exc:
+                raise ValidationError(
+                    f"Invalid phone number: {update_data['phone_number']}"
+                ) from exc
+
+        user = await self.user_repo.update(
+            user_id,
+            update_data,
+            partial=partial,
+        )
         if not user:
             raise NotFoundError("User", user_id)
 
@@ -250,7 +272,7 @@ class UserService:
             USER_UPDATED,
             {
                 "user_id": user.id,
-                "updated_fields": list(data.dict(exclude_unset=True).keys()),
+                "updated_fields": list(update_data.keys()),
             },
             sync=False,
         )
@@ -301,12 +323,39 @@ class UserService:
 class VendorService:
     """Service for vendor management operations."""
 
+    _required_application_fields = (
+        "business_name",
+        "business_license",
+        "tin_number",
+        "license_document_file_id",
+        "license_document_type",
+        "business_category",
+        "region",
+        "city",
+        "subcity",
+        "specific_location",
+        "business_phone",
+        "bank_name",
+        "bank_account_name",
+        "bank_account_number",
+    )
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.vendor_repo = VendorRepository(db)
         self.user_repo = UserRepository(db)
 
-    async def create_vendor(self, user_id: int, data: VendorCreate) -> Vendor:
+    @classmethod
+    def is_application_complete(cls, vendor: Vendor) -> bool:
+        """Return whether a stored application contains every required review field."""
+        return all(
+            getattr(vendor, field, None)
+            for field in cls._required_application_fields
+        )
+
+    async def create_vendor(
+        self, user_id: int, data: VendorCreate | VendorApplicationCreate
+    ) -> Vendor:
         """
         Create a vendor profile.
 
@@ -320,33 +369,66 @@ class VendorService:
         user = await self.user_repo.get_by_id(user_id)
         if not user:
             raise NotFoundError("User", user_id)
+        if user.is_deleted or user.status != "active":
+            raise ValidationError("Inactive accounts cannot submit vendor applications")
 
-        if user.role != "customer":
-            raise ValidationError("User already has a vendor profile")
-
-        # Check if vendor already exists
         existing = await self.vendor_repo.get_by_user_id(user_id)
-        if existing:
+        if existing and (
+            existing.is_approved
+            or (existing.rejected_at is None and self.is_application_complete(existing))
+        ):
             raise DuplicateRecordError("Vendor", "user_id", user_id)
+        if user.role not in {"customer", "vendor"}:
+            raise ValidationError("This account cannot submit a vendor application")
 
-        # Create vendor
-        vendor = await self.vendor_repo.create(
-            {
-                "user_id": user_id,
-                "business_name": data.business_name,
-                "business_license": data.business_license,
-                "tin_number": data.tin_number,
-                "business_address": data.business_address,
-                "business_phone": data.business_phone,
-                "business_email": data.business_email,
-                "description": data.description,
-            }
+        vendor_data = data.model_dump(exclude_unset=True)
+        if vendor_data.get("business_license"):
+            license_owner = await self.vendor_repo.get_by_license(
+                vendor_data["business_license"]
+            )
+            if license_owner and license_owner.user_id != user_id:
+                raise DuplicateRecordError(
+                    "Vendor", "business_license", vendor_data["business_license"]
+                )
+        if vendor_data.get("tin_number"):
+            tin_owner = await self.vendor_repo.get_by_tin(vendor_data["tin_number"])
+            if tin_owner and tin_owner.user_id != user_id:
+                raise DuplicateRecordError("Vendor", "tin_number", vendor_data["tin_number"])
+
+        vendor_data["business_address"] = (
+            vendor_data.get("business_address")
+            or ", ".join(
+                value
+                for value in (
+                    vendor_data.get("region"),
+                    vendor_data.get("city"),
+                    vendor_data.get("subcity"),
+                    vendor_data.get("specific_location"),
+                )
+                if value
+            )
         )
+        if existing:
+            vendor = await self.vendor_repo.update(
+                existing.id,
+                {
+                    **vendor_data,
+                    "is_approved": False,
+                    "rejected_at": None,
+                    "rejection_reason": None,
+                },
+                partial=False,
+            )
+            if not vendor:
+                raise NotFoundError("Vendor", existing.id)
+        else:
+            vendor = await self.vendor_repo.create({"user_id": user_id, **vendor_data})
 
-        # Update user role to vendor
-        await self.user_repo.update(user_id, {"role": "vendor"})
-
-        logger.info(f"New vendor created: {vendor.id} (user: {user_id})")
+        if vendor_data.get("business_phone"):
+            await self.user_repo.update(
+                user_id, {"phone_number": vendor_data["business_phone"]}
+            )
+        logger.info("Vendor application submitted: %s (user: %s)", vendor.id, user_id)
         return vendor
 
     async def get_vendor(self, vendor_id: int) -> Vendor:
@@ -372,6 +454,8 @@ class VendorService:
         current = await self.get_vendor(vendor_id)
         if current.is_approved:
             raise ValidationError(f"Vendor {vendor_id} is already approved")
+        if not self.is_application_complete(current):
+            raise ValidationError("Vendor application is incomplete and cannot be approved")
         vendor = await self.vendor_repo.update(
             vendor_id,
             {
@@ -381,11 +465,13 @@ class VendorService:
                 "rejected_at": None,
                 "rejection_reason": None,
             },
+            partial=False,
         )
 
         if not vendor:
             raise NotFoundError("Vendor", vendor_id)
 
+        await self.user_repo.update(vendor.user_id, {"role": "vendor"})
         logger.info(f"Vendor {vendor_id} approved by admin {admin_id}")
         return vendor
 
@@ -408,6 +494,9 @@ class VendorService:
         if not vendor:
             raise NotFoundError("Vendor", vendor_id)
 
+        user = await self.user_repo.get_by_id(vendor.user_id)
+        if user and user.role == "vendor":
+            await self.user_repo.update(vendor.user_id, {"role": "customer"})
         logger.info(f"Vendor {vendor_id} rejected: {reason}")
         return vendor
 

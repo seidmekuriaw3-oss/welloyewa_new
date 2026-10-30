@@ -148,6 +148,29 @@ def sample_user_data():
 
 
 @pytest.fixture
+def sample_vendor_application_data():
+    """Complete vendor application payload used by API workflow tests."""
+    return {
+        "business_name": "Test Vendor",
+        "business_license": "LIC123456",
+        "tin_number": "1234567890",
+        "license_document_file_id": "test-telegram-file-id",
+        "license_document_type": "photo",
+        "business_category": "Furniture",
+        "region": "Amhara",
+        "city": "Bahir Dar",
+        "subcity": "Kebele 01",
+        "specific_location": "Near the central market",
+        "business_address": "Amhara, Bahir Dar, Kebele 01, Near the central market",
+        "business_phone": "0912345678",
+        "bank_name": "Commercial Bank",
+        "bank_account_name": "Test Vendor",
+        "bank_account_number": "00123456789",
+        "maps_link": "https://maps.google.com/?q=11.59,37.39",
+    }
+
+
+@pytest.fixture
 def sample_product_data():
     """Sample product data for testing."""
     return {

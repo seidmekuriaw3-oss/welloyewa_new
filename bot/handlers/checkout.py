@@ -25,6 +25,7 @@ from bot.handlers.callback_utils import answer_callback_query
 from bot.handlers.cart import clear_cart, get_user_cart
 from bot.handlers.location import reverse_geocode
 from bot.handlers.text_routing import mark_text_message_handled
+from bot.keyboards.reply import main_reply_keyboard
 from bot.localization import get_language, tr
 from core.constants import PaymentStatus
 from core.logger import logger
@@ -45,7 +46,10 @@ async def _prompt_new_address(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"{tr(context, 'checkout_address_example')}"
     )
     location_markup = ReplyKeyboardMarkup(
-        [[KeyboardButton(tr(context, "location_share"), request_location=True)]],
+        [
+            [KeyboardButton(tr(context, "location_share"), request_location=True)],
+            [tr(context, "cancel")],
+        ],
         one_time_keyboard=True,
         resize_keyboard=True,
     )
@@ -57,13 +61,25 @@ async def _prompt_new_address(update: Update, context: ContextTypes.DEFAULT_TYPE
     return SELECT_ADDRESS
 
 
+async def _restore_main_reply_keyboard(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Restore persistent navigation after checkout exits a temporary keyboard."""
+    await update.effective_message.reply_text(
+        tr(context, "menu_keyboard_hint"),
+        reply_markup=main_reply_keyboard(get_language(context)),
+    )
+
+
 async def _prompt_recipient_name(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> int:
     await update.effective_message.reply_text(
         tr(context, "checkout_recipient_name_prompt"),
-        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton(tr(context, "cancel"), callback_data="menu_back")]]
+        ),
     )
     return SELECT_RECIPIENT_NAME
 
@@ -73,7 +89,10 @@ async def _prompt_recipient_phone(
     context: ContextTypes.DEFAULT_TYPE,
 ) -> int:
     markup = ReplyKeyboardMarkup(
-        [[KeyboardButton(tr(context, "checkout_share_phone"), request_contact=True)]],
+        [
+            [KeyboardButton(tr(context, "checkout_share_phone"), request_contact=True)],
+            [tr(context, "cancel")],
+        ],
         one_time_keyboard=True,
         resize_keyboard=True,
     )
@@ -187,6 +206,7 @@ async def address_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     elif query.data == "checkout_cancel":
         await query.message.edit_text(tr(context, "order_cancelled"))
         _clear_checkout_state(context)
+        await _restore_main_reply_keyboard(update, context)
         return ConversationHandler.END
 
     # Selected existing address
@@ -278,7 +298,10 @@ async def recipient_phone_handler(
         recipient_phone = Validator.phone((phone_input or "").strip(), normalize=True)
     except ValueError:
         markup = ReplyKeyboardMarkup(
-            [[KeyboardButton(tr(context, "checkout_share_phone"), request_contact=True)]],
+            [
+                [KeyboardButton(tr(context, "checkout_share_phone"), request_contact=True)],
+                [tr(context, "cancel")],
+            ],
             one_time_keyboard=True,
             resize_keyboard=True,
         )
@@ -321,6 +344,7 @@ async def recipient_phone_handler(
                 reply_markup=ReplyKeyboardRemove(),
             )
             _clear_checkout_state(context)
+            await _restore_main_reply_keyboard(update, context)
             return ConversationHandler.END
 
         if address_id is None:
@@ -329,6 +353,7 @@ async def recipient_phone_handler(
                 reply_markup=ReplyKeyboardRemove(),
             )
             _clear_checkout_state(context)
+            await _restore_main_reply_keyboard(update, context)
             return ConversationHandler.END
         context.user_data["checkout_address_id"] = address_id
         context.user_data.pop("checkout_pending_address", None)
@@ -386,12 +411,14 @@ async def payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     context.user_data["checkout_conversation_active"] = True
 
     if query.data == "pay_back":
-        # Go back to address selection
-        return await start_checkout(update, context)
+        context.user_data["checkout_resume_confirmation"] = True
+        await query.message.edit_reply_markup(reply_markup=None)
+        return await _prompt_recipient_name(update, context)
 
     elif query.data == "checkout_cancel":
         await query.message.edit_text(tr(context, "order_cancelled"))
         _clear_checkout_state(context)
+        await _restore_main_reply_keyboard(update, context)
         return ConversationHandler.END
 
     # Store payment method
@@ -424,6 +451,7 @@ async def show_order_confirmation(
             parse_mode="Markdown",
         )
         _clear_checkout_state(context)
+        await _restore_main_reply_keyboard(update, context)
         return ConversationHandler.END
 
     # Calculate totals
@@ -468,6 +496,7 @@ async def show_order_confirmation(
     if not recipient_name or not recipient_phone or not delivery_address:
         await update.callback_query.message.edit_text(tr(context, "checkout_missing"))
         _clear_checkout_state(context)
+        await _restore_main_reply_keyboard(update, context)
         return ConversationHandler.END
 
     recipient_name = escape_markdown(recipient_name, version=1)
@@ -525,6 +554,7 @@ async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await query.message.edit_text(tr(context, "order_cancelled"))
         await _cancel_created_order_if_pending(update, context)
         _clear_checkout_state(context)
+        await _restore_main_reply_keyboard(update, context)
         return ConversationHandler.END
 
     user_id = update.effective_user.id
@@ -533,6 +563,7 @@ async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         if not order_id:
             await query.message.edit_text(tr(context, "checkout_missing"))
             _clear_checkout_state(context)
+            await _restore_main_reply_keyboard(update, context)
             return ConversationHandler.END
 
         order = None
@@ -544,6 +575,7 @@ async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         if not order or not user:
             await query.message.edit_text(tr(context, "checkout_missing"))
             _clear_checkout_state(context)
+            await _restore_main_reply_keyboard(update, context)
             return ConversationHandler.END
         return await _process_order_payment(
             update,
@@ -571,6 +603,7 @@ async def _create_and_process_order(
     if not cart or not address_id or not payment_method or not recipient_name or not recipient_phone:
         await query.message.edit_text(tr(context, "checkout_missing"))
         _clear_checkout_state(context)
+        await _restore_main_reply_keyboard(update, context)
         return ConversationHandler.END
 
     user = None
@@ -646,6 +679,7 @@ async def _process_order_payment(
             parse_mode="Markdown",
         )
         _clear_checkout_state(context)
+        await _restore_main_reply_keyboard(update, context)
         return ConversationHandler.END
 
     try:
@@ -681,6 +715,7 @@ async def _process_order_payment(
             parse_mode="Markdown",
         )
         _clear_checkout_state(context)
+        await _restore_main_reply_keyboard(update, context)
         return ConversationHandler.END
 
     async with transaction_session() as db:
@@ -746,6 +781,7 @@ async def cancel_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await update.message.reply_text(tr(context, "order_cancelled"))
     await _cancel_created_order_if_pending(update, context)
     _clear_checkout_state(context)
+    await _restore_main_reply_keyboard(update, context)
     return ConversationHandler.END
 
 

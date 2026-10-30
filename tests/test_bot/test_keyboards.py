@@ -129,12 +129,43 @@ class TestReplyKeyboards:
         """Test main reply keyboard creation."""
         from bot.keyboards.reply import main_reply_keyboard
 
-        keyboard = main_reply_keyboard("en")
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(
+                "bot.keyboards.reply.settings.web_app_url",
+                "https://store.example/app/",
+            )
+            keyboard = main_reply_keyboard("en")
 
         assert keyboard is not None
         assert keyboard.resize_keyboard is True
-        assert [button.text for button in keyboard.keyboard[0]] == ["🛍️ Products", "🔍 Search"]
-        assert keyboard.keyboard[2][0].text == "📦 My Orders"
+        assert keyboard.is_persistent is True
+        assert [[button.text for button in row] for row in keyboard.keyboard] == [
+            ["🛍️ Browse Store", "🌐 Open Web App"],
+            ["🛒 Cart", "⭐ Wishlist"],
+            ["🔍 Search", "📦 My Orders"],
+            ["👤 Profile", "🏪 Vendor Panel / Apply"],
+            ["ℹ️ Help & Support"],
+        ]
+        web_app_button = keyboard.keyboard[0][1]
+        assert web_app_button.web_app.url == "https://store.example/app/"
+        assert web_app_button.request_contact is None
+        assert web_app_button.request_location is None
+
+    def test_main_reply_button_actions_cover_all_supported_languages(self):
+        from bot.keyboards.reply import main_reply_button_actions
+
+        actions = main_reply_button_actions()
+
+        assert actions["🛍️ Browse Store"] == "browse_store"
+        assert actions["🌐 Open Web App"] == "web_app"
+        assert actions["🛒 Cart"] == "cart"
+        assert actions["⭐ Wishlist"] == "wishlist"
+        assert actions["🔍 Search"] == "search"
+        assert actions["📦 My Orders"] == "orders"
+        assert actions["👤 Profile"] == "profile"
+        assert actions["🏪 Vendor Panel / Apply"] == "vendor_panel"
+        assert actions["ℹ️ Help & Support"] == "help"
+        assert actions["🛍️ ሱቅ ማሰስ"] == "browse_store"
 
     def test_contact_keyboard(self):
         """Test contact sharing keyboard."""

@@ -94,7 +94,10 @@ async def get_current_admin(
     Raises:
         PermissionError: If user is not an admin
     """
-    if current_user["role"] not in ["admin", "super_admin"]:
+    has_admin_role = current_user["role"] in ["admin", "super_admin"]
+    telegram_id = current_user.get("telegram_id")
+    is_configured_admin = telegram_id is not None and telegram_id in settings.admin_ids_list
+    if not (has_admin_role or is_configured_admin):
         raise PermissionError("Admin access required")
     return current_user
 
@@ -147,6 +150,8 @@ async def get_current_vendor(
         vendor = await vendor_repo.get_by_user_id(current_user["id"])
         if not vendor:
             raise PermissionError("Vendor profile not found")
+        if not vendor.is_approved:
+            raise PermissionError("Vendor application has not been approved")
         current_user["vendor_id"] = vendor.id
         current_user["business_name"] = vendor.business_name
 

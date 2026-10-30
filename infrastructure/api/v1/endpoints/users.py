@@ -4,6 +4,7 @@
 """REST API endpoints for user management."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.common.schemas import MessageResponse, PaginatedResponse
@@ -16,7 +17,7 @@ from apps.users.schemas import (
     UserRegister,
     UserResponse,
     UserUpdate,
-    VendorCreate,
+    VendorApplicationCreate,
     VendorResponse,
     VendorUpdate,
 )
@@ -138,10 +139,13 @@ async def register_user(
             )
 
         user = await auth_service.register(data)
+        await db.commit()
         return UserResponse.model_validate(user)
     except DuplicateRecordError as e:
+        await db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
     except ValidationError as e:
+        await db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
 
@@ -349,24 +353,67 @@ async def delete_user(
 # ============================
 
 
-@router.post("/vendor/register", response_model=VendorResponse)
+@router.post(
+    "/vendor/register",
+    response_model=VendorResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def register_vendor(
-    data: VendorCreate,
+    data: VendorApplicationCreate,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> VendorResponse:
     """
     Register as a vendor.
 
-    Converts a customer account to a vendor profile.
+    Submits a complete vendor application for admin review.
     """
     vendor_service = VendorService(db)
 
     try:
         vendor = await vendor_service.create_vendor(current_user["id"], data)
+        await db.commit()
+        try:
+            from bot.bot_instance import get_bot
+            from bot.handlers.vendor_registration import notify_admins
+
+            await notify_admins(
+                get_bot(),
+                vendor_id=vendor.id,
+                applicant=" ".join(
+                    part
+                    for part in (
+                        current_user.get("first_name"),
+                        current_user.get("last_name"),
+                    )
+                    if part
+                ),
+                telegram_username=current_user.get("username"),
+                telegram_id=current_user.get("telegram_id"),
+                application=data.model_dump(),
+            )
+        except RuntimeError as exc:
+            logger.error(
+                "Vendor application %s saved but Telegram admin notification is unavailable (%s)",
+                vendor.id,
+                type(exc).__name__,
+            )
         return VendorResponse.model_validate(vendor)
-    except (NotFoundError, ValidationError, DuplicateRecordError) as e:
+    except DuplicateRecordError as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    except NotFoundError as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    except ValidationError as e:
+        await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    except IntegrityError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A vendor application with this license or TIN already exists",
+        ) from e
 
 
 @router.get("/vendor/me", response_model=VendorResponse)

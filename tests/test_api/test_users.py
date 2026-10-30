@@ -201,36 +201,35 @@ class TestAdminUserEndpoints:
 class TestVendorEndpoints:
     """Tests for vendor endpoints."""
 
-    async def test_register_vendor(self, client: AsyncClient, sample_user_data, auth_token):
+    async def test_register_vendor(
+        self, client: AsyncClient, sample_user_data, sample_vendor_application_data, auth_token
+    ):
         """Test vendor registration."""
         # Register as customer first
         await client.post("/api/v1/users/register", json=sample_user_data)
 
         # Register as vendor
-        vendor_data = {
-            "business_name": "Test Business",
-            "business_license": "LIC123456",
-            "tin_number": "1234567890",
-            "business_address": "123 Test St",
-            "business_phone": "0912345678",
-        }
+        vendor_data = sample_vendor_application_data
         headers = {"Authorization": f"Bearer {auth_token}"}
         response = await client.post(
             "/api/v1/users/vendor/register", json=vendor_data, headers=headers
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 202
         data = response.json()
         assert data["business_name"] == vendor_data["business_name"]
+        assert data["is_approved"] is False
         assert "user_id" in data
 
-    async def test_get_vendor_profile(self, client: AsyncClient, sample_user_data, auth_token):
+    async def test_get_vendor_profile(
+        self, client: AsyncClient, sample_user_data, sample_vendor_application_data, auth_token
+    ):
         """Test getting vendor profile."""
         # Register as customer
         await client.post("/api/v1/users/register", json=sample_user_data)
 
         # Register as vendor
-        vendor_data = {"business_name": "Test Business"}
+        vendor_data = {**sample_vendor_application_data, "business_name": "Test Business"}
         headers = {"Authorization": f"Bearer {auth_token}"}
         await client.post("/api/v1/users/vendor/register", json=vendor_data, headers=headers)
 
@@ -240,6 +239,7 @@ class TestVendorEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["business_name"] == "Test Business"
+        assert data["is_approved"] is False
 
 
 __all__ = ["TestAdminUserEndpoints", "TestUserEndpoints", "TestVendorEndpoints"]

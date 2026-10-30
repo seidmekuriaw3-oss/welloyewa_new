@@ -19,6 +19,7 @@ from . import (
     profile,
     search,
     start,
+    vendor_registration,
     wishlist,
 )
 
@@ -68,6 +69,7 @@ __all__ = [
     "reports",
     "search",
     "start",
+    "vendor_registration",
     "users_admin",
     "wishlist",
 ]

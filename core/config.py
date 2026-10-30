@@ -120,6 +120,22 @@ class Settings(BaseSettings):
     TELEGRAM_WEBHOOK_SECRET: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
     ADMIN_IDS: str = Field(default="5848843259")
 
+    @field_validator("TELEGRAM_WEBHOOK_URL", mode="before")
+    @classmethod
+    def normalize_telegram_webhook_url(cls, v):
+        """Normalize Telegram webhook URLs and require an HTTPS hostname."""
+        if v is None:
+            return None
+        value = str(v).strip()
+        if not value:
+            return None
+        if "://" not in value:
+            value = f"https://{value}"
+        parsed = urlsplit(value)
+        if parsed.scheme != "https" or not parsed.netloc:
+            raise ValueError("TELEGRAM_WEBHOOK_URL must be a valid HTTPS URL with a hostname.")
+        return value.rstrip("/")
+
     @property
     def admin_ids_list(self) -> list[int]:
         """Return list of admin Telegram IDs."""

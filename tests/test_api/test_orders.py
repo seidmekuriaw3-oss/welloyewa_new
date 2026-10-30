@@ -181,50 +181,38 @@ class TestOrderTrackingEndpoints:
 class TestVendorOrderEndpoints:
     """Tests for vendor order endpoints."""
 
-    async def test_get_vendor_orders(self, client: AsyncClient, sample_user_data, auth_token):
-        """Test getting vendor's orders."""
+    async def test_pending_vendor_cannot_access_orders(
+        self, client: AsyncClient, sample_user_data, sample_vendor_application_data, auth_token
+    ):
+        """A submitted but unapproved application must not grant vendor access."""
         # Register as vendor
         await client.post("/api/v1/users/register", json=sample_user_data)
-        vendor_data = {"business_name": "Test Vendor"}
+        vendor_data = sample_vendor_application_data
         headers = {"Authorization": f"Bearer {auth_token}"}
         await client.post("/api/v1/users/vendor/register", json=vendor_data, headers=headers)
 
         # Get vendor orders
         response = await client.get("/api/v1/orders/vendor/orders", headers=headers)
 
-        assert response.status_code == 200
-        data = response.json()
-        assert "items" in data
+        assert response.status_code == 403
 
     async def test_update_order_status_vendor(
-        self, client: AsyncClient, sample_user_data, sample_order_data, auth_token
+        self,
+        client: AsyncClient,
+        sample_user_data,
+        sample_order_data,
+        sample_vendor_application_data,
+        auth_token,
     ):
-        """Test updating order status as vendor."""
+        """A pending vendor cannot access the order status workflow."""
         # Register as vendor
         await client.post("/api/v1/users/register", json=sample_user_data)
-        vendor_data = {"business_name": "Test Vendor"}
+        vendor_data = sample_vendor_application_data
         headers = {"Authorization": f"Bearer {auth_token}"}
         await client.post("/api/v1/users/vendor/register", json=vendor_data, headers=headers)
 
-        # Create order (as customer)
-        await client.post("/api/v1/orders/", json=sample_order_data, headers=headers)
-
-        # Get vendor orders
-        orders_response = await client.get("/api/v1/orders/vendor/orders", headers=headers)
-        orders = orders_response.json().get("items", [])
-
-        if orders:
-            order_id = orders[0]["id"]
-            status_data = {"status": "processing"}
-            response = await client.put(
-                f"/api/v1/orders/vendor/orders/{order_id}/status", json=status_data, headers=headers
-            )
-
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "processing"
-        else:
-            pytest.skip("No vendor orders found")
+        response = await client.get("/api/v1/orders/vendor/orders", headers=headers)
+        assert response.status_code == 403
 
 
 class TestAdminOrderEndpoints:

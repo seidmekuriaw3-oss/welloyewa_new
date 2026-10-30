@@ -514,7 +514,7 @@ curl https://api.telegram.org/bot<YOUR_TOKEN>/getWebhookInfo
 curl https://api.telegram.org/bot<YOUR_TOKEN>/deleteWebhook
 
 # Set webhook again
-curl -F "url=https://your-domain.com/webhook/telegram" \
+curl -F "url=https://your-domain.com/api/v1/webhook/telegram" \
      https://api.telegram.org/bot<YOUR_TOKEN>/setWebhook
 ```
 
