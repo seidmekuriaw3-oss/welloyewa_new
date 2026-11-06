@@ -15,6 +15,7 @@ from apps.products.models import *
 from apps.orders.models import *
 from apps.inventory.models import *
 from apps.marketing.models import *
+from apps.store_settings.models import *
 from apps.support.models import *
 
 config = context.config

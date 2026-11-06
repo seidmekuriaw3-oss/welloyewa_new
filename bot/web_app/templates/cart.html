@@ -22,6 +22,7 @@
 
     <!-- Cart items -->
     <div id="cartItems"></div>
+    <section id="cartPromotions" class="cart-promotions" aria-label="ንቁ ቅናሾች"></section>
 
     <!-- Summary -->
     <div class="cart-summary" id="cartSummary" style="display:none">
@@ -85,6 +86,35 @@ function renderCart() {
     refreshAllBadges();
 }
 
+async function loadCartPromotions() {
+    const container = document.getElementById('cartPromotions');
+    try {
+        const response = await fetch('/app/api/discounts/active', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Discounts unavailable');
+        const data = await response.json();
+        const items = Array.isArray(data.items) ? data.items : [];
+        container.innerHTML = items.map(promo => {
+            const value = promo.discount_type === 'percentage'
+                ? `${Number(promo.discount_value)}%`
+                : `ETB ${Number(promo.discount_value).toLocaleString()}`;
+            return `<article class="cart-promo-card">
+                <span class="cart-promo-icon">%</span>
+                <span><strong>${he(value)} OFF · ${he(promo.name)}</strong><small>ኮድ <b>${he(promo.code)}</b> · በትዕዛዝ ማረጋገጫ ላይ ያስገቡ</small></span>
+                <button type="button" class="admin-button" data-copy-promo="${he(promo.code)}">ኮዱን ይጠቀሙ</button>
+            </article>`;
+        }).join('');
+    } catch (error) {
+        console.warn('Active discounts could not be loaded', error);
+    }
+}
+
+document.getElementById('cartPromotions').addEventListener('click', event => {
+    const button = event.target.closest('[data-copy-promo]');
+    if (!button) return;
+    sessionStorage.setItem('wolloyewa_coupon_code', button.dataset.copyPromo);
+    window.location.assign('/app/checkout');
+});
+
 function changeQty(productId, delta) {
     const item = cart.items.find(i => i.id === productId);
     if (!item) return;
@@ -103,5 +133,6 @@ function removeFromCart(productId) {
 }
 
 renderCart();
+loadCartPromotions();
 </script>
 {% endblock %}

@@ -337,9 +337,15 @@ async def test_checkout_collects_recipient_name_and_phone_before_payment(monkeyp
     monkeypatch.setattr(checkout, "show_payment_methods", show_methods)
     phone_state = await checkout.recipient_phone_handler(phone_update, context)
 
-    assert phone_state == checkout.SELECT_PAYMENT
+    assert phone_state == checkout.SELECT_COUPON
     assert context.user_data["checkout_address_id"] == 99
     assert context.user_data["checkout_recipient_phone"] == "0912345678"
+    assert (
+        phone_message.reply_text.await_args_list[-1].kwargs["reply_markup"]
+        .inline_keyboard[0][0]
+        .callback_data
+        == "checkout_coupon_skip"
+    )
     saved_address = db.add.call_args.args[0]
     assert saved_address.recipient_name == "Test Recipient"
     assert saved_address.recipient_phone == "0912345678"

@@ -170,7 +170,14 @@ class PasswordRecoveryService:
         if int(consumed) != 1:
             raise AuthenticationError("Invalid or expired recovery code")
 
-        await self.user_repo.update(user.id, {"password_hash": hash_password(new_password)})
+        token_version = getattr(user, "token_version", 0) or 0
+        await self.user_repo.update(
+            user.id,
+            {
+                "password_hash": hash_password(new_password),
+                "token_version": token_version + 1,
+            },
+        )
         logger.info("Password recovery completed for user_id=%s", user.id)
 
 

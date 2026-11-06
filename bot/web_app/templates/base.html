@@ -1,13 +1,15 @@
 <!DOCTYPE html>
-<html lang="am">
+<html lang="{{ page_language|default('am') }}">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#075c3b">
     <title>{% block title %}ወሎዮ ሱቅ{% endblock %}</title>
-    <link rel="icon" type="image/svg+xml" href="/app/static/images/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="/app/static/images/welloyewa_brand_assets/svg/welloyewa_logo_favicon.svg">
+    <link rel="apple-touch-icon" href="/app/static/images/welloyewa_brand_assets/svg/welloyewa_logo_app_icon.svg">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="/app/static/css/style.css?v=profile-avatar">
-    <link rel="stylesheet" href="/app/static/css/nav.css?v=profile-avatar">
+    <link rel="stylesheet" href="/app/static/css/style.css?v=storefront-refresh-2">
+    <link rel="stylesheet" href="/app/static/css/nav.css?v=dashboard-redesign">
     {% block head %}{% endblock %}
 <style>
 /* ── Search autocomplete dropdown ── */
@@ -84,74 +86,126 @@
 <!-- ═══════════════════════════════ SIDE DRAWER ═══════════════════════════════ -->
 <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
 
-<aside class="side-drawer" id="sideDrawer">
+<aside class="side-drawer" id="sideDrawer" aria-label="{{ profile_text.get('Menu', 'Menu') }}" aria-hidden="true" inert>
     <div class="drawer-top">
         <div class="drawer-user-info">
             <div class="drawer-avatar user-profile-avatar" id="drawerAvatar">👤</div>
             <div>
                 <div class="drawer-username" id="drawerName">ወሎዮ ሱቅ</div>
-                <div class="drawer-usub" id="drawerSub">Ethiopian Online Store</div>
+                <div class="drawer-usub" id="drawerSub">{{ profile_text.get('Ethiopian Online Store', 'Ethiopian Online Store') }}</div>
             </div>
         </div>
-        <button class="drawer-close-btn" onclick="closeDrawer()">✕</button>
+        <button class="drawer-close-btn" onclick="closeDrawer()" aria-label="{{ profile_text.get('Close', 'Close') }}">✕</button>
     </div>
 
     <nav class="drawer-nav">
-        <a href="/app/" class="drawer-item {% if page == 'home' %}active{% endif %}">
-            <span class="di-icon">🏠</span><span>ዋና ገጽ</span>
-        </a>
-        <a href="/app/categories" class="drawer-item {% if page == 'categories' %}active{% endif %}">
-            <span class="di-icon">📦</span><span>ምድቦች</span>
-        </a>
-        <a href="/app/cart" class="drawer-item {% if page == 'cart' %}active{% endif %}">
-            <span class="di-icon">🛒</span><span>ዕቃዎቼ</span>
-            <span class="drawer-cart-count" id="drawerCartCount" style="display:none">0</span>
-        </a>
-        <a href="/app/orders" class="drawer-item {% if page == 'orders' %}active{% endif %}">
-            <span class="di-icon">📋</span><span>ትዕዛዞቼ</span>
-        </a>
-        <a href="/app/dashboard" class="drawer-item {% if page == 'dashboard' %}active{% endif %}">
-            <span class="di-icon">👤</span><span>ገጽታ</span>
+        <a href="/app/orders?lang={{ page_language|default('am') }}" class="drawer-item {% if page == 'orders' %}active{% endif %}">
+            <span class="di-icon" aria-hidden="true">📋</span><span>{{ profile_text.get('Orders', 'Orders') }}</span>
         </a>
         <a href="/app/admin" id="drawerAdminLink" class="drawer-item {% if page == 'admin' %}active{% endif %}" style="display:none">
-            <span class="di-icon">🔧</span><span>አስተዳደር</span>
+            <span class="di-icon" aria-hidden="true">🔧</span><span>{{ profile_text.get('Administration', 'Administration') }}</span>
         </a>
         <div class="drawer-divider"></div>
-        <a href="/app/" class="drawer-item">
-            <span class="di-icon">ℹ️</span><span>ስለ ወሎዮ ሱቅ</span>
-        </a>
-        <a href="/app/" class="drawer-item">
-            <span class="di-icon">📞</span><span>ድጋፍ ያግኙ</span>
+        <button type="button" id="drawerLogoutButton" class="drawer-item drawer-item-logout" onclick="logoutWebApp()" hidden>
+            <span class="di-icon" aria-hidden="true">↪</span><span>{{ profile_text.get('Sign out', 'Sign out') }}</span>
+        </button>
+        <a href="https://t.me/wolloyewa_support" class="drawer-item" target="_blank" rel="noopener noreferrer">
+            <span class="di-icon" aria-hidden="true">✈️</span><span>{{ profile_text.get('Get support', 'Get support') }}</span>
         </a>
     </nav>
 
     <div class="drawer-social">
-        <a href="#" class="drawer-social-btn" title="Telegram">✈️</a>
-        <a href="#" class="drawer-social-btn" title="Facebook">📘</a>
-        <a href="#" class="drawer-social-btn" title="Instagram">📷</a>
+        <a href="https://t.me/wolloyewa_support" class="drawer-social-btn" aria-label="Telegram" target="_blank" rel="noopener noreferrer">✈️</a>
     </div>
 </aside>
 
 <!-- ═══════════════════════════════ TOP NAV ═══════════════════════════════ -->
-<nav class="nav">
+<nav class="nav" aria-label="{{ profile_text.get('Main navigation', 'Main navigation') }}">
     <div class="nav-inner">
-        <button class="hamburger-btn" onclick="openDrawer()" aria-label="Menu">☰</button>
-        <a href="/app/" class="nav-logo">ወሎ<span>ዮ</span></a>
-        <div class="nav-search">
-            <span>🔍</span>
-            <input type="text" id="globalSearch" placeholder="ምርት ፈልጉ..."
-                   oninput="onGlobalSearch(this.value)"
-                   onkeydown="onSearchKeydown(event)"
-                   onfocus="if(this.value.trim()) sdropOpen()"
-                   autocomplete="off" spellcheck="false">
-            <div class="search-dropdown" id="searchDropdown"></div>
+        <a href="/app/?lang={{ page_language|default('am') }}" class="nav-logo" aria-label="Wolloyewa Store" title="Wolloyewa Store">
+            <img src="/app/static/images/welloyewa_brand_assets/svg/welloyewa_logo_website_header.svg" alt="">
+        </a>
+        <div class="nav-search-wrap">
+            <div class="nav-search" data-tooltip="{{ profile_text.get('Search products...', 'Search products...') }}">
+                <svg class="nav-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                    <circle cx="10.8" cy="10.8" r="6.8"></circle>
+                    <path d="m16 16 4.2 4.2"></path>
+                </svg>
+                <input type="search" id="globalSearch" aria-label="{{ profile_text.get('Search products...', 'Search products...') }}"
+                       placeholder="{{ profile_text.get('Search products...', 'Search products...') }}"
+                       title="{{ profile_text.get('Search products...', 'Search products...') }}"
+                       oninput="onGlobalSearch(this.value)"
+                       onkeydown="onSearchKeydown(event)"
+                       onfocus="if(this.value.trim()) sdropOpen()"
+                       autocomplete="off" spellcheck="false">
+                <div class="search-dropdown" id="searchDropdown"></div>
+            </div>
+            <button type="button" class="search-clear-btn" id="clearGlobalSearch"
+                    aria-label="{{ profile_text.get('Clear search', 'Clear search') }}"
+                    title="{{ profile_text.get('Clear search', 'Clear search') }}"
+                    data-tooltip="{{ profile_text.get('Clear search', 'Clear search') }}" hidden>×</button>
         </div>
-        <a href="/app/cart" class="nav-cart-btn" aria-label="Cart">
-            🛒
+        <div class="nav-primary-links">
+            <a href="/app/?lang={{ page_language|default('am') }}" class="nav-primary-link {% if page == 'home' %}active{% endif %}"
+               title="{{ profile_text.get('Home', 'Home') }}" data-tooltip="{{ profile_text.get('Home', 'Home') }}"
+               {% if page == 'home' %}aria-current="page"{% endif %}>
+                <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="m3 10 9-7 9 7"></path><path d="M5 9v11h14V9M9 20v-7h6v7"></path>
+                </svg>
+                {{ profile_text.get('Home', 'Home') }}
+            </a>
+            <a href="/app/categories?lang={{ page_language|default('am') }}" class="nav-primary-link {% if page == 'categories' %}active{% endif %}"
+               title="{{ profile_text.get('Categories', 'Categories') }}" data-tooltip="{{ profile_text.get('Categories', 'Categories') }}"
+               {% if page == 'categories' %}aria-current="page"{% endif %}>
+                <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3.5" y="3.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"></rect>
+                    <rect x="3.5" y="13.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"></rect>
+                </svg>
+                {{ profile_text.get('Categories', 'Categories') }}
+            </a>
+            <a href="/app/profile?lang={{ page_language|default('am') }}" class="nav-primary-link {% if page == 'profile' %}active{% endif %}"
+               title="{{ profile_text.get('Profile', 'Profile') }}" data-tooltip="{{ profile_text.get('Profile', 'Profile') }}"
+               {% if page == 'profile' %}aria-current="page"{% endif %}>
+                <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="8" r="3.5"></circle><path d="M5 20c.7-3.5 3.1-5.3 7-5.3s6.3 1.8 7 5.3"></path>
+                </svg>
+                {{ profile_text.get('Profile', 'Profile') }}
+            </a>
+        </div>
+        <label class="language-select-wrap" data-tooltip="{{ profile_text.get('Language', 'Language') }}">
+            <span class="sr-only">{{ profile_text.get('Language', 'Language') }}</span>
+            <svg class="language-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"></circle><path d="M3.5 12h17M12 3c2.4 2.5 3.5 5.5 3.5 9S14.4 18.5 12 21c-2.4-2.5-3.5-5.5-3.5-9S9.6 5.5 12 3Z"></path>
+            </svg>
+            <select id="languageSelector" aria-label="{{ profile_text.get('Language', 'Language') }}"
+                    title="{{ profile_text.get('Language', 'Language') }}">
+                <option value="am" {% if page_language|default('am') == 'am' %}selected{% endif %}>አማ</option>
+                <option value="en" {% if page_language|default('am') == 'en' %}selected{% endif %}>EN</option>
+                <option value="om" {% if page_language|default('am') == 'om' %}selected{% endif %}>OM</option>
+            </select>
+        </label>
+        <a href="/app/cart?lang={{ page_language|default('am') }}" class="nav-cart-btn"
+           aria-label="{{ profile_text.get('Cart', 'Cart') }}"
+           title="{{ profile_text.get('Cart', 'Cart') }}"
+           data-tooltip="{{ profile_text.get('Cart', 'Cart') }}">
+            <svg class="nav-cart-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 4h2l2.2 11.1a2 2 0 0 0 2 1.6h8.5a2 2 0 0 0 1.9-1.4L21 8H6"></path>
+                <circle cx="10" cy="20" r="1"></circle><circle cx="18" cy="20" r="1"></circle>
+            </svg>
             <span class="cart-badge" id="navCartBadge" style="display:none">0</span>
         </a>
+        <button class="hamburger-btn" onclick="openDrawer()" aria-label="{{ profile_text.get('Menu', 'Menu') }}"
+                title="{{ profile_text.get('Menu', 'Menu') }}"
+                data-tooltip="{{ profile_text.get('Menu', 'Menu') }}"
+                aria-controls="sideDrawer" aria-expanded="false">
+            <span class="hamburger-lines" aria-hidden="true"></span>
+        </button>
     </div>
 </nav>
+
+{% if page in ['home', 'categories', 'product', 'cart', 'checkout'] %}
+<section id="storeAnnouncement" class="store-announcement" aria-live="polite" hidden></section>
+{% endif %}
 
 <!-- ═══════════════════════════════ PAGE CONTENT ═══════════════════════════════ -->
 <div id="app">
@@ -164,8 +218,10 @@
     <div class="footer-inner">
         <div class="footer-grid">
             <div class="footer-brand">
-                <div class="footer-logo">ወሎ<span>ዮ</span> ሱቅ</div>
-                <p>የኢትዮጵያ ምርቶቸ የሚሸጥ ሱቅ። ከብዙ ሻጭ ምርቶቸ ምርቶቸን ዳሰሳ ወደ ቤትዎ ያድርሱ።</p>
+                <div class="footer-logo">
+                    <img src="/app/static/images/welloyewa_brand_assets/svg/welloyewa_logo_website_header.svg" alt="ወሎዮ ሱቅ">
+                </div>
+                <p>{{ profile_text.get('An Ethiopian marketplace. Browse products from many sellers and have your choices delivered to your home.', 'Wolloyewa online store') }}</p>
                 <div class="footer-payments">
                     <span class="pay-badge">📱 Telebirr</span>
                     <span class="pay-badge">🏛 CBE Birr</span>
@@ -174,33 +230,24 @@
                 </div>
             </div>
             <div class="footer-col">
-                <div class="footer-col-title">ስለ እኛ</div>
-                <a href="#">ማን ነን?</a>
-                <a href="#">አሰራ</a>
-                <a href="#">ስድናት</a>
-                <a href="#">እሙዎን</a>
+                <div class="footer-col-title">{{ profile_text.get('Shop', 'Shop') }}</div>
+                <a href="/app/categories?lang={{ page_language|default('am') }}">{{ profile_text.get('Browse categories', 'Browse categories') }}</a>
+                <a href="/app/?lang={{ page_language|default('am') }}">{{ profile_text.get('All products', 'All products') }}</a>
             </div>
             <div class="footer-col">
-                <div class="footer-col-title">አገልግሎት</div>
-                <a href="#">ትዕዛዝ ክትትሎቸ</a>
-                <a href="#">ዲሊቨሪ</a>
-                <a href="#">መርዣ ሶፍትዌር</a>
-                <a href="#">ወሃ ስምምነት</a>
+                <div class="footer-col-title">{{ profile_text.get('Customer service', 'Customer service') }}</div>
+                <a href="/app/track?lang={{ page_language|default('am') }}">{{ profile_text.get('Order tracking', 'Order tracking') }}</a>
+                <a href="/app/orders?lang={{ page_language|default('am') }}">{{ profile_text.get('Orders', 'Orders') }}</a>
             </div>
             <div class="footer-col">
-                <div class="footer-col-title">ድጋፍ</div>
-                <a href="#">✈️ Telegram</a>
-                <a href="#">📧 ኢሜይል</a>
-                <a href="#">📞 ስልክ</a>
-                <a href="#">📍 አዲስ አበባ</a>
+                <div class="footer-col-title">{{ profile_text.get('Need help?', 'Need help?') }}</div>
+                <a href="https://t.me/wolloyewa_support" target="_blank" rel="noopener noreferrer">{{ profile_text.get('Contact us on Telegram', 'Contact us on Telegram') }}</a>
             </div>
         </div>
         <div class="footer-bottom">
-            <p>© 2026 ወሎዮ ሱቅ. All Rights Reserved. 🇪🇹</p>
+            <p>© {{ current_year|default(2026) }} Wolloyewa · ወሎዮ ሱቅ. {{ profile_text.get('All rights reserved.', 'All rights reserved.') }} 🇪🇹</p>
             <div class="footer-social">
-                <a href="#" class="fsoc-btn">✈️ Telegram</a>
-                <a href="#" class="fsoc-btn">📘 Facebook</a>
-                <a href="#" class="fsoc-btn">📷 Instagram</a>
+                <a href="https://t.me/wolloyewa_support" class="fsoc-btn" target="_blank" rel="noopener noreferrer">✈️ Telegram</a>
             </div>
         </div>
     </div>
@@ -208,37 +255,117 @@
 {% endblock %}
 
 <!-- ═══════════════════════════════ BOTTOM NAV ═══════════════════════════════ -->
-<nav class="bottom-nav">
-    <a href="/app/" class="bnav-item {% if page == 'home' %}active{% endif %}">
+<nav class="bottom-nav" aria-label="{{ profile_text.get('Primary navigation', 'Primary navigation') }}">
+    <a href="/app/?lang={{ page_language|default('am') }}" class="bnav-item {% if page == 'home' %}active{% endif %}" aria-label="{{ profile_text.get('Home', 'Home') }}">
         <div class="bnav-icon-wrap">
-            <span class="bnav-icon">🏠</span>
+            <span class="bnav-icon" aria-hidden="true">🏠</span>
         </div>
-        <span class="bnav-label">ዋና</span>
+        <span class="bnav-label">{{ profile_text.get('Home', 'Home') }}</span>
     </a>
-    <a href="/app/categories" class="bnav-item {% if page == 'categories' %}active{% endif %}">
+    <a href="/app/categories?lang={{ page_language|default('am') }}" class="bnav-item {% if page == 'categories' %}active{% endif %}" aria-label="{{ profile_text.get('Categories', 'Categories') }}">
         <div class="bnav-icon-wrap">
-            <span class="bnav-icon">📦</span>
+            <span class="bnav-icon" aria-hidden="true">📦</span>
         </div>
-        <span class="bnav-label">ምድቦች</span>
+        <span class="bnav-label">{{ profile_text.get('Categories', 'Categories') }}</span>
     </a>
-    <a href="/app/dashboard" class="bnav-item {% if page == 'dashboard' %}active{% endif %}">
+    <a href="/app/profile?lang={{ page_language|default('am') }}" class="bnav-item {% if page == 'profile' %}active{% endif %}" aria-label="{{ profile_text.get('Profile', 'Profile') }}">
         <div class="bnav-icon-wrap">
-            <span class="bnav-icon">👤</span>
+            <span class="bnav-icon" aria-hidden="true">👤</span>
         </div>
-        <span class="bnav-label">ገጽታ</span>
-    </a>
-    <a href="/app/cart" class="bnav-item {% if page == 'cart' %}active{% endif %}">
-        <div class="bnav-icon-wrap">
-            <span class="bnav-icon">🛒</span>
-            <span class="bnav-badge" id="bnavCartBadge">0</span>
-        </div>
-        <span class="bnav-label">ዕቃዎቸ</span>
+        <span class="bnav-label">{{ profile_text.get('Profile', 'Profile') }}</span>
     </a>
 </nav>
 
-<script src="/app/static/js/app.js?v=profile-avatar"></script>
+<script src="/app/static/js/app.js?v=dashboard-redesign"></script>
 
 <script>
+const sharedProfileText = {{ profile_text | tojson }};
+function sharedProfileTranslate(value) {
+    const text = String(value ?? '');
+    if (sharedProfileText[text]) return sharedProfileText[text];
+    for (const [source, translated] of Object.entries(sharedProfileText)) {
+        if (text.startsWith(source)) return translated + text.slice(source.length);
+        if (text.includes(source)) return text.replace(source, translated);
+    }
+    return text;
+}
+window.profileTranslate = sharedProfileTranslate;
+window.localizeWebAppText = sharedProfileTranslate;
+
+function localizeStaticText(root = document) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+            const parent = node.parentElement;
+            if (!parent || parent.closest(
+                'script, style, noscript, input, textarea, select, .product-name, .product-info, ' +
+                '.category-card, .cart-item-name, .dashboard-order-main, .sdrop-name, .sdrop-meta, ' +
+                '.nav-logo, .footer-logo, .login-brand-name'
+            )) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+        }
+    });
+    let node;
+    while ((node = walker.nextNode())) {
+        const text = node.nodeValue || '';
+        const trimmed = text.trim();
+        if (!trimmed) continue;
+        const translated = sharedProfileTranslate(trimmed);
+        if (translated !== trimmed) node.nodeValue = text.replace(trimmed, translated);
+    }
+
+    if (root instanceof Element) {
+        ['aria-label', 'placeholder', 'title'].forEach(attribute => {
+            const value = root.getAttribute(attribute);
+            if (value) root.setAttribute(attribute, sharedProfileTranslate(value));
+        });
+        root.querySelectorAll('[aria-label], [placeholder], [title]').forEach(element => {
+            ['aria-label', 'placeholder', 'title'].forEach(attribute => {
+                const value = element.getAttribute(attribute);
+                if (value) element.setAttribute(attribute, sharedProfileTranslate(value));
+            });
+        });
+    }
+}
+function preservePageLanguage(root = document) {
+    const anchors = root instanceof Element
+        ? root.matches('a[href^="/app/"]')
+            ? [root, ...root.querySelectorAll('a[href^="/app/"]')]
+            : root.querySelectorAll('a[href^="/app/"]')
+        : document.querySelectorAll('a[href^="/app/"]');
+    anchors.forEach(anchor => {
+        const url = new URL(anchor.href, window.location.origin);
+        if (!url.searchParams.has('lang')) {
+            url.searchParams.set('lang', '{{ page_language|default("am") }}');
+            anchor.href = `${url.pathname}${url.search}${url.hash}`;
+        }
+    });
+}
+document.addEventListener('DOMContentLoaded', () => {
+    localizeStaticText();
+    preservePageLanguage();
+    const searchInput = document.getElementById('globalSearch');
+    const clearSearch = document.getElementById('clearGlobalSearch');
+    if (searchInput && clearSearch) {
+        clearSearch.hidden = !searchInput.value.trim();
+        searchInput.addEventListener('input', () => {
+            clearSearch.hidden = !searchInput.value.trim();
+        });
+    }
+    const observer = new MutationObserver(records => {
+        records.forEach(record => record.addedNodes.forEach(node => {
+            if (node instanceof Element) {
+                localizeStaticText(node);
+                preservePageLanguage(node);
+            }
+            else if (node.nodeType === Node.TEXT_NODE) {
+                const translated = sharedProfileTranslate(node.nodeValue.trim());
+                if (translated !== node.nodeValue.trim()) node.nodeValue = translated;
+            }
+        }));
+    });
+    observer.observe(document.getElementById('app'), { childList: true, subtree: true });
+});
+
 async function showAdminNavigation() {
     const adminLink = document.getElementById('drawerAdminLink');
     if (!adminLink || !window.getWebAppAccessToken) return;
@@ -250,6 +377,8 @@ async function showAdminNavigation() {
         const requestOptions = { headers: { Authorization: `Bearer ${token}` } };
         let response = await fetch('/app/api/admin/session', requestOptions);
         if (response.status === 401) {
+            const telegramApp = window.Telegram && window.Telegram.WebApp;
+            if (!telegramApp || !telegramApp.initData) return;
             const refreshedToken = await window.getWebAppAccessToken(true);
             if (!refreshedToken) return;
             requestOptions.headers.Authorization = `Bearer ${refreshedToken}`;
@@ -262,28 +391,139 @@ async function showAdminNavigation() {
 }
 showAdminNavigation();
 
+async function loadStoreAnnouncement() {
+    const announcement = document.getElementById('storeAnnouncement');
+    if (!announcement) return;
+    try {
+        const response = await fetch('/app/api/store/announcement', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Store announcement could not be loaded');
+        const data = await response.json();
+        const promotions = Array.isArray(data.discounts) ? data.discounts : [];
+        const closedMessage = data.message || 'ขณะዚህ ትዕዛዝ መቀበል አንችልም። እባክዎ ቆይተው ይመለሱ።';
+        const status = data.store_open
+            ? ''
+            : `<div class="store-closed-banner"><strong>ሱቁ ለጊዜው ተዘግቷል</strong><span>${he(closedMessage)}</span></div>`;
+        const offers = data.store_open && promotions.length
+            ? `<div class="store-offer-strip">${promotions.map(promo => {
+                const value = promo.discount_type === 'percentage'
+                    ? `${Number(promo.discount_value)}%`
+                    : `ETB ${Number(promo.discount_value).toLocaleString()}`;
+                return `<button type="button" class="store-offer-chip" data-store-coupon="${he(promo.code)}">
+                    <strong>${he(value)} OFF</strong><span>${he(promo.name)} · ${he(promo.code)}</span>
+                </button>`;
+            }).join('')}</div>`
+            : '';
+        announcement.innerHTML = `${status}${offers}`;
+        announcement.hidden = !status && !offers;
+        announcement.querySelectorAll('[data-store-coupon]').forEach(button => {
+            button.addEventListener('click', () => {
+                sessionStorage.setItem('wolloyewa_coupon_code', button.dataset.storeCoupon);
+                window.location.assign('/app/checkout');
+            });
+        });
+    } catch (error) {
+        console.warn('Store status and promotions are temporarily unavailable', error);
+    }
+}
+loadStoreAnnouncement();
+
 // ── Drawer ──────────────────────────────────────────────────
 function openDrawer() {
-    document.getElementById('sideDrawer').classList.add('open');
+    const drawer = document.getElementById('sideDrawer');
+    drawer.removeAttribute('inert');
+    drawer.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+    document.querySelector('.hamburger-btn')?.setAttribute('aria-expanded', 'true');
     document.getElementById('drawerOverlay').classList.add('show');
     document.body.style.overflow = 'hidden';
+    drawer.querySelector('button')?.focus();
 }
 function closeDrawer() {
-    document.getElementById('sideDrawer').classList.remove('open');
+    const drawer = document.getElementById('sideDrawer');
+    drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+    drawer.setAttribute('inert', '');
+    document.querySelector('.hamburger-btn')?.setAttribute('aria-expanded', 'false');
     document.getElementById('drawerOverlay').classList.remove('show');
     document.body.style.overflow = '';
+    document.querySelector('.hamburger-btn')?.focus();
 }
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && document.getElementById('sideDrawer').classList.contains('open')) {
+        closeDrawer();
+    }
+});
+document.getElementById('languageSelector').addEventListener('change', event => {
+    const params = new URLSearchParams(window.location.search);
+    params.set('lang', event.currentTarget.value);
+    window.location.assign(`${window.location.pathname}?${params.toString()}${window.location.hash}`);
+});
+document.getElementById('clearGlobalSearch').addEventListener('click', () => {
+    const input = document.getElementById('globalSearch');
+    input.value = '';
+    document.getElementById('clearGlobalSearch').hidden = true;
+    input.focus();
+    onGlobalSearch('');
+});
 
 // ── Cart badge (all badges in sync) ─────────────────────────
 function refreshAllBadges() {
     const c = cart.count();
     const navBadge = document.getElementById('navCartBadge');
-    const bnavBadge = document.getElementById('bnavCartBadge');
-    const drawerCount = document.getElementById('drawerCartCount');
     if (navBadge) { navBadge.textContent = c; navBadge.style.display = c > 0 ? 'inline' : 'none'; }
-    if (bnavBadge) { bnavBadge.textContent = c; bnavBadge.classList.toggle('show', c > 0); }
-    if (drawerCount) { drawerCount.textContent = c; drawerCount.style.display = c > 0 ? 'inline' : 'none'; }
 }
+
+window.productWishlist = {
+    storageKey: 'wolloyewa_wishlist',
+    items() {
+        try {
+            const value = JSON.parse(localStorage.getItem(this.storageKey) || '[]');
+            if (!Array.isArray(value)) return [];
+            const unique = new Map();
+            value.forEach(item => {
+                if (!item || typeof item !== 'object'
+                    || !Number.isSafeInteger(Number(item.id)) || Number(item.id) <= 0) return;
+                const id = Number(item.id);
+                if (!unique.has(id)) unique.set(id, { ...item, id });
+            });
+            return Array.from(unique.values());
+        } catch (error) {
+            console.warn('Saved products could not be read from this device.', error);
+            return [];
+        }
+    },
+    merge(items) {
+        const merged = new Map(this.items().map(item => [Number(item.id), item]));
+        items.forEach(item => {
+            const id = Number(item.id);
+            if (Number.isSafeInteger(id) && id > 0) {
+                merged.set(id, { ...merged.get(id), ...item, id });
+            }
+        });
+        localStorage.setItem(this.storageKey, JSON.stringify(Array.from(merged.values())));
+    },
+    has(id) {
+        return this.items().some(item => Number(item.id) === Number(id));
+    },
+    toggle(product) {
+        const id = Number(product.id);
+        if (!Number.isSafeInteger(id) || id <= 0) throw new Error('Invalid product.');
+        const items = this.items();
+        const existing = items.findIndex(item => Number(item.id) === id);
+        if (existing >= 0) {
+            items.splice(existing, 1);
+        } else {
+            items.unshift({
+                id,
+                name: String(product.name || ''),
+                price: Number(product.price) || 0,
+                image: String(product.image || '')
+            });
+        }
+        localStorage.setItem(this.storageKey, JSON.stringify(items));
+        return existing < 0;
+    }
+};
 
 // ── Telegram user info in drawer ─────────────────────────────
 (function initTelegramUser() {
@@ -331,7 +571,7 @@ const _sdrop = {
         this.items   = items;
         this.focused = -1;
         if (!items.length) {
-            this.el.innerHTML = `<div class="sdrop-empty">🔍 "${he(q)}" — ምንም ምርት አልተገኘም</div>`;
+            this.el.innerHTML = `<div class="sdrop-empty">🔍 "${he(q)}" — ${he(window.localizeWebAppText('ምንም ምርት አልተገኘም'))}</div>`;
         } else {
             this.el.innerHTML =
                 items.map((p, i) => {
@@ -340,7 +580,7 @@ const _sdrop = {
                         : '📦';
                     const meta = [p.name_am, p.category].filter(Boolean).join(' · ');
                     return `
-                    <a class="sdrop-item" href="/app/product/${p.id}" onclick="_sdrop.close()">
+                    <a class="sdrop-item" href="/app/product/${p.id}?lang={{ page_language|default('am') }}" onclick="_sdrop.close()">
                         <div class="sdrop-thumb">${thumb}</div>
                         <div style="min-width:0;flex:1">
                             <div class="sdrop-name">${he(p.name)}</div>
@@ -350,7 +590,7 @@ const _sdrop = {
                     </a>`;
                 }).join('') +
                 `<div class="sdrop-footer" onclick="_sdrop.goSearch()">
-                    ሁሉንም ውጤቶቸ ይምልከቱ →
+                    ${he(window.localizeWebAppText('ሁሉንም ውጤቶቸ ይምልከቱ →'))}
                 </div>`;
         }
         this.open();
@@ -376,7 +616,7 @@ const _sdrop = {
 
     goSearch() {
         const q = this.input ? this.input.value.trim() : '';
-        if (q) window.location.href = `/app/?q=${encodeURIComponent(q)}`;
+        if (q) window.location.href = `/app/?q=${encodeURIComponent(q)}&lang={{ page_language|default('am') }}`;
         this.close();
     },
 };

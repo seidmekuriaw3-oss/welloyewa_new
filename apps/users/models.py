@@ -14,20 +14,22 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from apps.common.models import (
     BaseModel,
-    CaseInsensitiveEnum as SQLEnum,
     MetadataMixin,
     SoftDeleteMixin,
     TimestampMixin,
 )
+from apps.common.models import CaseInsensitiveEnum as SQLEnum
 from core.constants import Gender, UserRole, UserStatus, enum_values, normalize_enum_value
 
 if TYPE_CHECKING:
@@ -69,6 +71,7 @@ class User(BaseModel, TimestampMixin, SoftDeleteMixin, MetadataMixin):
         default=UserStatus.ACTIVE,
         index=True,
     )
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Personal info
     gender: Mapped[Gender | None] = mapped_column(
@@ -326,6 +329,25 @@ class UserAddress(BaseModel, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<UserAddress(id={self.id}, user_id={self.user_id}, city={self.city})>"
+
+
+class Wishlist(BaseModel):
+    """A user's saved product, mapped to the existing wishlists table."""
+
+    __tablename__ = "wishlists"
+    __table_args__ = (
+        UniqueConstraint("user_id", "product_id", name="unique_user_product_wishlist"),
+        Index("idx_wishlists_user_id", "user_id"),
+        Index("idx_wishlists_product_id", "product_id"),
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    product_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("products.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class UserPreferences(BaseModel, TimestampMixin):

@@ -1,0 +1,1033 @@
+{% extends "base.html" %}
+{% block title %}አስተዳደር — ወሎዮ ሱቅ{% endblock %}
+
+{% block content %}
+<main class="admin-shell">
+    <header class="admin-heading">
+        <div>
+            <p class="admin-eyebrow">WOLLOYEWA STORE · CONTROL CENTER</p>
+            <h1>የአስተዳደር ፓነል</h1>
+            <p>የሱቁን አፈጻጸም፣ ትዕዛዞችንና አስተዳደርን ከአንድ ቦታ ይቆጣጠሩ።</p>
+        </div>
+        <button class="admin-refresh" type="button" id="adminRefresh" aria-label="አድስ" title="አድስ">↻</button>
+    </header>
+
+    <p class="admin-status" id="adminStatus" role="status">የአስተዳደር መዳረሻ እየተረጋገጠ ነው…</p>
+    <section class="admin-notice" id="adminNotice" role="alert" hidden>
+        <p id="adminNoticeMessage"></p>
+        <a id="adminLoginLink" href="/app/login" hidden>ወደ መለያዎ ይግቡ</a>
+    </section>
+
+    <section id="adminDashboard" hidden>
+        <nav class="admin-section-nav" aria-label="የአስተዳደር ክፍሎች">
+            <a href="#adminOrdersPanel">ትዕዛዞች</a>
+            <a href="#adminUsersPanel">ተጠቃሚዎች</a>
+            <a href="#adminVendorsPanel">ሻጮች</a>
+            <a href="#adminPendingProductsPanel">የምርት ግምገማ</a>
+            <a href="#adminSettingsPanel">የሱቅ ቅንብሮች</a>
+            <a href="#adminDiscountsPanel">ቅናሾች እና ኩፖኖች</a>
+        </nav>
+        <div class="admin-section-heading">
+            <div><p class="admin-eyebrow">OVERVIEW</p><h2>የሱቅ ማጠቃለያ</h2></div>
+            <span class="admin-live"><i></i> አስተዳደር ተረጋግጧል</span>
+        </div>
+        <div class="admin-metrics" aria-live="polite">
+            <article class="admin-metric admin-metric-revenue">
+                <div class="admin-metric-top"><span class="admin-metric-icon">↗</span><span class="admin-metric-period">ዛሬ</span></div>
+                <div class="admin-metric-label">የዛሬ ገቢ</div>
+                <div class="admin-metric-value" id="adminTodayRevenue">—</div>
+                <div class="admin-metric-caption">ከተከፈሉ ትዕዛዞች</div>
+            </article>
+            <article class="admin-metric">
+                <div class="admin-metric-top"><span class="admin-metric-icon">▤</span><span class="admin-metric-period">ዛሬ</span></div>
+                <div class="admin-metric-label">አዳዲስ ትዕዛዞች</div>
+                <div class="admin-metric-value" id="adminTodayOrders">—</div>
+                <div class="admin-metric-caption">የተፈጠሩ ትዕዛዞች</div>
+            </article>
+            <article class="admin-metric">
+                <div class="admin-metric-top"><span class="admin-metric-icon">◎</span><span class="admin-metric-period">7 ቀናት</span></div>
+                <div class="admin-metric-label">ንቁ ደንበኞች</div>
+                <div class="admin-metric-value" id="adminActiveUsers">—</div>
+                <div class="admin-metric-caption">በመድረኩ ላይ የነበሩ</div>
+            </article>
+            <article class="admin-metric admin-metric-alert">
+                <div class="admin-metric-top"><span class="admin-metric-icon">!</span><span class="admin-metric-period">ይከታተሉ</span></div>
+                <div class="admin-metric-label">ዝቅተኛ ክምችት</div>
+                <div class="admin-metric-value" id="adminLowStock">—</div>
+                <div class="admin-metric-caption">ዝቅተኛ ክምችት ያላቸው ምርቶች</div>
+            </article>
+        </div>
+
+        <div class="admin-main-grid">
+            <section class="admin-panel admin-chart-panel">
+                <div class="admin-panel-heading">
+                    <div><p class="admin-eyebrow">SALES PERFORMANCE</p><h2>የሳምንቱ ገቢ</h2></div>
+                    <span class="admin-chart-note">የተከፈሉ ትዕዛዞች · ETB</span>
+                </div>
+                <div id="adminRevenueChart" class="admin-chart" role="img" aria-label="የሳምንቱ የገቢ ገበታ">
+                    <p class="admin-loading">የገቢ መረጃን እየጫንን ነው…</p>
+                </div>
+            </section>
+            <section class="admin-panel admin-stock-panel">
+                <div class="admin-panel-heading">
+                    <div><p class="admin-eyebrow">INVENTORY</p><h2>ዝቅተኛ ክምችት</h2></div>
+                    <span class="admin-panel-icon">◈</span>
+                </div>
+                <div id="adminLowStockList" class="admin-compact-list"><p class="admin-loading">እየጫንን ነው…</p></div>
+            </section>
+        </div>
+
+        <div class="admin-section-heading admin-section-heading-spaced">
+            <div><p class="admin-eyebrow">OPERATIONS</p><h2>የዕለት ተዕለት አስተዳደር</h2></div>
+        </div>
+        <div class="admin-main-grid admin-operations-grid">
+            <section class="admin-panel" id="adminOrdersPanel">
+                <div class="admin-panel-heading">
+                    <div><p class="admin-eyebrow">ORDER MANAGEMENT</p><h2>ቅርብ ጊዜ ትዕዛዞች</h2></div>
+                    <a href="/app/orders" class="admin-text-link">ሁሉንም →</a>
+                </div>
+                <div id="adminOrders" class="admin-table-list"><p class="admin-loading">ትዕዛዞችን እየጫንን ነው…</p></div>
+            </section>
+            <section class="admin-panel" id="adminVendorsPanel">
+                <div class="admin-panel-heading">
+                    <div><p class="admin-eyebrow">PARTNER NETWORK</p><h2>የሻጭ ማመልከቻዎች</h2></div>
+                    <span class="admin-count" id="adminPendingVendorCount">—</span>
+                </div>
+                <div id="adminVendors" class="admin-compact-list"><p class="admin-loading">የሻጭ መረጃን እየጫንን ነው…</p></div>
+            </section>
+        </div>
+
+        <section class="admin-panel admin-users-panel" id="adminUsersPanel">
+            <div class="admin-panel-heading">
+                <div><p class="admin-eyebrow">ACCOUNT MANAGEMENT</p><h2>ተጠቃሚዎችን ያስተዳድሩ</h2></div>
+                <span class="admin-panel-icon">◎</span>
+            </div>
+            <form id="adminUserSearchForm" class="admin-user-search">
+                <label for="adminUserSearch">በስም፣ ስልክ ወይም ኢሜይል ፈልግ</label>
+                <input id="adminUserSearch" name="search" type="search" maxlength="100">
+                <button class="admin-button" type="submit">ፈልግ</button>
+            </form>
+            <div id="adminUsers" class="admin-user-list" aria-live="polite">
+                <p class="admin-loading">የተጠቃሚ መረጃን እየጫንን ነው…</p>
+            </div>
+        </section>
+
+        <section class="admin-panel admin-categories-panel">
+            <div class="admin-panel-heading">
+                <div><p class="admin-eyebrow">CATALOG ORGANIZATION</p><h2>የምርት ምድቦች</h2></div>
+                <span class="admin-panel-icon">⌘</span>
+            </div>
+            <form id="adminCategoryForm" class="admin-category-form">
+                <label><span>የምድብ ስም</span><input name="name" maxlength="100" required placeholder="ምሳሌ: Electronics"></label>
+                <label><span>የአማርኛ ስም</span><input name="name_am" maxlength="100" placeholder="ምሳሌ: ኤሌክትሮኒክስ"></label>
+                <label><span>Slug</span><input name="slug" maxlength="120" placeholder="electronics"></label>
+                <button class="admin-button admin-button-primary" type="submit">＋ ምድብ ጨምር</button>
+            </form>
+            <p id="adminCategoryMessage" class="admin-inline-message" role="status" hidden></p>
+            <div id="adminCategories" class="admin-category-list"><p class="admin-loading">ምድቦችን እየጫንን ነው…</p></div>
+        </section>
+
+        <section class="admin-panel admin-categories-panel" id="adminPendingProductsPanel">
+            <div class="admin-panel-heading">
+                <div><p class="admin-eyebrow">PRODUCT CATALOG</p><h2>ምርቶችን ያስተዳድሩ</h2></div>
+                <span class="admin-panel-icon">◇</span>
+            </div>
+            <form id="adminProductForm" class="admin-category-form admin-product-form">
+                <label><span>ሻጭ</span><select name="vendor_id" id="adminProductVendor" required><option value="">ሻጭ ይምረጡ</option></select></label>
+                <label><span>የምርት ስም</span><input name="name" maxlength="255" required></label>
+                <label><span>የአማርኛ ስም</span><input name="name_am" maxlength="255"></label>
+                <label><span>SKU</span><input name="sku" maxlength="100" required></label>
+                <label><span>ዋጋ (ETB)</span><input name="price" type="number" min="0" step="0.01" required></label>
+                <label><span>ክምችት</span><input name="stock_quantity" type="number" min="0" step="1" value="0" required></label>
+                <label><span>ምድብ</span><select name="category_id" id="adminProductCategory"><option value="">ምድብ የለም</option></select></label>
+                <button class="admin-button admin-button-primary" type="submit">＋ ምርት ጨምር</button>
+            </form>
+            <p id="adminProductMessage" class="admin-inline-message" role="status" hidden></p>
+            <div id="adminProducts" class="admin-category-list"><p class="admin-loading">ምርቶችን እየጫንን ነው…</p></div>
+        </section>
+
+        <section class="admin-panel admin-categories-panel">
+            <div class="admin-panel-heading">
+                <div><p class="admin-eyebrow">PRODUCT REVIEW</p><h2>የሻጮች ምርት ግምገማ</h2></div>
+                <span class="admin-count" id="adminPendingProductCount">—</span>
+            </div>
+            <div id="adminPendingProducts" class="admin-product-review-list" aria-live="polite">
+                <p class="admin-loading">የሚገመገሙ ምርቶችን እየጫንን ነው…</p>
+            </div>
+        </section>
+
+        <section class="admin-panel settings-panel" id="adminSettingsPanel">
+            <div class="admin-panel-heading">
+                <div><p class="admin-eyebrow">STORE CONTROL</p><h2>የሱቅ ቅንብሮች</h2></div>
+                <span class="admin-panel-icon">⚙</span>
+            </div>
+            <p class="settings-security-note">የክፍያ ቁልፎች፣ Telegram Bot Token እና Webhook ሚስጥሮች ከአገልጋዩ አካባቢ ይነበባሉ፤ እዚህ አይታዩም ወይም አይቀየሩም።</p>
+            <form id="adminSettingsForm" class="settings-grid">
+                <label class="settings-switch-card">
+                    <span><strong>ሱቁ ክፍት ነው</strong><small>ደንበኞች ትዕዛዝ እንዲያስገቡ ፍቀድ</small></span>
+                    <input type="checkbox" name="store_open">
+                </label>
+                <label class="settings-field">
+                    <span>የጥገና መልዕክት</span>
+                    <input name="maintenance_message" maxlength="500" placeholder="ሱቁ ሲዘጋ ለደንበኞች የሚታይ">
+                </label>
+                <label class="settings-field">
+                    <span>ምንዛሬ</span>
+                    <input value="ETB · Ethiopian Birr" readonly aria-describedby="currencyHelp">
+                    <small id="currencyHelp">ETB ብቻ ይደገፋል፤ የሌላ ምንዛሬ ለውጥ የሂሳብ መዋቅር ማሻሻያ ይፈልጋል።</small>
+                </label>
+                <fieldset class="settings-fieldset">
+                    <legend>የክፍያ መንገዶች</legend>
+                    <div class="settings-choice-row">
+                        <label><input type="checkbox" name="payment_method" value="telebirr"> Telebirr</label>
+                        <label><input type="checkbox" name="payment_method" value="cbe"> CBE Birr</label>
+                        <label><input type="checkbox" name="payment_method" value="chapa"> Chapa</label>
+                        <label><input type="checkbox" name="payment_method" value="cod"> Cash on delivery</label>
+                    </div>
+                </fieldset>
+                <fieldset class="settings-fieldset">
+                    <legend>የማሳወቂያ አማራጮች</legend>
+                    <div class="settings-choice-row">
+                        <label><input type="checkbox" name="notification" value="customer_orders"> የደንበኛ ትዕዛዞች</label>
+                        <label><input type="checkbox" name="notification" value="vendor_updates"> የሻጭ እና ምርት ለውጦች</label>
+                        <label><input type="checkbox" name="notification" value="admin_alerts"> የአስተዳዳሪ ማሳወቂያዎች</label>
+                        <label><input type="checkbox" name="notification" value="support_updates"> የድጋፍ ጥያቄዎች</label>
+                    </div>
+                </fieldset>
+                <div class="settings-env-status" id="adminEnvironmentStatus" aria-live="polite">
+                    የአገልጋይ ማዋቀሪያ ሁኔታ እየተጫነ ነው…
+                </div>
+                <div class="settings-actions">
+                    <p id="adminSettingsMessage" class="admin-inline-message" role="status" hidden></p>
+                    <button class="admin-button admin-button-primary" type="submit">ቅንብሮችን አስቀምጥ</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="admin-panel discounts-panel" id="adminDiscountsPanel">
+            <div class="admin-panel-heading">
+                <div><p class="admin-eyebrow">PROMOTIONS</p><h2>ቅናሾችና ኩፖኖች</h2></div>
+                <span class="admin-panel-icon">%</span>
+            </div>
+            <p class="admin-inline-message">ቅናሹ በአሁኑ ጊዜ በትዕዛዝ ንኡስ ድምር ላይ ይሰላል፤ የማድረሻ ክፍያና ታክስ አይቀንስም።</p>
+            <form id="adminDiscountForm" class="admin-category-form admin-discount-form">
+                <label><span>ኩፖን ኮድ</span><input name="code" maxlength="50" pattern="[A-Za-z0-9_-]+" required placeholder="WOLO10"></label>
+                <label><span>የዘመቻ ስም</span><input name="name" maxlength="200" required></label>
+                <label><span>የቅናሽ አይነት</span>
+                    <select name="discount_type"><option value="percentage">መቶኛ (%)</option><option value="fixed_amount">ቋሚ መጠን (ETB)</option></select>
+                </label>
+                <label><span>የቅናሽ ዋጋ</span><input name="discount_value" type="number" min="0.01" step="0.01" required></label>
+                <label><span>ከዚህ በላይ ይተግበር (ETB)</span><input name="minimum_order_value" type="number" min="0" step="0.01"></label>
+                <label><span>ከፍተኛ ቅናሽ (%)</span><input name="max_discount_amount" type="number" min="0.01" step="0.01"></label>
+                <label><span>የመጀመሪያ ቀን · የአዲስ አበባ ሰዓት</span><input name="valid_from" type="datetime-local" required></label>
+                <label><span>የመጨረሻ ቀን · የአዲስ አበባ ሰዓት</span><input name="valid_to" type="datetime-local" required></label>
+                <label><span>ጠቅላላ የአጠቃቀም ገደብ</span><input name="usage_limit" type="number" min="1" step="1" placeholder="ያልተገደበ"></label>
+                <label><span>በደንበኛ የአጠቃቀም ገደብ</span><input name="per_user_limit" type="number" min="1" step="1" placeholder="ያልተገደበ"></label>
+                <label><span>የቅናሽ ወሰን</span>
+                    <select name="scope" id="adminDiscountScope">
+                        <option value="global">ሁሉም ምርቶች</option><option value="category">ምድብ</option><option value="product">አንድ ምርት</option>
+                    </select>
+                </label>
+                <label id="adminDiscountScopeIdWrap" hidden><span>ምድብ/ምርት መለያ (ID)</span><input name="scope_id" type="number" min="1"></label>
+                <label class="discount-description"><span>መግለጫ</span><input name="description" maxlength="1000"></label>
+                <label class="discount-active"><input type="checkbox" name="is_active" checked> ቅናሹ ንቁ ነው</label>
+                <div class="discount-form-actions">
+                    <button class="admin-button admin-button-primary" type="submit" id="adminDiscountSubmit">ቅናሽ ፍጠር</button>
+                    <button class="admin-button" type="button" id="adminDiscountCancel" hidden>አስወግድ</button>
+                    <p id="adminDiscountMessage" class="admin-inline-message" role="status" hidden></p>
+                </div>
+            </form>
+            <div id="adminDiscountList" class="admin-discount-list" aria-live="polite">
+                <p class="admin-loading">ቅናሾችን እየጫንን ነው…</p>
+            </div>
+        </section>
+    </section>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const adminStatus = document.getElementById('adminStatus');
+const adminNotice = document.getElementById('adminNotice');
+const adminDashboard = document.getElementById('adminDashboard');
+const adminCurrency = value => `ETB ${Number(value || 0).toLocaleString('en-ET', { maximumFractionDigits: 2 })}`;
+const adminStatusLabels = {
+    pending: 'በጥበቃ ላይ', confirmed: 'ተረጋግጧል', processing: 'በሂደት ላይ',
+    shipped: 'ተልኳል', delivered: 'ደርሷል', cancelled: 'ተሰርዟል', refunded: 'ተመልሷል'
+};
+let adminProductsById = new Map();
+let adminDiscountsById = new Map();
+let editingDiscountId = null;
+let adminUserSearch = '';
+
+function showAdminNotice(message, showLogin = false) {
+    adminNotice.hidden = false;
+    document.getElementById('adminNoticeMessage').textContent = message;
+    document.getElementById('adminLoginLink').hidden = !showLogin;
+}
+
+async function adminRequest(path, options = {}) {
+    const response = await authenticatedFetch(path, options);
+    if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const error = new Error(payload.detail || `Request failed (${response.status}).`);
+        error.status = response.status;
+        throw error;
+    }
+    return response.status === 204 ? null : response.json();
+}
+
+function renderRevenueChart(rows) {
+    const chart = document.getElementById('adminRevenueChart');
+    const entries = Array.isArray(rows) ? rows : [];
+    if (!entries.length) {
+        chart.innerHTML = '<div class="admin-chart-empty"><span>▥</span><strong>ለዚህ ሳምንት የገቢ መረጃ የለም</strong><small>የተከፈሉ ትዕዛዞች ሲኖሩ ገበታው እዚህ ይታያል።</small></div>';
+        return;
+    }
+    const max = Math.max(...entries.map(row => Number(row.total_sales || 0)), 1);
+    const bars = entries.map(row => {
+        const amount = Number(row.total_sales || 0);
+        const height = Math.max(4, Math.round((amount / max) * 100));
+        const date = row.date ? new Date(`${row.date}T00:00:00`).toLocaleDateString('am-ET', { weekday: 'short' }) : '—';
+        return `<div class="admin-chart-column" title="${he(date)} · ${he(adminCurrency(amount))}">
+            <div class="admin-chart-bar-wrap"><span class="admin-chart-value">${he(adminCurrency(amount))}</span><div class="admin-chart-bar" style="height:${height}%"></div></div>
+            <span class="admin-chart-label">${he(date)}</span>
+        </div>`;
+    }).join('');
+    chart.innerHTML = `<div class="admin-chart-bars">${bars}</div>`;
+}
+
+function renderLowStock(items) {
+    const list = document.getElementById('adminLowStockList');
+    if (!items.length) {
+        list.innerHTML = '<div class="admin-list-empty">✅ ዝቅተኛ ክምችት ያለው ምርት የለም።</div>';
+        return;
+    }
+    list.innerHTML = items.slice(0, 5).map(item => {
+        const name = item.name || item.product_name || `Product #${item.id || item.product_id || ''}`;
+        const stock = Number(item.stock_quantity ?? item.quantity ?? 0);
+        return `<div class="admin-list-row"><span class="admin-list-dot stock-dot"></span><span class="admin-list-main"><strong>${he(name)}</strong><small>ክምችት ይቀንሳል</small></span><span class="admin-stock-value">${stock}</span></div>`;
+    }).join('');
+}
+
+function renderAdminOrders(items) {
+    const list = document.getElementById('adminOrders');
+    if (!items.length) {
+        list.innerHTML = '<div class="admin-list-empty">እስካሁን ትዕዛዝ አልተመዘገበም።</div>';
+        return;
+    }
+    list.innerHTML = items.slice(0, 6).map(order => {
+        const status = String(order.status || 'pending').toLowerCase();
+        const label = adminStatusLabels[status] || status;
+        const name = order.customer_name || `ደንበኛ #${order.user_id || '—'}`;
+        return `<article class="admin-order-row">
+            <div class="admin-order-id"><strong>#${he(order.order_number || order.id)}</strong><small>${he(name)}</small></div>
+            <strong class="admin-order-total">${adminCurrency(order.total)}</strong>
+            <label class="admin-order-status"><span class="sr-only">የትዕዛዝ ሁኔታ</span>
+                <select data-order-id="${Number(order.id || order.order_id)}" aria-label="የትዕዛዝ ${he(order.order_number || order.id)} ሁኔታ">
+                    ${Object.entries(adminStatusLabels).map(([value, text]) => `<option value="${value}" ${status === value ? 'selected' : ''}>${text}</option>`).join('')}
+                </select>
+            </label>
+        </article>`;
+    }).join('');
+}
+
+function renderVendors(items) {
+    const list = document.getElementById('adminVendors');
+    document.getElementById('adminPendingVendorCount').textContent = items.length;
+    if (!items.length) {
+        list.innerHTML = '<div class="admin-list-empty">🎉 አዲስ የሻጭ ማመልከቻ የለም።</div>';
+        return;
+    }
+    list.innerHTML = items.slice(0, 6).map(vendor => {
+        const name = vendor.business_name || vendor.name || `ሻጭ #${vendor.id}`;
+        return `<article class="admin-vendor-row">
+            <span class="admin-vendor-avatar">🏪</span>
+            <span class="admin-list-main"><strong>${he(name)}</strong><small>${he(vendor.business_category || 'አዲስ ማመልከቻ')}</small></span>
+            <div class="admin-vendor-actions">
+                <button type="button" class="admin-button admin-button-approve" data-approve-vendor="${Number(vendor.id)}">አጽድቅ</button>
+                <button type="button" class="admin-button admin-button-danger" data-reject-vendor="${Number(vendor.id)}">ውድቅ አድርግ</button>
+            </div>
+        </article>`;
+    }).join('');
+}
+
+function renderAdminUsers(items) {
+    const list = document.getElementById('adminUsers');
+    if (!items.length) {
+        list.innerHTML = '<div class="admin-list-empty">ተዛማጅ ተጠቃሚ አልተገኘም።</div>';
+        return;
+    }
+    list.innerHTML = items.map(user => {
+        const id = Number(user.id);
+        const status = String(user.status || 'active').toLowerCase();
+        const name = [user.first_name, user.last_name].filter(Boolean).join(' ')
+            || user.full_name || user.username || `ተጠቃሚ #${id}`;
+        const role = String(user.role || 'customer').toLowerCase();
+        const nextStatus = status === 'active' ? 'suspended' : 'active';
+        const label = status === 'active' ? 'አግድ' : 'አንቃ';
+        return `<article class="admin-user-row">
+            <span class="admin-list-main"><strong>${he(name)}</strong>
+                <small>${he(user.phone_number || user.email || user.username || 'የመገናኛ መረጃ የለም')} · ${he(role)}</small>
+            </span>
+            <span class="admin-user-status status-${he(status)}">${he(status)}</span>
+            <button type="button" class="admin-button ${nextStatus === 'suspended' ? 'admin-button-danger' : 'admin-button-approve'}"
+                    data-user-id="${id}" data-user-status="${nextStatus}">${label}</button>
+        </article>`;
+    }).join('');
+}
+
+async function loadAdminUsers(search = adminUserSearch) {
+    const list = document.getElementById('adminUsers');
+    list.innerHTML = '<p class="admin-loading">የተጠቃሚ መረጃን እየጫንን ነው…</p>';
+    try {
+        const params = new URLSearchParams({ page: '1', page_size: '50' });
+        if (search) params.set('search', search);
+        const result = await adminRequest(`/api/v1/admin/users?${params}`);
+        renderAdminUsers(result.items || []);
+    } catch (error) {
+        list.innerHTML = `<p class="admin-inline-message">${he(error.message || 'ተጠቃሚዎችን ማምጣት አልተቻለም።')}</p>`;
+    }
+}
+
+function renderCategories(items) {
+    const list = document.getElementById('adminCategories');
+    const categorySelect = document.getElementById('adminProductCategory');
+    categorySelect.innerHTML = '<option value="">ምድብ የለም</option>' +
+        items.map(category => `<option value="${Number(category.id)}">${he(category.name_am || category.name)}</option>`).join('');
+    if (!items.length) {
+        list.innerHTML = '<div class="admin-list-empty">ምንም የምርት ምድብ የለም።</div>';
+        return;
+    }
+    list.innerHTML = items.map(category => {
+        const name = category.name_am || category.name || `ምድብ #${category.id}`;
+        const slug = category.slug || '';
+        return `<article class="admin-category-row">
+            <span class="admin-category-icon">⌘</span>
+            <span class="admin-list-main"><strong>${he(name)}</strong><small>${he(slug)}</small></span>
+            <button type="button" class="admin-button" data-edit-category="${Number(category.id)}" data-current-name="${he(category.name || '')}" aria-label="${he(name)} ምድብ አስተካክል">አስተካክል</button>
+            <button type="button" class="admin-button admin-button-danger" data-delete-category="${Number(category.id)}" aria-label="${he(name)} ምድብ ሰርዝ">ሰርዝ</button>
+        </article>`;
+    }).join('');
+}
+
+function renderProducts(items) {
+    const list = document.getElementById('adminProducts');
+    adminProductsById = new Map(items.map(item => [Number(item.id), item]));
+    if (!items.length) {
+        list.innerHTML = '<div class="admin-list-empty">ምንም ምርት አልተመዘገበም።</div>';
+        return;
+    }
+    list.innerHTML = items.map(product => `<article class="admin-category-row">
+        <span class="admin-category-icon">${product.images?.[0] && safeUrl(product.images[0])
+            ? `<img src="${he(safeUrl(product.images[0]))}" alt="" loading="lazy">`
+            : '📦'}</span>
+        <span class="admin-list-main"><strong>${he(product.name)}</strong><small>${he(product.sku)} · ${he(adminCurrency(product.price))} · ክምችት ${Number(product.stock_quantity || 0)}</small></span>
+        <span class="admin-product-status">${he(product.status || '')}</span>
+        <button type="button" class="admin-button" data-edit-product="${Number(product.id)}">አስተካክል</button>
+        <button type="button" class="admin-button admin-button-danger" data-delete-product="${Number(product.id)}">ሰርዝ</button>
+    </article>`).join('');
+}
+
+function renderPendingProducts(items) {
+    const list = document.getElementById('adminPendingProducts');
+    document.getElementById('adminPendingProductCount').textContent = items.length;
+    if (!items.length) {
+        list.innerHTML = '<div class="admin-list-empty">✅ የሚገመገም ምርት የለም።</div>';
+        return;
+    }
+    list.innerHTML = items.map(product => {
+        const images = (Array.isArray(product.images) ? product.images : [])
+            .map(safeUrl).filter(Boolean);
+        const gallery = images.length
+            ? `<div class="admin-review-gallery">${images.map((url, index) =>
+                `<a href="${he(url)}" target="_blank" rel="noopener noreferrer">
+                    <img src="${he(url)}" alt="${he(product.name)} photo ${index + 1}" loading="lazy">
+                </a>`
+            ).join('')}</div>`
+            : '<div class="admin-review-no-image">📷 ፎቶ አልተጫነም</div>';
+        return `<article class="admin-product-review">
+            ${gallery}
+            <div class="admin-product-review-info">
+                <div class="admin-product-review-title">
+                    <strong>${he(product.name)}</strong>
+                    <span>${he(product.sku)} · #${Number(product.id)}</span>
+                </div>
+                <p>${he(product.description || 'መግለጫ አልተሰጠም።')}</p>
+                <div class="admin-product-review-meta">
+                    <strong>${he(adminCurrency(product.price))}</strong>
+                    ${product.compare_price ? `<del>${he(adminCurrency(product.compare_price))}</del>` : ''}
+                    <span>ክምችት ${Number(product.stock_quantity || 0)}</span>
+                    <span>ሻጭ #${Number(product.vendor_id)}</span>
+                </div>
+            </div>
+            <div class="admin-product-review-actions">
+                <button type="button" class="admin-button admin-button-approve" data-review-product="approve" data-product-id="${Number(product.id)}">አጽድቅ</button>
+                <button type="button" class="admin-button admin-button-danger" data-review-product="reject" data-product-id="${Number(product.id)}">ውድቅ አድርግ</button>
+            </div>
+        </article>`;
+    }).join('');
+}
+
+function renderVendorOptions(items) {
+    const select = document.getElementById('adminProductVendor');
+    select.innerHTML = '<option value="">ሻጭ ይምረጡ</option>' +
+        items.map(vendor => {
+            const name = vendor.business_name || `ሻጭ #${vendor.id}`;
+            return `<option value="${Number(vendor.id)}">${he(name)}</option>`;
+        }).join('');
+}
+
+function renderStoreSettings(settingsData) {
+    const form = document.getElementById('adminSettingsForm');
+    form.elements.store_open.checked = Boolean(settingsData.store_open);
+    form.elements.maintenance_message.value = settingsData.maintenance_message || '';
+    form.querySelectorAll('input[name="payment_method"]').forEach(input => {
+        const configured = input.value === 'cod' ||
+            Boolean(settingsData.environment_status?.payment_gateways?.[input.value]);
+        input.disabled = !configured;
+        input.checked = configured &&
+            (settingsData.enabled_payment_methods || []).includes(input.value);
+        input.closest('label').title = input.disabled
+            ? 'ሚስጥራዊ ቁልፉ በአገልጋዩ አልተዋቀረም።'
+            : '';
+    });
+    form.querySelectorAll('input[name="notification"]').forEach(input => {
+        input.checked = settingsData.notification_settings?.[input.value] !== false;
+    });
+    const status = settingsData.environment_status || {};
+    const stateLabel = configured => configured ? 'ተዋቅሯል' : 'አልተዋቀረም';
+    document.getElementById('adminEnvironmentStatus').innerHTML = `
+        <strong>የአገልጋይ ሚስጥሮች (እሴቶቹ በጭራሽ አይታዩም)</strong>
+        <span>Telegram Bot · ${stateLabel(status.telegram_bot)}</span>
+        <span>Telegram Webhook · ${stateLabel(status.telegram_webhook)}</span>
+        <span>Chapa · ${stateLabel(status.payment_gateways?.chapa)}</span>
+        <span>Telebirr · ${stateLabel(status.payment_gateways?.telebirr)}</span>
+        <span>CBE Birr · ${stateLabel(status.payment_gateways?.cbe)}</span>`;
+}
+
+function renderAdminDiscounts(items) {
+    const list = document.getElementById('adminDiscountList');
+    adminDiscountsById = new Map(items.map(item => [Number(item.id), item]));
+    if (!items.length) {
+        list.innerHTML = '<div class="admin-list-empty">ገና ቅናሽ አልተፈጠረም።</div>';
+        return;
+    }
+    const scopeNames = { global: 'ሁሉም ምርቶች', category: 'ምድብ', product: 'ምርት' };
+    list.innerHTML = items.map(discount => {
+        const value = discount.discount_type === 'percentage'
+            ? `${Number(discount.discount_value)}%`
+            : adminCurrency(discount.discount_value);
+        const state = discount.is_active ? (discount.is_valid ? 'ንቁ' : 'በጊዜ ገደብ ውጪ') : 'ተዘግቷል';
+        return `<article class="admin-discount-card">
+            <div class="admin-discount-code">${he(discount.code)}</div>
+            <div class="admin-discount-info">
+                <strong>${he(discount.name)} · ${he(value)} ቅናሽ</strong>
+                <span>${he(scopeNames[discount.scope] || discount.scope)}${discount.scope_id ? ` #${Number(discount.scope_id)}` : ''} · አጠቃቀም ${Number(discount.used_count)}/${discount.usage_limit ? Number(discount.usage_limit) : '∞'}</span>
+                <small>${he(new Date(`${discount.valid_from}Z`).toLocaleString('am-ET'))} — ${he(new Date(`${discount.valid_to}Z`).toLocaleString('am-ET'))} · ${state}</small>
+            </div>
+            <div class="admin-discount-actions">
+                <button type="button" class="admin-button" data-edit-discount="${Number(discount.id)}">አስተካክል</button>
+                <button type="button" class="admin-button ${discount.is_active ? 'admin-button-danger' : 'admin-button-approve'}"
+                        data-toggle-discount="${Number(discount.id)}" data-next-active="${!discount.is_active}">
+                    ${discount.is_active ? 'አቦዝን' : 'አንቃ'}
+                </button>
+                ${Number(discount.used_count) === 0
+                    ? `<button type="button" class="admin-button admin-button-danger" data-delete-discount="${Number(discount.id)}">ሰርዝ</button>`
+                    : ''}
+            </div>
+        </article>`;
+    }).join('');
+}
+
+async function loadAdminDashboard() {
+    adminNotice.hidden = true;
+    adminDashboard.hidden = true;
+    adminStatus.hidden = false;
+    adminStatus.textContent = 'የአስተዳደር መዳረሻ እየተረጋገጠ ነው…';
+
+    try {
+        if (!await getWebAppAccessToken()) {
+            adminStatus.hidden = true;
+            showAdminNotice('የአስተዳደር ፓነሉን ለመክፈት መጀመሪያ ይግቡ።', true);
+            return;
+        }
+        await adminRequest('/app/api/admin/session');
+        const summary = await adminRequest('/api/v1/analytics/admin/dashboard');
+        const number = value => Number(value || 0).toLocaleString('en-ET');
+        document.getElementById('adminTodayRevenue').textContent = adminCurrency(summary.today?.revenue);
+        document.getElementById('adminTodayOrders').textContent = number(summary.today?.orders);
+        document.getElementById('adminActiveUsers').textContent = number(summary.active_users);
+        document.getElementById('adminLowStock').textContent = number(summary.low_stock_count);
+        adminDashboard.hidden = false;
+        adminStatus.hidden = true;
+
+        const results = await Promise.allSettled([
+            adminRequest('/api/v1/analytics/sales/daily?days=7'),
+            adminRequest('/api/v1/orders/admin/orders?page=1&page_size=6'),
+            adminRequest('/api/v1/admin/vendors?is_approved=false&page=1&page_size=6'),
+            adminRequest('/api/v1/products/categories'),
+            adminRequest('/app/api/admin/products?page=1&page_size=50'),
+            adminRequest('/api/v1/admin/vendors?is_approved=true&page=1&page_size=100'),
+            adminRequest('/app/api/admin/products?status=pending&page_size=100'),
+            adminRequest('/app/api/admin/settings'),
+            adminRequest('/app/api/admin/discounts'),
+            adminRequest(`/api/v1/admin/users?page=1&page_size=50${adminUserSearch ? `&search=${encodeURIComponent(adminUserSearch)}` : ''}`),
+        ]);
+        if (results[0].status === 'fulfilled') renderRevenueChart(results[0].value);
+        else document.getElementById('adminRevenueChart').innerHTML = '<p class="admin-inline-message">የገቢ ገበታን ማምጣት አልተቻለም።</p>';
+        renderLowStock(summary.low_stock_products || []);
+        if (results[1].status === 'fulfilled') renderAdminOrders(results[1].value.items || []);
+        else document.getElementById('adminOrders').innerHTML = '<p class="admin-inline-message">የትዕዛዝ መረጃን ማምጣት አልተቻለም።</p>';
+        if (results[2].status === 'fulfilled') renderVendors(results[2].value.items || []);
+        else document.getElementById('adminVendors').innerHTML = '<p class="admin-inline-message">የሻጭ ማመልከቻዎችን ማምጣት አልተቻለም።</p>';
+        if (results[3].status === 'fulfilled') renderCategories(results[3].value);
+        else document.getElementById('adminCategories').innerHTML = '<p class="admin-inline-message">ምድቦችን ማምጣት አልተቻለም።</p>';
+        if (results[4].status === 'fulfilled') renderProducts(results[4].value.items || []);
+        else document.getElementById('adminProducts').innerHTML = '<p class="admin-inline-message">ምርቶችን ማምጣት አልተቻለም።</p>';
+        if (results[5].status === 'fulfilled') renderVendorOptions(results[5].value.items || []);
+        else document.getElementById('adminProductVendor').innerHTML = '<option value="">የሻጭ ዝርዝርን ማምጣት አልተቻለም</option>';
+        if (results[6].status === 'fulfilled') renderPendingProducts(results[6].value.items || []);
+        else document.getElementById('adminPendingProducts').innerHTML = '<p class="admin-inline-message">ለግምገማ የቀረቡ ምርቶችን ማምጣት አልተቻለም።</p>';
+        if (results[7].status === 'fulfilled') renderStoreSettings(results[7].value);
+        else document.getElementById('adminEnvironmentStatus').textContent = 'የሱቅ ቅንብሮችን ማምጣት አልተቻለም።';
+        if (results[8].status === 'fulfilled') renderAdminDiscounts(results[8].value.items || []);
+        else document.getElementById('adminDiscountList').innerHTML = '<p class="admin-inline-message">ቅናሾችን ማምጣት አልተቻለም።</p>';
+        if (results[9].status === 'fulfilled') renderAdminUsers(results[9].value.items || []);
+        else document.getElementById('adminUsers').innerHTML = '<p class="admin-inline-message">ተጠቃሚዎችን ማምጣት አልተቻለም።</p>';
+        if (window.location.hash && window.location.hash !== '#') {
+            document.querySelector(window.location.hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    } catch (error) {
+        adminStatus.hidden = true;
+        if (error.status === 403) showAdminNotice('ይህን ፓነል ለመክፈት የአስተዳዳሪ ፈቃድ ያስፈልጋል።');
+        else showAdminNotice(error.message || 'የፓነሉን መረጃ መጫን አልተቻለም።', error.status === 401);
+    }
+}
+
+document.getElementById('adminRefresh').addEventListener('click', loadAdminDashboard);
+document.getElementById('adminUserSearchForm').addEventListener('submit', event => {
+    event.preventDefault();
+    adminUserSearch = document.getElementById('adminUserSearch').value.trim();
+    loadAdminUsers(adminUserSearch);
+});
+document.getElementById('adminUsers').addEventListener('click', async event => {
+    const button = event.target.closest('[data-user-id]');
+    if (!button) return;
+    button.disabled = true;
+    try {
+        await adminRequest(
+            `/api/v1/admin/users/${Number(button.dataset.userId)}/status?status=${encodeURIComponent(button.dataset.userStatus)}`,
+            { method: 'PUT' }
+        );
+        await loadAdminUsers();
+        showToast('የተጠቃሚ መለያ ሁኔታ ተዘምኗል።');
+    } catch (error) {
+        showToast(error.message || 'የተጠቃሚ ሁኔታን ማዘመን አልተቻለም።');
+        button.disabled = false;
+    }
+});
+document.getElementById('adminOrders').addEventListener('change', async event => {
+    const select = event.target.closest('select[data-order-id]');
+    if (!select) return;
+    select.disabled = true;
+    try {
+        await adminRequest(`/api/v1/orders/admin/orders/${Number(select.dataset.orderId)}/status`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: select.value })
+        });
+        showToast('የትዕዛዝ ሁኔታ ተዘምኗል።');
+    } catch (error) {
+        showToast(error.message || 'የትዕዛዝ ሁኔታን ማዘመን አልተቻለም።');
+        loadAdminDashboard();
+    } finally {
+        select.disabled = false;
+    }
+});
+
+document.getElementById('adminVendors').addEventListener('click', async event => {
+    const button = event.target.closest('[data-approve-vendor], [data-reject-vendor]');
+    if (!button) return;
+    button.disabled = true;
+    try {
+        const vendorId = Number(button.dataset.approveVendor || button.dataset.rejectVendor);
+        if (button.dataset.rejectVendor) {
+            const reason = window.prompt('የመከልከያ ምክንያት ያስገቡ።');
+            if (!reason || reason.trim().length < 3) {
+                button.disabled = false;
+                return;
+            }
+            await adminRequest(`/api/v1/admin/vendors/${vendorId}/reject?reason=${encodeURIComponent(reason.trim())}`, { method: 'POST' });
+            showToast('የሻጭ ማመልከቻው ውድቅ ተደርጓል።');
+        } else {
+            await adminRequest(`/api/v1/admin/vendors/${vendorId}/approve`, { method: 'POST' });
+            showToast('የሻጭ ማመልከቻው ጸድቋል።');
+        }
+        loadAdminDashboard();
+    } catch (error) {
+        showToast(error.message || 'ማመልከቻውን ማጽደቅ አልተቻለም።');
+        button.disabled = false;
+    }
+});
+
+document.getElementById('adminCategoryForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form));
+    const message = document.getElementById('adminCategoryMessage');
+    const button = form.querySelector('button');
+    button.disabled = true;
+    message.hidden = true;
+    try {
+        await adminRequest('/api/v1/products/categories', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: String(data.name).trim(),
+                name_am: String(data.name_am || '').trim() || null,
+                slug: String(data.slug || '').trim() || null
+            })
+        });
+        form.reset();
+        await loadAdminDashboard();
+        message.textContent = 'አዲሱ ምድብ ተፈጥሯል።';
+        message.hidden = false;
+    } catch (error) {
+        message.textContent = error.message || 'ምድቡን መፍጠር አልተቻለም።';
+        message.hidden = false;
+    } finally {
+        button.disabled = false;
+    }
+});
+
+document.getElementById('adminCategories').addEventListener('click', async event => {
+    const editButton = event.target.closest('[data-edit-category]');
+    if (editButton) {
+        const currentName = editButton.dataset.currentName;
+        const name = window.prompt('አዲሱን የምድብ ስም ያስገቡ።', currentName);
+        if (name === null || !name.trim()) return;
+        editButton.disabled = true;
+        try {
+            await adminRequest(`/api/v1/products/categories/${Number(editButton.dataset.editCategory)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.trim() })
+            });
+            showToast('የምድብ መረጃ ተዘምኗል።');
+            loadAdminDashboard();
+        } catch (error) {
+            showToast(error.message || 'ምድቡን ማዘመን አልተቻለም።');
+            editButton.disabled = false;
+        }
+        return;
+    }
+    const button = event.target.closest('[data-delete-category]');
+    if (!button || !window.confirm('ይህን ምድብ ማጥፋት ይፈልጋሉ?')) return;
+    button.disabled = true;
+    try {
+        await adminRequest(`/api/v1/products/categories/${Number(button.dataset.deleteCategory)}`, { method: 'DELETE' });
+        showToast('ምድቡ ተሰርዟል።');
+        loadAdminDashboard();
+    } catch (error) {
+        showToast(error.message || 'ምድቡን መሰረዝ አልተቻለም።');
+        button.disabled = false;
+    }
+});
+
+document.getElementById('adminProductForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form));
+    const message = document.getElementById('adminProductMessage');
+    const button = form.querySelector('button');
+    button.disabled = true;
+    message.hidden = true;
+    try {
+        await adminRequest('/app/api/admin/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                vendor_id: Number(data.vendor_id),
+                name: String(data.name).trim(),
+                name_am: String(data.name_am || '').trim() || null,
+                sku: String(data.sku).trim(),
+                price: Number(data.price),
+                stock_quantity: Number(data.stock_quantity),
+                category_id: data.category_id ? Number(data.category_id) : null
+            })
+        });
+        form.reset();
+        await loadAdminDashboard();
+        message.textContent = 'አዲሱ ምርት ተፈጥሯል።';
+        message.hidden = false;
+    } catch (error) {
+        message.textContent = error.message || 'ምርቱን መፍጠር አልተቻለም።';
+        message.hidden = false;
+    } finally {
+        button.disabled = false;
+    }
+});
+
+document.getElementById('adminProducts').addEventListener('click', async event => {
+    const editButton = event.target.closest('[data-edit-product]');
+    if (editButton) {
+        const product = adminProductsById.get(Number(editButton.dataset.editProduct));
+        if (!product) return;
+        const name = window.prompt('የምርት ስም', product.name);
+        if (name === null) return;
+        const priceInput = window.prompt('ዋጋ (ETB)', String(product.price));
+        if (priceInput === null) return;
+        const stockInput = window.prompt('የክምችት ብዛት', String(product.stock_quantity));
+        if (stockInput === null) return;
+        const price = Number(priceInput);
+        const stock = Number(stockInput);
+        if (!name.trim() || !Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0) {
+            showToast('የምርት መረጃውን ያረጋግጡ።');
+            return;
+        }
+        editButton.disabled = true;
+        try {
+            await adminRequest(`/app/api/admin/products/${Number(product.id)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.trim(), price, stock_quantity: stock })
+            });
+            showToast('የምርት መረጃ ተዘምኗል።');
+            loadAdminDashboard();
+        } catch (error) {
+            showToast(error.message || 'ምርቱን ማዘመን አልተቻለም።');
+            editButton.disabled = false;
+        }
+        return;
+    }
+    const deleteButton = event.target.closest('[data-delete-product]');
+    if (!deleteButton || !window.confirm('ይህን ምርት ከሱቁ ማስወገድ ይፈልጋሉ?')) return;
+    deleteButton.disabled = true;
+    try {
+        await adminRequest(`/app/api/admin/products/${Number(deleteButton.dataset.deleteProduct)}`, { method: 'DELETE' });
+        showToast('ምርቱ ተሰርዟል።');
+        loadAdminDashboard();
+    } catch (error) {
+        showToast(error.message || 'ምርቱን መሰረዝ አልተቻለም።');
+        deleteButton.disabled = false;
+    }
+});
+
+document.getElementById('adminPendingProducts').addEventListener('click', async event => {
+    const button = event.target.closest('[data-review-product]');
+    if (!button) return;
+    const productId = Number(button.dataset.productId);
+    const decision = button.dataset.reviewProduct;
+    let path = `/app/api/admin/products/${productId}/approve`;
+    const options = { method: 'POST' };
+    if (decision === 'reject') {
+        const reason = window.prompt('የመከልከያ ምክንያት ያስገቡ።');
+        if (reason === null) return;
+        if (reason.trim().length < 3) {
+            showToast('እባክዎ ቢያንስ 3 ፊደል ያለው ምክንያት ያስገቡ።');
+            return;
+        }
+        path = `/app/api/admin/products/${productId}/reject`;
+        options.headers = { 'Content-Type': 'application/json' };
+        options.body = JSON.stringify({ reason: reason.trim() });
+    } else if (decision !== 'approve') {
+        return;
+    }
+
+    button.disabled = true;
+    try {
+        await adminRequest(path, options);
+        showToast(decision === 'approve' ? 'ምርቱ ጸድቋል።' : 'ምርቱ ውድቅ ተደርጓል።');
+        await loadAdminDashboard();
+    } catch (error) {
+        showToast(error.message || 'የምርት ግምገማው አልተሳካም።');
+        button.disabled = false;
+    }
+});
+
+const adminSettingsForm = document.getElementById('adminSettingsForm');
+adminSettingsForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = adminSettingsForm.querySelector('button[type="submit"]');
+    const message = document.getElementById('adminSettingsMessage');
+    button.disabled = true;
+    message.hidden = true;
+    const notificationSettings = {};
+    adminSettingsForm.querySelectorAll('input[name="notification"]').forEach(input => {
+        notificationSettings[input.value] = input.checked;
+    });
+    const enabledPaymentMethods = Array.from(
+        adminSettingsForm.querySelectorAll('input[name="payment_method"]:checked')
+    ).filter(input => !input.disabled).map(input => input.value);
+    try {
+        const updated = await adminRequest('/app/api/admin/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                store_open: adminSettingsForm.elements.store_open.checked,
+                maintenance_message: adminSettingsForm.elements.maintenance_message.value.trim() || null,
+                enabled_payment_methods: enabledPaymentMethods,
+                notification_settings: notificationSettings
+            })
+        });
+        renderStoreSettings(updated);
+        message.textContent = 'የሱቅ ቅንብሮች ተቀምጠዋል።';
+        showToast('ቅንብሮች ተዘምነዋል።');
+    } catch (error) {
+        message.textContent = error.message || 'ቅንብሮችን ማስቀመጥ አልተቻለም።';
+    } finally {
+        message.hidden = false;
+        button.disabled = false;
+    }
+});
+
+const discountForm = document.getElementById('adminDiscountForm');
+const discountScope = document.getElementById('adminDiscountScope');
+const discountScopeIdWrap = document.getElementById('adminDiscountScopeIdWrap');
+const discountMessage = document.getElementById('adminDiscountMessage');
+const discountSubmit = document.getElementById('adminDiscountSubmit');
+
+function updateDiscountScopeFields() {
+    const hasScope = discountScope.value !== 'global';
+    discountScopeIdWrap.hidden = !hasScope;
+    discountForm.elements.scope_id.required = hasScope;
+    discountForm.elements.scope_id.disabled = !hasScope;
+}
+
+function updateDiscountMaxField() {
+    const isPercentage = discountForm.elements.discount_type.value === 'percentage';
+    discountForm.elements.max_discount_amount.disabled = !isPercentage;
+    discountForm.elements.max_discount_amount.closest('label').hidden = !isPercentage;
+    if (!isPercentage) discountForm.elements.max_discount_amount.value = '';
+}
+
+function formatDiscountDate(value) {
+    const date = new Date(`${value}Z`);
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Africa/Addis_Ababa', year: 'numeric', month: '2-digit',
+        day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+    }).formatToParts(date);
+    const part = name => parts.find(item => item.type === name)?.value || '';
+    return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`;
+}
+
+function resetDiscountForm() {
+    editingDiscountId = null;
+    discountForm.reset();
+    discountForm.elements.is_active.checked = true;
+    discountSubmit.textContent = 'ቅናሽ ፍጠር';
+    document.getElementById('adminDiscountCancel').hidden = true;
+    discountMessage.hidden = true;
+    updateDiscountScopeFields();
+    updateDiscountMaxField();
+}
+
+function editDiscount(id) {
+    const discount = adminDiscountsById.get(id);
+    if (!discount) return;
+    editingDiscountId = id;
+    for (const field of [
+        'code', 'name', 'description', 'discount_type', 'discount_value',
+        'minimum_order_value', 'max_discount_amount', 'usage_limit',
+        'per_user_limit', 'scope', 'scope_id', 'is_active'
+    ]) {
+        const input = discountForm.elements[field];
+        if (field === 'is_active') input.checked = discount.is_active;
+        else input.value = discount[field] ?? '';
+    }
+    discountForm.elements.valid_from.value = formatDiscountDate(discount.valid_from);
+    discountForm.elements.valid_to.value = formatDiscountDate(discount.valid_to);
+    discountSubmit.textContent = 'ለውጦችን አዘምን';
+    document.getElementById('adminDiscountCancel').hidden = false;
+    updateDiscountScopeFields();
+    updateDiscountMaxField();
+    discountForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+discountScope.addEventListener('change', updateDiscountScopeFields);
+discountForm.elements.discount_type.addEventListener('change', updateDiscountMaxField);
+document.getElementById('adminDiscountCancel').addEventListener('click', resetDiscountForm);
+discountForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!discountForm.reportValidity()) return;
+    const values = Object.fromEntries(new FormData(discountForm));
+    const payload = {
+        code: String(values.code).trim().toUpperCase(),
+        name: String(values.name).trim(),
+        description: String(values.description || '').trim() || null,
+        discount_type: values.discount_type,
+        discount_value: Number(values.discount_value),
+        max_discount_amount: values.max_discount_amount ? Number(values.max_discount_amount) : null,
+        minimum_order_value: values.minimum_order_value ? Number(values.minimum_order_value) : null,
+        valid_from: values.valid_from,
+        valid_to: values.valid_to,
+        usage_limit: values.usage_limit ? Number(values.usage_limit) : null,
+        per_user_limit: values.per_user_limit ? Number(values.per_user_limit) : null,
+        scope: values.scope,
+        scope_id: values.scope_id ? Number(values.scope_id) : null,
+        is_active: discountForm.elements.is_active.checked
+    };
+    discountSubmit.disabled = true;
+    discountMessage.hidden = true;
+    try {
+        await adminRequest(
+            editingDiscountId ? `/app/api/admin/discounts/${editingDiscountId}` : '/app/api/admin/discounts',
+            {
+                method: editingDiscountId ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }
+        );
+        resetDiscountForm();
+        await loadAdminDashboard();
+        showToast('የቅናሽ መረጃ ተቀምጧል።');
+    } catch (error) {
+        discountMessage.textContent = error.message || 'ቅናሹን ማስቀመጥ አልተቻለም።';
+        discountMessage.hidden = false;
+    } finally {
+        discountSubmit.disabled = false;
+    }
+});
+
+document.getElementById('adminDiscountList').addEventListener('click', async event => {
+    const editButton = event.target.closest('[data-edit-discount]');
+    if (editButton) {
+        editDiscount(Number(editButton.dataset.editDiscount));
+        return;
+    }
+    const toggleButton = event.target.closest('[data-toggle-discount]');
+    const deleteButton = event.target.closest('[data-delete-discount]');
+    if (!toggleButton && !deleteButton) return;
+    const actionButton = toggleButton || deleteButton;
+    const discountId = Number(actionButton.dataset.toggleDiscount || actionButton.dataset.deleteDiscount);
+    actionButton.disabled = true;
+    try {
+        if (toggleButton) {
+            const shouldActivate = toggleButton.dataset.nextActive === 'true';
+            await adminRequest(
+                shouldActivate
+                    ? `/app/api/admin/discounts/${discountId}/activate`
+                    : `/app/api/admin/discounts/${discountId}`,
+                { method: shouldActivate ? 'POST' : 'DELETE' }
+            );
+        } else {
+            if (!window.confirm('ይህን ያልተጠቀመበት ኩፖን በቋሚነት መሰረዝ ይፈልጋሉ?')) {
+                actionButton.disabled = false;
+                return;
+            }
+            await adminRequest(`/app/api/admin/discounts/${discountId}/permanent`, { method: 'DELETE' });
+        }
+        await loadAdminDashboard();
+        showToast(toggleButton ? 'የቅናሹ ሁኔታ ተዘምኗል።' : 'ቅናሹ ተሰርዟል።');
+    } catch (error) {
+        showToast(error.message || 'የቅናሽ መረጃን ማዘመን አልተቻለም።');
+        actionButton.disabled = false;
+    }
+});
+
+updateDiscountScopeFields();
+updateDiscountMaxField();
+loadAdminDashboard();
+</script>
+{% endblock %}

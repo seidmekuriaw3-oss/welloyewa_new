@@ -53,15 +53,27 @@ async def get_current_user(
     user_id = payload.get("sub")
     if not user_id:
         raise AuthenticationError("Invalid token payload")
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError) as exc:
+        raise AuthenticationError("Invalid token payload") from exc
 
     # Fetch user from database
     from apps.users.repository import UserRepository
 
     user_repo = UserRepository(db)
-    user = await user_repo.get_by_id(int(user_id))
+    user = await user_repo.get_by_id(user_id)
 
     if not user:
         raise AuthenticationError("User not found")
+
+    token_version = payload.get("token_version", 0)
+    if (
+        isinstance(token_version, bool)
+        or not isinstance(token_version, int)
+        or token_version != user.token_version
+    ):
+        raise AuthenticationError("Session has been revoked. Please sign in again.")
 
     if user.status != "active":
         raise AuthenticationError("User account is not active")

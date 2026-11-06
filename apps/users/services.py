@@ -20,7 +20,15 @@ from apps.users.schemas import (
     VendorCreate,
     VendorUpdate,
 )
-from core.events import USER_LOGIN, USER_REGISTERED, USER_UPDATED, emit_event
+from core.events import (
+    USER_LOGIN,
+    USER_REGISTERED,
+    USER_UPDATED,
+    VENDOR_APPROVED,
+    VENDOR_REGISTERED,
+    VENDOR_REJECTED,
+    emit_event,
+)
 from core.exceptions import (
     AuthenticationError,
     DuplicateRecordError,
@@ -155,6 +163,7 @@ class AuthService:
             "sub": str(user.id),
             "telegram_id": user.telegram_id,
             "role": user.role,
+            "token_version": user.token_version,
         }
         access_token = create_access_token(token_data)
 
@@ -354,7 +363,11 @@ class VendorService:
         )
 
     async def create_vendor(
-        self, user_id: int, data: VendorCreate | VendorApplicationCreate
+        self,
+        user_id: int,
+        data: VendorCreate | VendorApplicationCreate,
+        *,
+        notify_admins_on_event: bool = True,
     ) -> Vendor:
         """
         Create a vendor profile.
@@ -428,6 +441,15 @@ class VendorService:
             await self.user_repo.update(
                 user_id, {"phone_number": vendor_data["business_phone"]}
             )
+        await emit_event(
+            VENDOR_REGISTERED,
+            {
+                "vendor_id": vendor.id,
+                "user_id": user_id,
+                "business_name": vendor.business_name,
+                "notify_admins": notify_admins_on_event,
+            },
+        )
         logger.info("Vendor application submitted: %s (user: %s)", vendor.id, user_id)
         return vendor
 
@@ -472,6 +494,14 @@ class VendorService:
             raise NotFoundError("Vendor", vendor_id)
 
         await self.user_repo.update(vendor.user_id, {"role": "vendor"})
+        await emit_event(
+            VENDOR_APPROVED,
+            {
+                "vendor_id": vendor.id,
+                "user_id": vendor.user_id,
+                "business_name": vendor.business_name,
+            },
+        )
         logger.info(f"Vendor {vendor_id} approved by admin {admin_id}")
         return vendor
 
@@ -497,6 +527,15 @@ class VendorService:
         user = await self.user_repo.get_by_id(vendor.user_id)
         if user and user.role == "vendor":
             await self.user_repo.update(vendor.user_id, {"role": "customer"})
+        await emit_event(
+            VENDOR_REJECTED,
+            {
+                "vendor_id": vendor.id,
+                "user_id": vendor.user_id,
+                "business_name": vendor.business_name,
+                "reason": reason,
+            },
+        )
         logger.info(f"Vendor {vendor_id} rejected: {reason}")
         return vendor
 

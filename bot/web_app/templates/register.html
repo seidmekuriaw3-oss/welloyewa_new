@@ -48,7 +48,7 @@ document.getElementById('registerForm').addEventListener('submit', async (event)
         }
         const data = await response.json();
         localStorage.setItem('wolloyewa_access_token', data.access_token);
-        window.location.href = '/app/dashboard';
+        window.location.href = '/app/profile';
     } catch {
         error.textContent = 'ከአገልጋዩ ጋር መገናኘት አልተቻለም። እንደገና ይሞክሩ።';
     }

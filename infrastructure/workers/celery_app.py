@@ -60,6 +60,9 @@ def create_celery_app() -> Celery:
         ),
         # Task routes
         task_routes={
+            "send_lifecycle_notification": {"queue": "high_priority"},
+            "send_user_broadcast": {"queue": "low_priority"},
+            "send_vendor_application_review": {"queue": "high_priority"},
             "infrastructure.workers.tasks.send_email_task": {"queue": "email"},
             "infrastructure.workers.tasks.send_sms_task": {"queue": "sms"},
             "infrastructure.workers.tasks.process_payment_task": {"queue": "payment"},

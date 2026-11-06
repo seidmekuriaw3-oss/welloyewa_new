@@ -25,9 +25,12 @@ from infrastructure.workers.tasks import (
     # Notification tasks
     send_email_task,
     send_health_report_task,
+    send_lifecycle_notification_task,
     send_order_confirmation_task,
     send_sms_task,
     send_telegram_task,
+    send_user_broadcast_task,
+    send_vendor_application_review_task,
     # Analytics tasks
     update_analytics_task,
     # Inventory tasks
@@ -55,9 +58,12 @@ __all__ = [
     # Notification tasks
     "send_email_task",
     "send_health_report_task",
+    "send_lifecycle_notification_task",
     "send_order_confirmation_task",
     "send_sms_task",
     "send_telegram_task",
+    "send_user_broadcast_task",
+    "send_vendor_application_review_task",
     "setup_periodic_tasks",
     # Analytics tasks
     "update_analytics_task",

@@ -40,6 +40,16 @@ def test_cart_checkout_button_enters_checkout_conversation():
         and handler.callback == checkout.recipient_phone_handler
         for handler in checkout_conversation.states[checkout.SELECT_RECIPIENT_PHONE]
     )
+    assert any(
+        isinstance(handler, CallbackQueryHandler)
+        and handler.pattern.match("checkout_coupon_skip")
+        for handler in checkout_conversation.states[checkout.SELECT_COUPON]
+    )
+    assert any(
+        isinstance(handler, MessageHandler)
+        and handler.callback == checkout.coupon_message_handler
+        for handler in checkout_conversation.states[checkout.SELECT_COUPON]
+    )
 
 
 def test_vendor_conversation_precedes_other_conversations_and_routes_step_one_text():

@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -13,6 +13,7 @@ from bot.handlers.vendor_registration import (
     application_navigation_callback,
     handle_text,
 )
+from core.events import VENDOR_REGISTERED
 
 
 def _valid_application_data() -> dict[str, str]:
@@ -297,12 +298,25 @@ async def test_vendor_role_is_granted_only_after_admin_approval():
     service.vendor_repo.get_by_tin.return_value = None
     service.vendor_repo.create.return_value = pending_vendor
 
-    await service.create_vendor(7, VendorApplicationCreate.model_validate(_valid_application_data()))
+    with patch("apps.users.services.emit_event", new_callable=AsyncMock) as emit_event:
+        await service.create_vendor(
+            7,
+            VendorApplicationCreate.model_validate(_valid_application_data()),
+        )
+
+    emit_event.assert_awaited_once()
+    assert emit_event.await_args.args[0] == VENDOR_REGISTERED
+    assert emit_event.await_args.args[1]["notify_admins"] is True
 
     service.user_repo.update.assert_awaited_once_with(7, {"phone_number": "0912345678"})
 
     service.vendor_repo.get_by_id.return_value = pending_vendor
-    approved_vendor = SimpleNamespace(id=12, user_id=7, is_approved=True)
+    approved_vendor = SimpleNamespace(
+        id=12,
+        user_id=7,
+        business_name="Test store",
+        is_approved=True,
+    )
     service.vendor_repo.update.return_value = approved_vendor
 
     result = await service.approve_vendor(12, admin_id=99)

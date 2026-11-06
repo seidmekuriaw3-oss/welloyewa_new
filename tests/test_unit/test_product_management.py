@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy.dialects import postgresql
@@ -12,6 +12,7 @@ from apps.products.repository import ProductRepository
 from apps.products.schemas import ProductCreate, ProductUpdate
 from apps.products.services import ProductService
 from core.constants import OrderStatus, ProductStatus
+from core.events import PRODUCT_APPROVED, PRODUCT_REJECTED
 from core.exceptions import ValidationError
 
 
@@ -115,6 +116,76 @@ async def test_vendor_cannot_create_active_product():
 
 
 @pytest.mark.asyncio
+async def test_vendor_created_products_are_always_pending_until_review():
+    service = ProductService(MagicMock())
+    product = SimpleNamespace(
+        id=31,
+        vendor_id=8,
+        category_id=None,
+        name="Pending product",
+        price=12,
+        status=ProductStatus.PENDING,
+    )
+    service.product_repo.get_by_slug = AsyncMock(return_value=None)
+    service.product_repo.create = AsyncMock(return_value=product)
+    service._sync_inventory = AsyncMock()
+    service.category_repo.get_by_id = AsyncMock()
+
+    with patch("apps.products.services.emit_event", new_callable=AsyncMock):
+        created = await service.create_product(
+            8,
+            ProductCreate(
+                name="Pending product",
+                price=12,
+                sku="PENDING-31",
+                status=ProductStatus.DRAFT,
+            ),
+        )
+
+    saved_data = service.product_repo.create.await_args.args[0]
+    assert created is product
+    assert saved_data["status"] == ProductStatus.PENDING
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("approved", "expected_status", "event_name"),
+    [
+        (True, ProductStatus.ACTIVE, PRODUCT_APPROVED),
+        (False, ProductStatus.REJECTED, PRODUCT_REJECTED),
+    ],
+)
+async def test_admin_review_transitions_pending_product_and_emits_lifecycle_event(
+    approved,
+    expected_status,
+    event_name,
+):
+    service = ProductService(MagicMock())
+    pending = SimpleNamespace(id=31, status=ProductStatus.PENDING, category_id=None)
+    updated = SimpleNamespace(
+        id=31,
+        vendor_id=8,
+        status=expected_status,
+        category_id=None,
+    )
+    service.get_product = AsyncMock(return_value=pending)
+    service.product_repo.update = AsyncMock(return_value=updated)
+
+    with patch("apps.products.services.emit_event", new_callable=AsyncMock) as emit:
+        result = await service.review_product(
+            31,
+            approved=approved,
+            reason="Please add product dimensions." if not approved else None,
+        )
+
+    assert result is updated
+    assert service.product_repo.update.await_args.args[1] == {"status": expected_status}
+    assert emit.await_args.args[0] == event_name
+    if not approved:
+        assert emit.await_args.args[1]["reason"] == "Please add product dimensions."
+
+
+@pytest.mark.asyncio
 async def test_vendor_cannot_approve_product_during_update():
     service = ProductService(MagicMock())
     service.get_product = AsyncMock(
@@ -192,7 +263,7 @@ async def test_vendor_product_pagination_returns_matching_total():
 @pytest.mark.asyncio
 async def test_vendor_cancellation_releases_reserved_product_stock():
     service = OrderService(MagicMock())
-    order = SimpleNamespace(status=OrderStatus.PROCESSING)
+    order = SimpleNamespace(id=23, user_id=7, status=OrderStatus.PROCESSING)
     item = SimpleNamespace(
         vendor_id=8,
         vendor_status=OrderStatus.PROCESSING,

@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}ምርት — ወሎዮ ሱቅ{% endblock %}
+{% block title %}{{ commerce_text.product_page_title }} — {{ commerce_text.product_store_name }}{% endblock %}
 
 {% block content %}
 
 <div style="padding:12px 16px;display:flex;align-items:center;gap:8px;background:var(--white);border-bottom:1px solid var(--border);position:sticky;top:56px;z-index:90">
     <button onclick="history.back()" style="background:none;border:none;font-size:24px;cursor:pointer;padding:4px 8px;color:var(--text);line-height:1">‹</button>
-    <span style="font-size:15px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="productBreadcrumb">ምርት</span>
+    <span style="font-size:15px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="productBreadcrumb">{{ commerce_text.product_page_title }}</span>
     <a href="/app/cart" style="position:relative;font-size:22px;text-decoration:none">
         🛒<span class="cart-badge" id="navCartBadge2" style="display:none;position:absolute;top:-4px;right:-6px;background:var(--danger);color:white;border-radius:999px;font-size:9px;min-width:16px;height:16px;display:none;align-items:center;justify-content:center;font-weight:700;padding:0 3px">0</span>
     </a>
@@ -14,7 +14,7 @@
 <div id="productDetail" style="max-width:700px;margin:0 auto;padding-bottom:40px">
     <div style="text-align:center;padding:60px 16px;color:var(--text-muted)">
         <div style="font-size:40px;margin-bottom:12px">⏳</div>
-        <p>እየጫናን ነው…</p>
+        <p>{{ commerce_text.product_loading }}</p>
     </div>
 </div>
 
@@ -23,8 +23,13 @@
 {% block scripts %}
 <script>
 const _pid = {{ product_id }};
+const _pageLanguage = {{ page_language | tojson }};
+const _commerceText = {{ commerce_text | tojson }};
 let _qty = 1;
 let _prod = null;
+let _reviewPage = 1;
+let _reviewTotal = 0;
+const _reviewPageSize = 5;
 
 async function loadProduct() {
     const el = document.getElementById('productDetail');
@@ -39,15 +44,50 @@ async function loadProduct() {
         const cmpP   = _prod.compare_price ? Number(_prod.compare_price) : null;
         const stock  = Number(_prod.stock_quantity || 0);
         const inStock = stock > 0;
-        const imgs   = _prod.images || [];
+        const imgs   = (Array.isArray(_prod.images) ? _prod.images : [])
+            .map(safeUrl)
+            .filter(Boolean);
         const desc   = _prod.description || _prod.description_am || '';
+        let availableDiscounts = [];
+        try {
+            const promotionsResponse = await fetch('/app/api/discounts/active', { cache: 'no-store' });
+            if (!promotionsResponse.ok) throw new Error('Active discounts unavailable');
+            availableDiscounts = (await promotionsResponse.json()).items || [];
+        } catch (error) {
+            console.warn('Product discount badges could not be loaded', error);
+        }
+        const applicableDiscounts = availableDiscounts.filter(promo =>
+            promo.scope === 'global' ||
+            (promo.scope === 'product' && Number(promo.scope_id) === Number(_prod.id)) ||
+            (promo.scope === 'category' && Number(promo.scope_id) === Number(_prod.category_id))
+        );
+        const discountBadges = applicableDiscounts.map(promo => {
+            const value = promo.discount_type === 'percentage'
+                ? `${Number(promo.discount_value)}%`
+                : `ETB ${Number(promo.discount_value).toLocaleString()}`;
+            const threshold = promo.minimum_order_value
+                ? ` · ${he(_commerceText.product_discount_minimum.replace('{amount}', Number(promo.minimum_order_value).toLocaleString()))}`
+                : '';
+            return `<button type="button" class="product-coupon-badge" data-product-coupon="${he(promo.code)}">
+                🎟️ ${he(value)} ${he(_commerceText.product_discount_label)} · ${he(_commerceText.product_coupon_code)} ${he(promo.code)}${threshold}
+            </button>`;
+        }).join('');
 
-        document.getElementById('productBreadcrumb').textContent = name || 'ምርት';
-        document.title = (name || 'ምርት') + ' — ወሎዮ ሱቅ';
+        document.getElementById('productBreadcrumb').textContent = name || _commerceText.product_page_title;
+        document.title = `${name || _commerceText.product_page_title} — ${_commerceText.product_store_name}`;
 
-        const thumbHtml = imgs.length && imgs[0]
-            ? `<img src="${safeUrl(imgs[0])}" alt="${he(name)}" style="width:100%;height:100%;object-fit:cover;display:block">`
+        const thumbHtml = imgs.length
+            ? `<img id="productMainImage" src="${he(imgs[0])}" alt="${he(name)}" fetchpriority="high">`
             : `<div style="height:260px;display:flex;align-items:center;justify-content:center;font-size:100px;background:var(--bg)">📦</div>`;
+        const galleryThumbs = imgs.length > 1
+            ? `<div class="product-gallery-thumbs" aria-label="${he(_commerceText.product_gallery_label)}">
+                ${imgs.map((url, index) => `<button type="button" class="product-gallery-thumb"
+                    data-product-image="${he(url)}" aria-label="${he(_commerceText.product_image_label.replace('{index}', index + 1))}"
+                    aria-pressed="${index === 0}">
+                    <img src="${he(url)}" alt="" loading="lazy">
+                </button>`).join('')}
+            </div>`
+            : '';
 
         const discountPct = (cmpP && cmpP > price)
             ? Math.round((cmpP - price) / cmpP * 100)
@@ -55,9 +95,10 @@ async function loadProduct() {
 
         el.innerHTML = `
             <!-- Image -->
-            <div style="background:var(--bg);overflow:hidden${imgs.length ? ';aspect-ratio:1' : ';height:260px'}">
+            <div class="product-gallery-frame" style="${imgs.length ? 'aspect-ratio:1;display:grid;place-items:center' : 'height:260px'}">
                 ${thumbHtml}
             </div>
+            ${galleryThumbs}
 
             <div style="padding:18px 16px 8px">
                 <!-- Name -->
@@ -66,17 +107,22 @@ async function loadProduct() {
 
                 <!-- Price -->
                 <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-                    <span style="font-size:28px;font-weight:800;color:var(--primary)">ETB ${price.toLocaleString()}</span>
+                    <span id="productPrice" style="font-size:28px;font-weight:800;color:var(--primary)">ETB ${price.toLocaleString()}</span>
                     ${cmpP && cmpP > price ? `
                         <span style="font-size:15px;text-decoration:line-through;color:var(--text-muted)">ETB ${cmpP.toLocaleString()}</span>
                         <span style="font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:999px">-${discountPct}%</span>
                     ` : ''}
                 </div>
+                ${discountBadges ? `<div class="product-coupon-badges">${discountBadges}</div>` : ''}
+                <button type="button" class="product-wishlist-toggle product-wishlist-detail"
+                        id="productWishlistToggle" onclick="toggleProductWishlist()">
+                    ${he(_commerceText.product_wishlist_add)}
+                </button>
 
                 <!-- Stock badge -->
                 <div style="margin-bottom:18px">
-                    <span class="badge ${inStock ? 'badge-green' : 'badge-red'}">
-                        ${inStock ? '✅ ምርቱ አለ' + (stock < 20 ? ' (' + stock + ' ቀረ)' : '') : '❌ አልቋል'}
+                    <span id="productStockBadge" class="badge ${inStock ? 'badge-green' : 'badge-red'}">
+                        ${inStock ? _commerceText.product_in_stock + (stock < 20 ? ' ' + _commerceText.product_stock_count.replace('{count}', stock) : '') : _commerceText.product_out_of_stock}
                     </span>
                 </div>
 
@@ -85,19 +131,22 @@ async function loadProduct() {
 
                 <!-- Qty control -->
                 ${inStock ? `
-                <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-                    <span style="font-size:14px;font-weight:600;color:var(--text-muted)">ብዛት</span>
+                <div id="productQuantityControl" style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+                    <span style="font-size:14px;font-weight:600;color:var(--text-muted)">${he(_commerceText.product_quantity)}</span>
                     <div style="display:flex;align-items:center;gap:8px;background:var(--bg);border-radius:10px;padding:4px">
                         <button onclick="changeQty(-1)" class="qty-btn">−</button>
                         <span id="qtyVal" style="font-size:18px;font-weight:700;min-width:28px;text-align:center">1</span>
-                        <button onclick="changeQty(1)" class="qty-btn">+</button>
+                        <button id="increaseQty" onclick="changeQty(1)" class="qty-btn" ${stock <= 1 ? 'disabled' : ''}>+</button>
                     </div>
                 </div>
+                <p id="productLineTotal" style="margin:-10px 0 18px;font-size:12px;color:var(--text-muted)">
+                    ${he(_commerceText.product_total.replace('{amount}', price.toLocaleString()))}
+                </p>
                 <button onclick="doAddToCart()" class="btn-primary" id="addCartBtn">
-                    🛒 ወደ ቅርጫት ጨምር
+                    ${he(_commerceText.product_add_to_cart)}
                 </button>
                 <a href="/app/cart" class="btn-primary" id="goCartBtn" style="display:none;background:var(--primary-dark);margin-top:10px">
-                    ✅ ቅርጫቴን ይምልከቱ →
+                    ${he(_commerceText.product_view_cart)}
                 </a>
                 ` : `
                 <button class="btn-primary" disabled style="opacity:.45;cursor:not-allowed">
@@ -106,29 +155,233 @@ async function loadProduct() {
                 `}
             </div>
 
+            <section aria-labelledby="productReviewsTitle" style="padding:20px 16px;border-top:1px solid var(--border)">
+                <h2 id="productReviewsTitle" style="font-size:18px;font-weight:800;margin-bottom:12px">
+                    ${he(_commerceText.review_section)}
+                </h2>
+                <nav aria-label="Language" style="display:flex;gap:12px;margin-bottom:14px">
+                    <a href="/app/product/${_pid}?lang=am" lang="am">አማርኛ</a>
+                    <a href="/app/product/${_pid}?lang=en" lang="en">English</a>
+                    <a href="/app/product/${_pid}?lang=om" lang="om">Afaan Oromoo</a>
+                </nav>
+                <div id="productReviewSummary" aria-live="polite" style="margin-bottom:16px"></div>
+                <div id="productReviewList" aria-live="polite" style="display:grid;gap:12px"></div>
+                <button id="loadMoreReviews" type="button" class="btn-secondary"
+                        style="display:none;margin:14px auto" onclick="loadMoreProductReviews()">
+                    ${he(_commerceText.review_load_more)}
+                </button>
+                <form id="productReviewForm" style="margin-top:22px;padding:16px;border:1px solid var(--border);border-radius:14px">
+                    <h3 style="font-size:16px;font-weight:700;margin-bottom:12px">${he(_commerceText.review_submit)}</h3>
+                    <fieldset style="border:0;padding:0;margin:0 0 12px">
+                        <legend style="font-size:14px;font-weight:600;margin-bottom:6px">${he(_commerceText.review_rating)}</legend>
+                        <div style="display:flex;gap:12px;flex-wrap:wrap" role="radiogroup">
+                            ${[1, 2, 3, 4, 5].map(value => `
+                                <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer">
+                                    <input type="radio" name="reviewRating" value="${value}" required>
+                                    <span aria-hidden="true">${'★'.repeat(value)}</span>
+                                    <span class="sr-only">${value}</span>
+                                </label>`).join('')}
+                        </div>
+                    </fieldset>
+                    <label style="display:block;font-size:14px;font-weight:600;margin-bottom:6px" for="reviewTitle">
+                        ${he(_commerceText.review_title)}
+                    </label>
+                    <input id="reviewTitle" name="title" maxlength="255" autocomplete="off"
+                           style="width:100%;margin-bottom:12px">
+                    <label style="display:block;font-size:14px;font-weight:600;margin-bottom:6px" for="reviewComment">
+                        ${he(_commerceText.review_comment)}
+                    </label>
+                    <textarea id="reviewComment" name="comment" maxlength="2000" rows="4"
+                              placeholder="${he(_commerceText.review_comment_placeholder)}"
+                              style="width:100%;resize:vertical"></textarea>
+                    <p id="productReviewFormMessage" role="status" aria-live="polite" style="margin:10px 0"></p>
+                    <button id="submitProductReview" type="submit" class="btn-primary">
+                        ${he(_commerceText.review_submit)}
+                    </button>
+                </form>
+            </section>
+
             <!-- Related / back -->
             <div style="padding:16px 16px 8px;border-top:1px solid var(--border);margin-top:8px">
-                <a href="/app/" style="font-size:13px;color:var(--primary);font-weight:600;text-decoration:none">‹ ወደ ምርቶቸ ዝርዝር</a>
+                <a href="/app/" style="font-size:13px;color:var(--primary);font-weight:600;text-decoration:none">${he(_commerceText.product_back_to_products)}</a>
             </div>
         `;
+        const wishlistButton = document.getElementById('productWishlistToggle');
+        const isSaved = productWishlist.has(_prod.id);
+        wishlistButton.classList.toggle('is-saved', isSaved);
+        wishlistButton.setAttribute('aria-pressed', String(isSaved));
+        wishlistButton.textContent = isSaved
+            ? _commerceText.product_wishlist_remove
+            : _commerceText.product_wishlist_add;
+        document.getElementById('productReviewForm')
+            .addEventListener('submit', submitProductReview);
+        await loadProductReviews();
     } catch(e) {
         el.innerHTML = `
             <div style="text-align:center;padding:60px 16px;color:var(--text-muted)">
                 <div style="font-size:52px;margin-bottom:14px">❌</div>
-                <p style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px">ምርቱ አልተገኘም</p>
-                <a href="/app/" class="btn-primary" style="display:inline-block;margin-top:16px;padding:12px 28px;width:auto">ወደ ዋና ገጽ →</a>
+                <p style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px">${he(_commerceText.product_not_found)}</p>
+                <a href="/app/" class="btn-primary" style="display:inline-block;margin-top:16px;padding:12px 28px;width:auto">${he(_commerceText.product_back_home)}</a>
             </div>`;
     }
 }
 
+function formatReviewDate(value) {
+    const date = value ? new Date(value) : null;
+    return date && !Number.isNaN(date.getTime())
+        ? date.toLocaleDateString(_pageLanguage)
+        : '';
+}
+
+async function loadProductReviews(reset = true) {
+    const list = document.getElementById('productReviewList');
+    const summary = document.getElementById('productReviewSummary');
+    const loadMore = document.getElementById('loadMoreReviews');
+    if (!list || !summary || !loadMore) return;
+    const requestedPage = reset ? 1 : _reviewPage + 1;
+    if (reset) {
+        _reviewPage = 1;
+        list.innerHTML = `<p>${he(_commerceText.review_loading)}</p>`;
+    }
+
+    try {
+        const summaryRequest = reset
+            ? fetch(`/api/v1/products/${_pid}/reviews/summary`, { cache: 'no-store' })
+            : Promise.resolve(null);
+        const [summaryResponse, reviewsResponse] = await Promise.all([
+            summaryRequest,
+            fetch(`/api/v1/products/${_pid}/reviews?page=${requestedPage}&page_size=${_reviewPageSize}`, {
+                cache: 'no-store'
+            })
+        ]);
+        if ((summaryResponse && !summaryResponse.ok) || !reviewsResponse.ok) {
+            throw new Error('Review data request failed.');
+        }
+        const data = await reviewsResponse.json();
+        const rating = summaryResponse ? await summaryResponse.json() : null;
+        _reviewPage = requestedPage;
+        _reviewTotal = Number(data.total || 0);
+        if (rating) {
+            const average = Number(rating.average_rating || 0);
+            const distribution = rating.rating_distribution || {};
+            summary.innerHTML = `
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <strong style="font-size:22px">${average.toFixed(1)} ★</strong>
+                    <span>${he(_commerceText.review_summary)}</span>
+                    <span style="color:var(--text-muted)">(${_reviewTotal} ${he(_commerceText.review_count)})</span>
+                </div>
+                <div style="display:grid;gap:4px;margin-top:10px;max-width:340px">
+                    ${[5, 4, 3, 2, 1].map(stars => {
+                        const count = Number(distribution[stars] || 0);
+                        const percent = _reviewTotal ? Math.max(0, Math.min(100, Math.round(count / _reviewTotal * 100))) : 0;
+                        return `<div style="display:grid;grid-template-columns:30px 1fr 32px;gap:8px;align-items:center;font-size:12px">
+                            <span>${stars} ★</span>
+                            <span aria-hidden="true"
+                                  style="height:7px;background:var(--border);border-radius:9px;overflow:hidden">
+                                <span style="display:block;width:${percent}%;height:100%;background:var(--primary)"></span>
+                            </span>
+                            <span>${count}</span>
+                        </div>`;
+                    }).join('')}
+                </div>`;
+        }
+        if (reset) list.innerHTML = '';
+        const reviews = Array.isArray(data.items) ? data.items : [];
+        if (!reviews.length && reset) {
+            list.innerHTML = `<p style="color:var(--text-muted)">${he(_commerceText.review_empty)}</p>`;
+        } else {
+            list.insertAdjacentHTML('beforeend', reviews.map(review => {
+                const reviewComment = _pageLanguage === 'am'
+                    ? (review.comment_am || review.comment)
+                    : (review.comment || review.comment_am);
+                return `
+                <article style="padding:14px;border:1px solid var(--border);border-radius:12px">
+                    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+                        <strong>${he(review.user_name || _commerceText.review_anonymous)}</strong>
+                        <time style="color:var(--text-muted);font-size:12px">${he(formatReviewDate(review.created_at))}</time>
+                    </div>
+                    <div aria-label="${Number(review.rating)} ${he(_commerceText.review_rating)}"
+                         style="color:#b7791f;margin:6px 0">${'★'.repeat(Math.max(0, Math.min(5, Number(review.rating) || 0)))}${'☆'.repeat(5 - Math.max(0, Math.min(5, Number(review.rating) || 0)))}</div>
+                    ${review.title ? `<h3 style="font-size:15px;font-weight:700;margin:4px 0">${he(review.title)}</h3>` : ''}
+                    ${reviewComment ? `<p style="white-space:pre-wrap;line-height:1.6">${he(reviewComment)}</p>` : ''}
+                    ${review.is_verified_purchase ? `<span class="badge badge-green">${he(_commerceText.review_verified_purchase)}</span>` : ''}
+                </article>`;
+            }).join(''));
+        }
+        loadMore.style.display = _reviewPage * _reviewPageSize < _reviewTotal ? 'block' : 'none';
+    } catch (error) {
+        console.error('Product reviews could not be loaded.', error);
+        if (reset) list.innerHTML = `<p role="status">${he(_commerceText.review_load_error)}</p>`;
+        else list.insertAdjacentHTML('beforeend', `<p role="status">${he(_commerceText.review_load_error)}</p>`);
+        loadMore.style.display = reset ? 'none' : 'block';
+    }
+}
+
+async function loadMoreProductReviews() {
+    await loadProductReviews(false);
+}
+
+async function submitProductReview(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = document.getElementById('submitProductReview');
+    const message = document.getElementById('productReviewFormMessage');
+    const rating = form.elements.reviewRating.value;
+    if (!rating) {
+        form.elements.reviewRating[0].focus();
+        return;
+    }
+    const title = form.elements.title.value.trim();
+    const comment = form.elements.comment.value.trim();
+    button.disabled = true;
+    button.textContent = _commerceText.review_submitting;
+    message.textContent = '';
+    try {
+        const response = await authenticatedFetch(`/api/v1/products/${_pid}/reviews`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rating: Number(rating), title: title || null, comment: comment || null })
+        });
+        if (response.status === 401) {
+            const loginUrl = `/app/login?lang=${encodeURIComponent(_pageLanguage)}`;
+            message.innerHTML = `${he(_commerceText.review_login)} <a href="${loginUrl}">${he(_commerceText.review_login_link)}</a>`;
+            return;
+        }
+        if (!response.ok) throw new Error('Review submission was rejected.');
+        form.reset();
+        message.textContent = _commerceText.review_submitted;
+        await loadProductReviews();
+    } catch (error) {
+        if (error.message === 'Please sign in to continue.') {
+            const loginUrl = `/app/login?lang=${encodeURIComponent(_pageLanguage)}`;
+            message.innerHTML = `${he(_commerceText.review_login)} <a href="${loginUrl}">${he(_commerceText.review_login_link)}</a>`;
+        } else {
+            console.error('Product review submission failed.', error);
+            message.textContent = _commerceText.review_submission_error;
+        }
+    } finally {
+        button.disabled = false;
+        button.textContent = _commerceText.review_submit;
+    }
+}
+
 function changeQty(delta) {
-    _qty = Math.max(1, _qty + delta);
+    const stock = Number(_prod?.stock_quantity || 0);
+    _qty = Math.min(stock, Math.max(1, _qty + delta));
     const el = document.getElementById('qtyVal');
     if (el) el.textContent = _qty;
+    const increase = document.getElementById('increaseQty');
+    if (increase) increase.disabled = _qty >= stock;
+    const lineTotal = document.getElementById('productLineTotal');
+    if (lineTotal) lineTotal.textContent = _commerceText.product_total.replace('{amount}', (Number(_prod.price) * _qty).toLocaleString());
 }
 
 function doAddToCart() {
     if (!_prod) return;
+    if (_qty > Number(_prod.stock_quantity || 0)) {
+        showToast(_commerceText.product_quantity_exceeds_stock);
+        return;
+    }
     cart.add({ id: _prod.id, name: _prod.name, price: Number(_prod.price) }, _qty);
     refreshAllBadges();
     // Show "go to cart" button
@@ -137,6 +390,100 @@ function doAddToCart() {
     if (addBtn)  addBtn.style.display  = 'none';
     if (cartBtn) cartBtn.style.display = 'block';
 }
+
+function toggleProductWishlist() {
+    if (!_prod) return;
+    const button = document.getElementById('productWishlistToggle');
+    try {
+        const saved = productWishlist.toggle({
+            id: _prod.id,
+            name: _prod.name,
+            price: _prod.price,
+            image: Array.isArray(_prod.images) ? _prod.images[0] || '' : ''
+        });
+        button.classList.toggle('is-saved', saved);
+        button.setAttribute('aria-pressed', String(saved));
+        button.textContent = saved
+            ? _commerceText.product_wishlist_remove
+            : _commerceText.product_wishlist_add;
+        showToast(saved ? _commerceText.product_wishlist_added : _commerceText.product_wishlist_removed);
+    } catch (error) {
+        showToast(_commerceText.product_wishlist_error);
+        console.error('Could not update saved products.', error);
+    }
+}
+
+async function updateProductStock(product) {
+    if (!_prod || Number(product.id) !== Number(_prod.id)) return;
+    const previousStock = Number(_prod.stock_quantity || 0);
+    _prod.stock_quantity = Number(product.stock_quantity || 0);
+    _prod.price = Number(product.price || 0);
+    const stock = _prod.stock_quantity;
+    if (previousStock <= 0 && stock > 0) {
+        await loadProduct();
+        showToast(_commerceText.product_restocked);
+        return;
+    }
+    const badge = document.getElementById('productStockBadge');
+    const increase = document.getElementById('increaseQty');
+    const addButton = document.getElementById('addCartBtn');
+    const quantityControl = document.getElementById('productQuantityControl');
+    const price = document.getElementById('productPrice');
+    if (price) price.textContent = `ETB ${_prod.price.toLocaleString()}`;
+    if (badge) {
+        badge.className = `badge ${stock > 0 ? 'badge-green' : 'badge-red'}`;
+        badge.textContent = stock > 0
+            ? `${_commerceText.product_in_stock}${stock < 20 ? ` ${_commerceText.product_stock_count.replace('{count}', stock)}` : ''}`
+            : _commerceText.product_out_of_stock;
+    }
+    if (stock <= 0) {
+        _qty = 1;
+        if (quantityControl) quantityControl.hidden = true;
+        if (addButton) {
+            addButton.disabled = true;
+            addButton.textContent = _commerceText.product_out_of_stock;
+        }
+        if (previousStock > 0) showToast(_commerceText.product_stock_depleted);
+        return;
+    }
+    _qty = Math.min(_qty, stock);
+    const quantity = document.getElementById('qtyVal');
+    if (quantity) quantity.textContent = _qty;
+    const lineTotal = document.getElementById('productLineTotal');
+    if (lineTotal) lineTotal.textContent = _commerceText.product_total.replace('{amount}', (_prod.price * _qty).toLocaleString());
+    if (quantityControl) quantityControl.hidden = false;
+    if (increase) increase.disabled = _qty >= stock;
+    if (addButton) {
+        addButton.disabled = false;
+        addButton.textContent = _commerceText.product_add_to_cart;
+    }
+}
+
+document.getElementById('productDetail').addEventListener('click', event => {
+    const couponButton = event.target.closest('[data-product-coupon]');
+    if (couponButton) {
+        sessionStorage.setItem('wolloyewa_coupon_code', couponButton.dataset.productCoupon);
+        window.location.assign('/app/checkout');
+        return;
+    }
+    const button = event.target.closest('[data-product-image]');
+    if (!button) return;
+    const main = document.getElementById('productMainImage');
+    if (main) main.src = button.dataset.productImage;
+    document.querySelectorAll('.product-gallery-thumb').forEach(item => {
+        item.setAttribute('aria-pressed', String(item === button));
+    });
+});
+
+window.setInterval(async () => {
+    if (document.hidden || !_prod) return;
+    try {
+        const response = await fetch(`/app/api/product/${_pid}`, { cache: 'no-store' });
+        if (response.ok) updateProductStock(await response.json());
+    } catch (error) {
+        console.warn('Product availability refresh failed', error);
+    }
+}, 30000);
 
 loadProduct();
 refreshAllBadges();

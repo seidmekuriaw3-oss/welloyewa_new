@@ -211,8 +211,10 @@ class ReviewBase(BaseSchema):
 
     rating: int = Field(..., ge=1, le=5, description="Rating (1-5)")
     title: str | None = Field(None, max_length=255, description="Review title")
-    comment: str | None = Field(None, description="Review comment")
-    comment_am: str | None = Field(None, description="Review comment in Amharic")
+    comment: str | None = Field(None, max_length=2000, description="Review comment")
+    comment_am: str | None = Field(
+        None, max_length=2000, description="Review comment in Amharic"
+    )
     images: list[str] | None = Field(None, description="Review images")
 
 

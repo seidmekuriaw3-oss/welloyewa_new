@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}የእኔ ምርቶች — ወሎዮ ሱቅ{% endblock %}
+
+{% block content %}
+<main class="vendor-products-shell">
+    <header class="vendor-products-hero glass-panel">
+        <div>
+            <p class="account-eyebrow">VENDOR STUDIO</p>
+            <h1>የእኔ ምርቶች</h1>
+            <p>ምርትዎን እና ጥራት ያለውን ፎቶ ያስገቡ። ከአስተዳደር ግምገማ በኋላ በሱቁ ይታያል።</p>
+        </div>
+        <a class="account-text-link" href="/app/dashboard">ወደ መለያዬ →</a>
+    </header>
+
+    <section class="vendor-product-panel glass-panel">
+        <div class="account-panel-heading">
+            <div>
+                <p class="account-eyebrow">NEW LISTING</p>
+                <h2>አዲስ ምርት ያቅርቡ</h2>
+            </div>
+            <span class="account-panel-icon">＋</span>
+        </div>
+        <form id="vendorProductForm" class="vendor-product-form">
+            <label>
+                <span>የምርት ስም <b aria-hidden="true">*</b></span>
+                <input name="name" maxlength="255" required autocomplete="off">
+            </label>
+            <label>
+                <span>የአማርኛ ስም</span>
+                <input name="name_am" maxlength="255">
+            </label>
+            <label>
+                <span>SKU / የምርት ኮድ <b aria-hidden="true">*</b></span>
+                <input name="sku" maxlength="100" required autocomplete="off">
+            </label>
+            <label>
+                <span>የሽያጭ ዋጋ (ETB) <b aria-hidden="true">*</b></span>
+                <input name="price" type="number" min="0.01" max="99999999.99" step="0.01" required>
+            </label>
+            <label>
+                <span>የቀድሞ ዋጋ (አማራጭ)</span>
+                <input name="compare_price" type="number" min="0.01" max="99999999.99" step="0.01">
+            </label>
+            <label>
+                <span>ክምችት</span>
+                <input name="stock_quantity" type="number" min="0" step="1" value="0" required>
+            </label>
+            <label>
+                <span>ምድብ</span>
+                <select name="category_id" id="vendorProductCategory">
+                    <option value="">ምድብ ይምረጡ (አማራጭ)</option>
+                </select>
+            </label>
+            <label class="vendor-product-description">
+                <span>የምርት መግለጫ</span>
+                <textarea name="description" rows="4" maxlength="10000"></textarea>
+            </label>
+            <label class="vendor-product-upload">
+                <span>የምርት ፎቶዎች <b aria-hidden="true">*</b></span>
+                <input id="vendorProductImages" name="images" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple required>
+                <small>JPEG, PNG, WebP ወይም GIF · ቢበዛ 10 ፎቶዎች · እያንዳንዱ እስከ 5 MB</small>
+            </label>
+            <div id="vendorImagePreview" class="vendor-image-preview" aria-live="polite"></div>
+            <p id="vendorProductMessage" class="vendor-product-message" role="alert" hidden></p>
+            <button id="vendorProductSubmit" class="btn-primary vendor-product-submit" type="submit">
+                ለግምገማ ያቅርቡ
+            </button>
+        </form>
+    </section>
+
+    <section class="vendor-product-panel glass-panel">
+        <div class="account-panel-heading">
+            <div>
+                <p class="account-eyebrow">YOUR CATALOG</p>
+                <h2>ያቀረቧቸው ምርቶች</h2>
+            </div>
+            <button id="vendorProductRefresh" class="admin-refresh" type="button" aria-label="ምርቶችን አድስ">↻</button>
+        </div>
+        <div id="vendorProductList" class="vendor-product-list" aria-live="polite">
+            <p class="account-loading">ምርቶችዎን እየጫንን ነው…</p>
+        </div>
+    </section>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const vendorForm = document.getElementById('vendorProductForm');
+const vendorImageInput = document.getElementById('vendorProductImages');
+const vendorImagePreview = document.getElementById('vendorImagePreview');
+const vendorMessage = document.getElementById('vendorProductMessage');
+const vendorSubmit = document.getElementById('vendorProductSubmit');
+let vendorPreviewUrls = [];
+
+function showVendorProductMessage(message, isError = true) {
+    vendorMessage.textContent = message;
+    vendorMessage.dataset.error = String(isError);
+    vendorMessage.hidden = false;
+}
+
+function clearVendorProductMessage() {
+    vendorMessage.textContent = '';
+    vendorMessage.hidden = true;
+}
+
+function renderVendorImagePreview() {
+    vendorPreviewUrls.forEach(url => URL.revokeObjectURL(url));
+    vendorPreviewUrls = [];
+    const files = Array.from(vendorImageInput.files || []);
+    const invalidFile = files.find(file =>
+        !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type) ||
+        file.size > 5 * 1024 * 1024
+    );
+    if (files.length > 10) {
+        vendorImagePreview.textContent = 'ከ10 ፎቶዎች በላይ መምረጥ አይቻልም።';
+        vendorImageInput.setCustomValidity('Choose no more than 10 images.');
+        return;
+    }
+    if (invalidFile) {
+        vendorImagePreview.textContent = `${invalidFile.name}: የፋይሉን አይነት ወይም 5 MB ገደብ ያረጋግጡ።`;
+        vendorImageInput.setCustomValidity('Choose supported images no larger than 5 MB.');
+        return;
+    }
+    vendorImageInput.setCustomValidity('');
+    vendorImagePreview.innerHTML = files.map(file => {
+        const url = URL.createObjectURL(file);
+        vendorPreviewUrls.push(url);
+        return `<figure><img src="${he(url)}" alt="${he(file.name)}"><figcaption>${he(file.name)}</figcaption></figure>`;
+    }).join('');
+}
+
+async function loadVendorCategories() {
+    const response = await fetch('/api/v1/products/categories', { cache: 'no-store' });
+    if (!response.ok) throw new Error('ምድቦችን ማምጣት አልተቻለም።');
+    const categories = await response.json();
+    const select = document.getElementById('vendorProductCategory');
+    select.innerHTML = '<option value="">ምድብ ይምረጡ (አማራጭ)</option>' +
+        categories.map(category =>
+            `<option value="${Number(category.id)}">${he(category.name_am || category.name)}</option>`
+        ).join('');
+}
+
+function renderVendorProducts(items) {
+    const list = document.getElementById('vendorProductList');
+    if (!items.length) {
+        list.innerHTML = '<div class="account-empty"><span>📦</span><strong>ገና ምርት አላቀረቡም</strong><p>የመጀመሪያ ምርትዎን ከላይ ያቅርቡ።</p></div>';
+        return;
+    }
+    const statuses = {
+        draft: 'ረቂቅ', pending: 'ግምገማ ላይ', active: 'በሽያጭ ላይ',
+        rejected: 'አልጸደቀም', out_of_stock: 'ክምችት የለም', discontinued: 'ተቋርጧል'
+    };
+    list.innerHTML = items.map(product => {
+        const image = Array.isArray(product.images) ? product.images[0] : '';
+        const imageUrl = safeUrl(image);
+        const status = String(product.status || '').toLowerCase();
+        return `<article class="vendor-product-row">
+            <div class="vendor-product-thumb">${imageUrl
+                ? `<img src="${he(imageUrl)}" alt="${he(product.name)}" loading="lazy">`
+                : '<span aria-hidden="true">📦</span>'}</div>
+            <div class="vendor-product-details">
+                <strong>${he(product.name)}</strong>
+                <span>${formatPrice(product.price)} · ${Number(product.stock_quantity || 0)} በክምችት</span>
+                <small>SKU ${he(product.sku || '—')}</small>
+            </div>
+            <span class="vendor-product-status status-${he(status)}">${he(statuses[status] || status)}</span>
+        </article>`;
+    }).join('');
+}
+
+async function loadVendorProducts() {
+    const list = document.getElementById('vendorProductList');
+    list.innerHTML = '<p class="account-loading">ምርቶችዎን እየጫንን ነው…</p>';
+    try {
+        const response = await authenticatedFetch('/api/v1/products/vendor/products?page=1&page_size=100');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'ምርቶችን ማምጣት አልተቻለም።');
+        renderVendorProducts(Array.isArray(data.items) ? data.items : []);
+    } catch (error) {
+        list.innerHTML = `<p class="vendor-product-message" role="alert">${he(error.message || 'ምርቶችን ማምጣት አልተቻለም።')}</p>`;
+    }
+}
+
+vendorImageInput.addEventListener('change', () => {
+    renderVendorImagePreview();
+    clearVendorProductMessage();
+});
+
+vendorForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    clearVendorProductMessage();
+    if (!vendorForm.reportValidity()) return;
+
+    const values = Object.fromEntries(new FormData(vendorForm));
+    const price = Number(values.price);
+    const comparePrice = values.compare_price ? Number(values.compare_price) : null;
+    if (!Number.isFinite(price) || price <= 0 ||
+        (comparePrice !== null && (!Number.isFinite(comparePrice) || comparePrice <= price))) {
+        showVendorProductMessage('ዋጋውን ያረጋግጡ፤ የቀድሞ ዋጋ ከሽያጭ ዋጋ መበለጥ አለበት።');
+        return;
+    }
+
+    vendorSubmit.disabled = true;
+    vendorSubmit.textContent = 'እየተላከ ነው…';
+    const formData = new FormData();
+    formData.append('payload', JSON.stringify({
+        name: String(values.name).trim(),
+        name_am: String(values.name_am || '').trim() || null,
+        description: String(values.description || '').trim() || null,
+        category_id: values.category_id ? Number(values.category_id) : null,
+        price,
+        compare_price: comparePrice,
+        sku: String(values.sku).trim(),
+        stock_quantity: Number(values.stock_quantity)
+    }));
+    Array.from(vendorImageInput.files).forEach(file => formData.append('images', file));
+
+    try {
+        const response = await authenticatedFetch('/app/api/vendor/products', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            const detail = Array.isArray(data.detail)
+                ? data.detail.map(item => item.msg).join(' · ')
+                : data.detail;
+            throw new Error(detail || 'ምርቱን ማቅረብ አልተቻለም።');
+        }
+        vendorForm.reset();
+        renderVendorImagePreview();
+        showVendorProductMessage('ምርቱ ለግምገማ ተልኳል፤ እስኪጸድቅ ድረስ በሱቁ ላይ አይታይም።', false);
+        await loadVendorProducts();
+    } catch (error) {
+        showVendorProductMessage(error.message || 'ምርቱን ማቅረብ አልተቻለም።');
+    } finally {
+        vendorSubmit.disabled = false;
+        vendorSubmit.textContent = 'ለግምገማ ያቅርቡ';
+    }
+});
+
+document.getElementById('vendorProductRefresh').addEventListener('click', loadVendorProducts);
+Promise.all([loadVendorCategories(), loadVendorProducts()]).catch(error => {
+    showVendorProductMessage(error.message || 'ገጹን ማስጀመር አልተቻለም።');
+});
+</script>
+{% endblock %}

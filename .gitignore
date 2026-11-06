@@ -149,6 +149,7 @@ temp/
 # ============================
 media/
 uploads/
+bot/web_app/private_uploads/
 staticfiles/
 static_collected/
 *.jpg
@@ -342,6 +343,9 @@ temp_*
 # ============================
 reports/
 *.html
+!bot/web_app/templates/admin.html
+!bot/web_app/templates/vendor_products.html
+!bot/web_app/templates/forgot_password.html
 *.pdf
 *.xlsx
 *.docx

@@ -451,7 +451,10 @@ async def _edit_profile_message(
         kwargs["reply_markup"] = reply_markup
 
     try:
-        if query.message.photo or query.message.document:
+        message = getattr(query, "message", None)
+        if message and (
+            getattr(message, "photo", None) or getattr(message, "document", None)
+        ):
             await query.edit_message_caption(
                 caption=text,
                 **kwargs,
@@ -476,7 +479,8 @@ async def _show_profile_card(
 ) -> None:
     """Render a profile card as photo+caption when possible, otherwise as text."""
     query = update.callback_query
-    if query and (query.message.photo or query.message.document):
+    message = getattr(query, "message", None) if query else None
+    if message and (getattr(message, "photo", None) or getattr(message, "document", None)):
         for photo in photo_candidates:
             try:
                 await query.edit_message_media(

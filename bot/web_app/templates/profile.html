@@ -1,252 +1,1389 @@
 {% extends "base.html" %}
-{% block title %}ፕሮፋይል — ወሎዮ ሱቅ{% endblock %}
+{% block title %}{{ profile_text["ፕሮፋይል እና ቅንብሮች — ወሎዮ ሱቅ"] }}{% endblock %}
 
 {% block content %}
 <main class="profile-page">
-    <section class="profile-hero">
-        <div class="profile-avatar user-profile-avatar" id="profileAvatar" aria-label="Profile photo">👤</div>
-        <div>
+    <header class="profile-hero" id="profileOverview">
+        <div class="profile-avatar user-profile-avatar" id="profileAvatar" role="img"
+             aria-label="የመገለጫ ፎቶ">W</div>
+        <div class="profile-identity">
+            <p class="profile-eyebrow">የእርስዎ መለያ</p>
             <h1 id="profileName">ወሎዮ ሱቅ ደንበኛ</h1>
-            <p id="profilePhone">የመለያ መረጃ</p>
+            <p id="profilePhone">የመለያ መረጃዎን እየጫንን ነው…</p>
+            <span class="profile-role-badge" id="profileRole">ደንበኛ</span>
+            <span class="profile-account-status" id="profileAccountStatus">● ንቁ</span>
+            <span class="profile-account-status" id="profileVerifiedStatus" hidden>✓ የተረጋገጠ</span>
+            <p class="profile-member-since" id="profileMemberSince"></p>
+            <details class="profile-image-disclosure">
+                <summary>የመገለጫ ፎቶ</summary>
+                <div class="profile-image-controls">
+                <label for="profileImageInput">የመገለጫ ፎቶ</label>
+                <input id="profileImageInput" type="file" accept="image/jpeg,image/png,image/webp"
+                       aria-describedby="profileImageHint profileImageStatus">
+                <p id="profileImageHint">JPEG፣ PNG ወይም WebP፤ እስከ 5 ሜባ።</p>
+                <div class="profile-image-actions">
+                    <button class="btn-primary" id="uploadProfileImageButton" type="button" disabled>
+                        ፎቶውን አስቀምጥ
+                    </button>
+                    <button class="btn-secondary" id="removeProfileImageButton" type="button" hidden>
+                        ፎቶውን አስወግድ
+                    </button>
+                </div>
+                <progress id="profileImageProgress" max="1" value="0" hidden
+                          aria-label="ፎቶ መላክ"></progress>
+                <p id="profileImageStatus" class="profile-inline-status" role="status"
+                   aria-live="polite" hidden></p>
+                </div>
+            </details>
         </div>
+    </header>
+
+    <p id="profileError" class="form-error" role="alert" hidden></p>
+    <p id="profileSuccess" class="profile-success" role="status" hidden></p>
+
+    <section class="profile-overview" id="accountOverview" hidden>
+        <section id="customerDashboardContent" hidden>
+            <div class="account-stats" aria-label="የመለያ ማጠቃለያ">
+                <article class="account-stat">
+                    <span class="account-stat-icon" aria-hidden="true">📦</span>
+                    <span class="account-stat-value" id="statOrders">—</span>
+                    <span class="account-stat-label">ጠቅላላ ትዕዛዞች</span>
+                </article>
+                <article class="account-stat">
+                    <span class="account-stat-icon" aria-hidden="true">⏱️</span>
+                    <span class="account-stat-value" id="statActive">—</span>
+                    <span class="account-stat-label">በሂደት ላይ</span>
+                </article>
+                <article class="account-stat">
+                    <span class="account-stat-icon" aria-hidden="true">🛒</span>
+                    <span class="account-stat-value" id="statCart">0</span>
+                    <span class="account-stat-label" id="statCartSummary">በቅርጫት ውስጥ</span>
+                </article>
+            </div>
+            <div class="account-columns">
+                <section class="account-panel account-orders-panel">
+                    <div class="account-panel-heading">
+                        <div>
+                            <p class="account-eyebrow">የቅርብ ጊዜ እንቅስቃሴ</p>
+                            <h2>ትዕዛዞቼ</h2>
+                        </div>
+                        <a class="account-text-link" href="/app/orders">ሁሉንም ይመልከቱ <span aria-hidden="true">→</span></a>
+                    </div>
+                    <div id="dashboardOrders" class="dashboard-orders" aria-live="polite">
+                        <p class="account-loading">ትዕዛዞችዎን እየጫንን ነው…</p>
+                    </div>
+                </section>
+                <aside class="account-side">
+                    <section class="account-shortcuts">
+                        <a class="account-shortcut" href="/app/cart">
+                            <span class="shortcut-icon" aria-hidden="true">🛍️</span>
+                            <span><strong>ወደ ቅርጫት</strong><small>የተመረጡ ምርቶችዎን ይመልከቱ</small></span>
+                            <span class="shortcut-arrow" aria-hidden="true">↗</span>
+                        </a>
+                        <a class="account-shortcut" href="/app/categories">
+                            <span class="shortcut-icon" aria-hidden="true">✨</span>
+                            <span><strong>ግዢ ይቀጥሉ</strong><small>በሱቁ ውስጥ ያስሱ</small></span>
+                            <span class="shortcut-arrow" aria-hidden="true">↗</span>
+                        </a>
+                        <a class="account-shortcut" id="accountBotLink" href="#" target="_blank"
+                           rel="noopener noreferrer" hidden>
+                            <span class="shortcut-icon" aria-hidden="true">✈️</span>
+                            <span><strong>Telegram ቦት</strong><small>ከወሎዮ ሱቅ ጋር ይገናኙ</small></span>
+                            <span class="shortcut-arrow" aria-hidden="true">↗</span>
+                        </a>
+                    </section>
+                </aside>
+            </div>
+        </section>
+
+        <section class="role-dashboard account-panel" id="vendorDashboardContent" hidden>
+            <div class="account-panel-heading">
+                <div><p class="account-eyebrow">ሻጭ</p><h2>የሻጭ ማጠቃለያ</h2></div>
+                <a class="account-text-link" href="/app/vendor/products">ምርቶቼን አስተዳድር →</a>
+            </div>
+            <p class="vendor-dashboard-status" id="vendorDashboardApprovalStatus">የማመልከቻ ሁኔታን እየጫንን ነው…</p>
+            <div class="vendor-dashboard-metrics" id="vendorDashboardMetrics" hidden>
+                <article><span>የዛሬ ገቢ</span><strong id="vendorTodayRevenue">—</strong></article>
+                <article><span>የ7 ቀን ገቢ</span><strong id="vendorWeeklyRevenue">—</strong></article>
+                <article><span>የዛሬ ትዕዛዞች</span><strong id="vendorTodayOrders">—</strong></article>
+                <article><span>ዝቅተኛ ክምችት</span><strong id="vendorLowStock">—</strong></article>
+            </div>
+            <div class="vendor-product-summary" id="vendorProductSummary" hidden>
+                <span>ንቁ ምርቶች <strong id="vendorActiveProducts">—</strong></span>
+                <span>በግምገማ ላይ <strong id="vendorPendingProducts">—</strong></span>
+            </div>
+            <a class="account-shortcut" href="/app/vendor/products">
+                <span class="shortcut-icon" aria-hidden="true">◇</span>
+                <span><strong>ምርቶችን አስተዳድር</strong>
+                    <small>ምርት ያቅርቡ፣ የግምገማ ሁኔታ እና ክምችት ይከታተሉ</small>
+                </span>
+                <span class="shortcut-arrow" aria-hidden="true">↗</span>
+            </a>
+        </section>
+
+        <section class="role-dashboard account-panel admin-role-dashboard" id="adminRoleDashboard" hidden>
+            <div class="account-panel-heading">
+                <div><p class="account-eyebrow">አስተዳዳሪ</p><h2>የሱቅ ማጠቃለያ</h2></div>
+                <a class="account-text-link" href="/app/admin">ሙሉ የአስተዳደር ፓነል →</a>
+            </div>
+            <div class="vendor-dashboard-metrics">
+                <article><span>የዛሬ ገቢ</span><strong id="dashboardAdminRevenue">—</strong></article>
+                <article><span>የዛሬ ትዕዛዞች</span><strong id="dashboardAdminOrders">—</strong></article>
+                <article><span>ንቁ ተጠቃሚዎች</span><strong id="dashboardAdminUsers">—</strong></article>
+                <article><span>ዝቅተኛ ክምችት</span><strong id="dashboardAdminLowStock">—</strong></article>
+            </div>
+            <div class="admin-dashboard-shortcuts">
+                <a href="/app/admin#adminUsersPanel">ተጠቃሚዎች →</a>
+                <a href="/app/admin#adminPendingProductsPanel">የምርት ግምገማ →</a>
+                <a href="/app/admin#adminSettingsPanel">ቅንብሮች →</a>
+                <a href="/app/admin#adminDiscountsPanel">ቅናሾች እና ኩፖኖች →</a>
+            </div>
+        </section>
+        <p id="dashboardError" class="account-error" role="alert" hidden></p>
     </section>
-    <section class="profile-card">
-        <h2>የግል መረጃዎን ያስተካክሉ</h2>
-        <p id="profileError" class="form-error" role="alert"></p>
-        <p id="profileSuccess" class="profile-success" role="status" hidden></p>
-        <form id="profileForm" hidden>
-            <div class="profile-form-grid">
-                <div class="form-group">
-                    <label for="profileFirstName">ስም *</label>
-                    <input id="profileFirstName" name="first_name" maxlength="100" required autocomplete="given-name">
-                </div>
-                <div class="form-group">
-                    <label for="profileLastName">የአባት ስም</label>
-                    <input id="profileLastName" name="last_name" maxlength="100" autocomplete="family-name">
-                </div>
-                <div class="form-group">
-                    <label for="profilePhoneInput">ስልክ ቁጥር</label>
-                    <input id="profilePhoneInput" name="phone_number" type="tel" maxlength="20" autocomplete="tel">
-                </div>
-                <div class="form-group">
-                    <label for="profileEmailInput">ኢሜይል</label>
-                    <input id="profileEmailInput" name="email" type="email" maxlength="254" autocomplete="email">
-                </div>
-            </div>
-            <h3 class="profile-section-title">የመላኪያ አድራሻ</h3>
-            <div class="profile-form-grid">
-                <div class="form-group profile-field-wide">
-                    <label for="profileAddressLine1">የመኖሪያ አድራሻ / መንገድ</label>
-                    <input id="profileAddressLine1" name="address_line1" maxlength="255" autocomplete="address-line1">
-                </div>
-                <div class="form-group profile-field-wide">
-                    <label for="profileAddressLine2">ተጨማሪ አድራሻ</label>
-                    <input id="profileAddressLine2" name="address_line2" maxlength="255" autocomplete="address-line2">
-                </div>
-                <div class="form-group">
-                    <label for="profileCity">ከተማ *</label>
-                    <input id="profileCity" name="city" maxlength="100" autocomplete="address-level2">
-                </div>
-                <div class="form-group">
-                    <label for="profileSubcity">ክፍለ ከተማ</label>
-                    <input id="profileSubcity" name="subcity" maxlength="100">
-                </div>
-                <div class="form-group">
-                    <label for="profileWoreda">ወረዳ</label>
-                    <input id="profileWoreda" name="woreda" maxlength="50">
-                </div>
-                <div class="form-group">
-                    <label for="profileHouseNumber">የቤት ቁጥር</label>
-                    <input id="profileHouseNumber" name="house_number" maxlength="50">
-                </div>
-                <div class="form-group profile-field-wide">
-                    <label for="profileLandmark">መለያ ምልክት</label>
-                    <input id="profileLandmark" name="landmark" maxlength="255">
-                </div>
-            </div>
-            <div class="profile-actions">
-                <button class="btn-primary" id="saveProfileButton" type="submit">ለውጦችን አስቀምጥ</button>
-                <button class="btn-secondary" id="removeAddressButton" type="button" hidden>አድራሻውን አስወግድ</button>
-            </div>
-        </form>
-        <a class="profile-telegram-link" id="telegramBotLink" href="#" target="_blank" rel="noopener noreferrer" hidden>
-            ✈️ Telegram Bot-ийг ይክፈቱ
+
+    <nav class="profile-section-nav" aria-label="የፕሮፋይል ክፍሎች">
+        <a href="#accountOverview">አጠቃላይ እይታ</a>
+        <a href="#accountDetails">የመለያ መረጃ</a>
+        <a href="#addressBook">አድራሻዎች</a>
+        <a id="customerWishlistShortcut" href="#customerWishlistSection" hidden>የምወዳቸው</a>
+        <a id="customerCouponsShortcut" href="#customerCouponsSection" hidden>ኩፖኖች</a>
+        <a href="#accountSettings"><span aria-hidden="true">⚙</span> ቅንብሮች</a>
+        <a href="/app/orders">ትዕዛዞች</a>
+        <a id="vendorProfileShortcut" href="/app/vendor/products" hidden>
+            <span id="vendorProfileStatus">የእኔ ምርቶች</span>
         </a>
-        <button class="btn-primary" type="button" onclick="window.location.href='/app/orders'">ትዕዛዞቼን ይመልከቱ</button>
-    </section>
+        <a id="adminProfileShortcut" href="/app/admin" hidden>የአስተዳዳሪ ፓነል</a>
+        <a id="telegramBotLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Telegram ቦት</a>
+    </nav>
+
+    <div class="profile-content">
+            <section class="profile-card" id="accountDetails">
+                <div class="profile-section-heading">
+                    <div><p class="profile-eyebrow">የግል መረጃ</p><h2>የመለያ መረጃ</h2></div>
+                </div>
+                <form id="profileForm" hidden>
+                    <div class="profile-form-grid">
+                        <div class="form-group">
+                            <label for="profileFirstName">ስም *</label>
+                            <input id="profileFirstName" name="first_name" maxlength="100" required autocomplete="given-name">
+                        </div>
+                        <div class="form-group">
+                            <label for="profileLastName">የአባት ስም</label>
+                            <input id="profileLastName" name="last_name" maxlength="100" autocomplete="family-name">
+                        </div>
+                        <div class="form-group">
+                            <label for="profilePhoneInput">ስልክ ቁጥር</label>
+                            <input id="profilePhoneInput" name="phone_number" type="tel" maxlength="20" autocomplete="tel" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="profileEmailInput">ኢሜይል</label>
+                            <input id="profileEmailInput" name="email" type="email" maxlength="254" autocomplete="email" readonly>
+                        </div>
+                    </div>
+                    <p class="profile-setting-note" id="contactChangeNote">
+                        ስልክ ወይም ኢሜይል ለመቀየር የማረጋገጫ ሂደት ያስፈልጋል፤ ይህ ሂደት እስኪደገፍ ድረስ እነዚህ መረጃዎች አይቀየሩም።
+                    </p>
+                    <div class="profile-actions">
+                        <button class="btn-secondary" id="editProfileButton" type="button">መረጃን አስተካክል</button>
+                        <button class="btn-primary" id="saveProfileButton" type="submit" hidden>ለውጦችን አስቀምጥ</button>
+                        <button class="btn-secondary" id="cancelProfileButton" type="button" hidden>ሰርዝ</button>
+                    </div>
+                </form>
+                <p class="profile-loading" id="profileLoading" role="status">የመለያ መረጃዎን እየጫንን ነው…</p>
+            </section>
+
+            <section class="profile-card" id="addressBook">
+                <div class="profile-section-heading">
+                    <div><p class="profile-eyebrow">የመላኪያ መረጃ</p><h2>የተቀመጡ አድራሻዎች</h2></div>
+                </div>
+                <p class="profile-setting-note">የነባር የመላኪያ አድራሻዎ ይጠበቃል፤ አዲስ አድራሻዎችንም ማከል ይችላሉ።</p>
+                <div id="profileAddressList" class="profile-address-list" aria-live="polite">
+                    <p class="profile-loading">አድራሻዎችን እየጫንን ነው…</p>
+                </div>
+                <form id="addressForm" class="profile-address-form" hidden>
+                    <h3 id="addressFormHeading">አዲስ አድራሻ</h3>
+                    <div class="profile-form-grid">
+                        <div class="form-group">
+                            <label for="addressRecipientName">ተቀባይ *</label>
+                            <input id="addressRecipientName" name="recipient_name" maxlength="100" required autocomplete="name">
+                        </div>
+                        <div class="form-group">
+                            <label for="addressRecipientPhone">የተቀባይ ስልክ *</label>
+                            <input id="addressRecipientPhone" name="recipient_phone" type="tel" maxlength="20" required autocomplete="tel">
+                        </div>
+                        <div class="form-group">
+                            <label for="addressType">የአድራሻ አይነት</label>
+                            <select id="addressType" name="address_type">
+                                <option value="home">ቤት</option>
+                                <option value="work">ሥራ</option>
+                                <option value="other">ሌላ</option>
+                            </select>
+                        </div>
+                        <label class="profile-default-address"><input name="is_default" type="checkbox"> ነባሪ የመላኪያ አድራሻ አድርግ</label>
+                        <div class="form-group profile-field-wide">
+                            <label for="addressLine1">አድራሻ መስመር 1 *</label>
+                            <input id="addressLine1" name="address_line1" maxlength="255" required autocomplete="address-line1">
+                        </div>
+                        <div class="form-group profile-field-wide">
+                            <label for="addressLine2">አድራሻ መስመር 2</label>
+                            <input id="addressLine2" name="address_line2" maxlength="255" autocomplete="address-line2">
+                        </div>
+                        <div class="form-group">
+                            <label for="addressCity">ከተማ *</label>
+                            <input id="addressCity" name="city" maxlength="100" required autocomplete="address-level2">
+                        </div>
+                        <div class="form-group">
+                            <label for="addressSubcity">ክፍለ ከተማ</label>
+                            <input id="addressSubcity" name="subcity" maxlength="100">
+                        </div>
+                        <div class="form-group">
+                            <label for="addressWoreda">ወረዳ</label>
+                            <input id="addressWoreda" name="woreda" maxlength="50">
+                        </div>
+                        <div class="form-group">
+                            <label for="addressHouseNumber">የቤት ቁጥር</label>
+                            <input id="addressHouseNumber" name="house_number" maxlength="50">
+                        </div>
+                        <div class="form-group profile-field-wide">
+                            <label for="addressLandmark">መለያ ምልክት</label>
+                            <input id="addressLandmark" name="landmark" maxlength="255">
+                        </div>
+                    </div>
+                    <div class="profile-actions">
+                        <button class="btn-primary" id="saveAddressButton" type="submit">አድራሻ አስቀምጥ</button>
+                        <button class="btn-secondary" id="cancelAddressButton" type="button">ሰርዝ</button>
+                    </div>
+                </form>
+                <p class="profile-inline-status" id="addressStatus" role="status" hidden></p>
+                <button class="btn-secondary" id="addAddressButton" type="button">+ አዲስ አድራሻ</button>
+            </section>
+
+            <details class="profile-card profile-disclosure profile-wishlist-card"
+                     id="customerWishlistSection" hidden>
+                <summary class="profile-disclosure-summary">
+                    <span><span class="profile-eyebrow">የግዢ ምርጫዎች</span>
+                        <strong id="customerWishlist">የምወዳቸው</strong></span>
+                    <span class="profile-disclosure-icon" aria-hidden="true">♡</span>
+                </summary>
+                <p class="profile-setting-note">የሚወዷቸው ምርቶች ሲገቡ ከመለያዎ ጋር ይመሳሰላሉ። የአሁኑ ዋጋና ክምችት ከሰርቨሩ ይመጣሉ፤ ያልተገኙ የቀድሞ ምርቶች በዚህ መሣሪያ ላይ እስኪወገዱ ይቆያሉ።</p>
+                <p class="profile-inline-status" id="profileWishlistStatus" role="status" hidden></p>
+                <div class="profile-wishlist-items" id="profileWishlistItems" aria-live="polite"></div>
+            </details>
+
+            <details class="profile-card profile-disclosure profile-coupons-card"
+                     id="customerCouponsSection" hidden>
+                <summary class="profile-disclosure-summary">
+                    <span><span class="profile-eyebrow">የሱቅ ንቁ ኩፖኖች</span>
+                        <strong>የሱቅ ንቁ ኩፖኖች</strong></span>
+                    <span class="profile-disclosure-icon" aria-hidden="true">%</span>
+                </summary>
+                <p class="profile-setting-note">ይህ የሱቅ ኩፖኖች ዝርዝር ነው፤ ብቁነት እና የአጠቃቀም ገደቦች በክፍያ ጊዜ ይረጋገጣሉ።</p>
+                <div class="profile-coupon-list" id="profileCouponList" aria-live="polite">
+                    <p class="profile-loading">የኩፖን መረጃን እየጫንን ነው…</p>
+                </div>
+            </details>
+
+            <details class="profile-card profile-disclosure" id="accountSettings">
+                <summary class="profile-disclosure-summary">
+                    <span><span class="profile-eyebrow">ማስተካከያ</span>
+                        <strong>የመለያ ቅንብሮች</strong></span>
+                    <span class="profile-disclosure-icon" aria-hidden="true">⚙</span>
+                </summary>
+                <form id="preferencesForm">
+                    <section class="profile-setting-block" id="notificationSettings">
+                        <h3>ማሳወቂያዎች</h3>
+                        <p>የማሳወቂያ ምርጫዎች በመለያዎ ውስጥ ተቀምጠዋል፤ የኢሜይል፣ SMS እና የመተግበሪያ ማሳወቂያ ማድረሻ ግን እስካሁን አልተዋሃደም። ስለዚህ እዚህ የማድረሻ መቆጣጠሪያዎች አልታዩም።</p>
+                    </section>
+                    <section class="profile-setting-block">
+                        <h3>ቋንቋ</h3>
+                        <p>በሱቅ እና በማሳወቂያዎች የሚጠቀሙበትን ቋንቋ ይምረጡ።</p>
+                        <label class="profile-language-control" for="profileLanguage">የቋንቋ ምርጫ</label>
+                        <select id="profileLanguage" name="language">
+                            <option value="am">አማርኛ</option>
+                            <option value="en">English</option>
+                            <option value="om">Afaan Oromoo</option>
+                        </select>
+                    </section>
+                    <button class="btn-primary" id="savePreferencesButton" type="submit">ቅንብሮችን አስቀምጥ</button>
+                    <p class="profile-inline-status" id="preferencesStatus" role="status" hidden></p>
+                </form>
+
+                <section class="profile-setting-block" id="securitySettings">
+                    <h3>ደህንነት</h3>
+                    <p id="securitySummary">የመለያዎ መግቢያ በደህንነት ይጠበቃል። የይለፍ ቃል አይጋሩ።</p>
+                    <form id="passwordForm" class="profile-password-form" hidden>
+                        <div class="form-group">
+                            <label for="currentPassword">የአሁኑ የይለፍ ቃል</label>
+                            <div class="profile-password-control">
+                                <input id="currentPassword" name="current_password" type="password" minlength="6" autocomplete="current-password" required>
+                                <button type="button" class="profile-password-toggle" data-password-toggle aria-label="የአሁኑን የይለፍ ቃል አሳይ">አሳይ</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="newPassword">አዲስ የይለፍ ቃል</label>
+                            <div class="profile-password-control">
+                                <input id="newPassword" name="new_password" type="password" minlength="6" autocomplete="new-password" required>
+                                <button type="button" class="profile-password-toggle" data-password-toggle aria-label="አዲሱን የይለፍ ቃል አሳይ">አሳይ</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="confirmPassword">አዲሱን ይድገሙ</label>
+                            <div class="profile-password-control">
+                                <input id="confirmPassword" name="confirm_password" type="password" minlength="6" autocomplete="new-password" required>
+                                <button type="button" class="profile-password-toggle" data-password-toggle aria-label="የተደገመውን የይለፍ ቃል አሳይ">አሳይ</button>
+                            </div>
+                        </div>
+                        <button class="btn-secondary" id="changePasswordButton" type="submit">የይለፍ ቃል ቀይር</button>
+                    </form>
+                    <p class="profile-inline-status" id="securityStatus" role="status" hidden></p>
+                </section>
+
+                <section class="profile-setting-block" id="paymentSettings">
+                    <h3>የክፍያ ዘዴዎች</h3>
+                    <p>በዚህ መለያ ላይ የክፍያ መረጃ አንቀመጥም። በግዢ ጊዜ ከሚገኙት የክፍያ ዘዴዎች ይምረጡ።</p>
+                    <div class="profile-payment-methods" id="profilePaymentMethods" aria-live="polite">
+                        <span class="profile-loading">የክፍያ ዘዴዎችን እየጫንን ነው…</span>
+                    </div>
+                    <a class="profile-text-link" href="/app/checkout">ወደ ክፍያ ይሂዱ <span aria-hidden="true">→</span></a>
+                </section>
+            </details>
+    </div>
 </main>
 {% endblock %}
 
 {% block scripts %}
 <script>
-(async function loadProfile() {
-    let token = await window.getWebAppAccessToken();
-    if (!token) {
-        document.getElementById('profileError').textContent = 'መረጃውን ለማየት እባክዎ በቴሌግራም ይግቡ።';
-        return;
+const PROFILE_LANGUAGE = {{ page_language | tojson }};
+const profileText = {{ profile_text | tojson }};
+
+function profileT(value) {
+    const text = String(value ?? '');
+    if (profileText[text]) return profileText[text];
+    for (const [source, translated] of Object.entries(profileText)) {
+        if (text.startsWith(source)) return translated + text.slice(source.length);
+        if (text.includes(source)) return text.replace(source, translated);
     }
-    let response = await fetch('/app/api/user/profile', {
-        headers: { Authorization: `Bearer ${token}` },
+    return text;
+}
+window.profileTranslate = profileT;
+
+function localizeProfilePage(root = document) {
+    const walker = document.createTreeWalker(
+        root,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode(node) {
+                return node.parentElement?.closest('script, style, noscript')
+                    ? NodeFilter.FILTER_REJECT
+                    : NodeFilter.FILTER_ACCEPT;
+            }
+        }
+    );
+    let node;
+    while ((node = walker.nextNode())) {
+        const value = node.nodeValue;
+        const leading = value.match(/^\s*/)[0];
+        const trailing = value.match(/\s*$/)[0];
+        const content = value.slice(leading.length, value.length - trailing.length);
+        if (!content) continue;
+        const translated = profileT(content);
+        if (translated !== content) node.nodeValue = `${leading}${translated}${trailing}`;
+    }
+    root.querySelectorAll?.('[placeholder], [title], [aria-label]').forEach(element => {
+        for (const attribute of ['placeholder', 'title', 'aria-label']) {
+            if (element.hasAttribute(attribute)) {
+                element.setAttribute(attribute, profileT(element.getAttribute(attribute)));
+            }
+        }
     });
-    if (response.status === 401) {
-        token = await window.getWebAppAccessToken(true);
-        if (!token) return;
-        response = await fetch('/app/api/user/profile', {
-            headers: { Authorization: `Bearer ${token}` },
-        });
-    }
+}
+
+localizeProfilePage();
+
+let profileUserData = null;
+let profileAddresses = [];
+let profileWishlistItems = [];
+let editingAddressId = null;
+let profileSavedName = null;
+let profileNameDirty = false;
+let savedPreferencesState = null;
+
+async function profileRequest(url, options = {}) {
+    const response = await authenticatedFetch(url, options);
     if (!response.ok) {
-        document.getElementById('profileError').textContent = 'የመለያ መረጃ መጫን አልተቻለም።';
+        const result = await response.json().catch(() => ({}));
+        const detail = Array.isArray(result.detail)
+            ? result.detail.map(item => item.msg).join(' ')
+            : result.detail;
+        throw new Error(profileT(detail || 'ጥያቄውን ማከናወን አልተቻለም።'));
+    }
+    return response;
+}
+
+function setProfileMessage(element, message, isError = false) {
+    element.textContent = profileT(message);
+    element.hidden = !message;
+    element.classList.toggle('is-error', isError);
+}
+
+const activeOrderStatuses = new Set(['pending', 'confirmed', 'processing', 'shipped']);
+const dashboardNumber = value => Number(value || 0).toLocaleString(PROFILE_LANGUAGE);
+
+function renderDashboardOrders(orders) {
+    const container = document.getElementById('dashboardOrders');
+    if (!orders.length) {
+        container.innerHTML = `<div class="account-empty"><span aria-hidden="true">📦</span>
+            <strong>${profileT('ገና ትዕዛዝ አላደረጉም')}</strong>
+            <p>${profileT('ምርቶችን ያስሱና የመጀመሪያ ግዢዎን ይጀምሩ።')}</p>
+            <a href="/app/">${profileT('ሱቁን ያስሱ')} →</a></div>`;
         return;
     }
-    const user = await response.json();
-    document.getElementById('profileForm').hidden = false;
-    const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'ወሎዮ ሱቅ ደንበኛ';
+    const statusLabels = {
+        pending: 'በጥበቃ ላይ',
+        confirmed: 'ተረጋግጧል',
+        processing: 'በሂደት ላይ',
+        shipped: 'ተልኳል',
+        delivered: 'ደርሷል',
+        cancelled: 'ተሰርዟል',
+        refunded: 'ተመልሷል'
+    };
+    container.innerHTML = orders.slice(0, 4).map(order => {
+        const status = String(order.status || '').toLowerCase();
+        const label = profileT(statusLabels[status] || order.status || '—');
+        const date = order.created_at
+            ? new Date(order.created_at).toLocaleDateString(PROFILE_LANGUAGE, {
+                year: 'numeric', month: 'short', day: 'numeric'
+            })
+            : '';
+        const itemCount = (order.items || []).reduce(
+            (count, item) => count + Number(item.quantity || 0),
+            0
+        );
+        return `<article class="dashboard-order"><div class="dashboard-order-mark" aria-hidden="true">📦</div>
+            <div class="dashboard-order-main"><strong>#${he(order.order_number)}</strong>
+                <span>${date}${itemCount ? ` · ${dashboardNumber(itemCount)} ${profileT('ዕቃ')}` : ''}</span></div>
+            <div class="dashboard-order-right"><strong>${formatPrice(order.total)}</strong>
+                <span class="order-status-pill status-${he(status)}">${label}</span></div>
+        </article>`;
+    }).join('');
+}
+
+async function loadVendorOverview(vendor) {
+    const status = document.getElementById('vendorDashboardApprovalStatus');
+    if (!vendor || !vendor.is_approved) {
+        status.textContent = vendor?.is_rejected
+            ? profileT('የሻጭ ማመልከቻዎ ውድቅ ተደርጓል።')
+            : profileT('የሻጭ ማመልከቻዎ በአስተዳደር ግምገማ ላይ ነው።');
+        return;
+    }
+    status.textContent = `${vendor.business_name || profileT('የሻጭ መለያ')} · ${profileT('ጸድቋል')}`;
+    const results = await Promise.allSettled([
+        authenticatedFetch('/api/v1/analytics/dashboard'),
+        authenticatedFetch('/api/v1/products/vendor/products?page=1&page_size=1&status=active'),
+        authenticatedFetch('/api/v1/products/vendor/products?page=1&page_size=1&status=pending')
+    ]);
+    if (results[0].status === 'fulfilled' && results[0].value.ok) {
+        const metrics = await results[0].value.json();
+        document.getElementById('vendorTodayRevenue').textContent = formatPrice(metrics.today?.revenue);
+        document.getElementById('vendorWeeklyRevenue').textContent = formatPrice(metrics.weekly?.revenue);
+        document.getElementById('vendorTodayOrders').textContent = dashboardNumber(metrics.today?.orders);
+        document.getElementById('vendorLowStock').textContent = dashboardNumber(metrics.low_stock_count);
+        document.getElementById('vendorDashboardMetrics').hidden = false;
+    } else {
+        setProfileMessage(
+            document.getElementById('dashboardError'),
+            'የሻጭ የሽያጭ ማጠቃለያን ማምጣት አልተቻለም።',
+            true
+        );
+    }
+    if (results[1].status === 'fulfilled' && results[1].value.ok
+        && results[2].status === 'fulfilled' && results[2].value.ok) {
+        const [active, pending] = await Promise.all([
+            results[1].value.json(),
+            results[2].value.json()
+        ]);
+        document.getElementById('vendorActiveProducts').textContent = dashboardNumber(active.total);
+        document.getElementById('vendorPendingProducts').textContent = dashboardNumber(pending.total);
+        document.getElementById('vendorProductSummary').hidden = false;
+    }
+}
+
+async function loadAccountOverview(user) {
+    const overview = document.getElementById('accountOverview');
+    setProfileMessage(document.getElementById('dashboardError'), '');
+    overview.hidden = false;
+    if (user.is_admin) {
+        const response = await authenticatedFetch('/api/v1/analytics/admin/dashboard');
+        if (!response.ok) throw new Error(profileT('የአስተዳዳሪ ማጠቃለያን ማምጣት አልተቻለም።'));
+        const summary = await response.json();
+        document.getElementById('dashboardAdminRevenue').textContent = formatPrice(summary.today?.revenue);
+        document.getElementById('dashboardAdminOrders').textContent = dashboardNumber(summary.today?.orders);
+        document.getElementById('dashboardAdminUsers').textContent = dashboardNumber(summary.active_users);
+        document.getElementById('dashboardAdminLowStock').textContent = dashboardNumber(summary.low_stock_count);
+        return;
+    }
+    if (user.role === 'vendor') {
+        await loadVendorOverview(user.vendor);
+        return;
+    }
+
+    document.getElementById('statCart').textContent = dashboardNumber(cart.count());
+    document.getElementById('statCartSummary').textContent =
+        `${dashboardNumber(cart.count())} ${profileT('ዕቃ')} · ${formatPrice(cart.total())}`;
+    const response = await authenticatedFetch('/app/api/my-orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+    });
+    if (!response.ok) throw new Error(profileT('ትዕዛዞችዎን ማምጣት አልተቻለም።'));
+    const orderData = await response.json();
+    const orders = orderData.orders || [];
+    document.getElementById('statOrders').textContent = dashboardNumber(orderData.total);
+    document.getElementById('statActive').textContent = dashboardNumber(
+        orders.filter(order => activeOrderStatuses.has(String(order.status || '').toLowerCase())).length
+    );
+    renderDashboardOrders(orders);
+}
+
+function setProfileUser(user) {
+    profileUserData = user;
+    const role = user.is_admin ? 'admin' : user.role;
+    const name = [user.first_name, user.last_name].filter(Boolean).join(' ')
+        || profileT('ወሎዮ ሱቅ ደንበኛ');
     document.getElementById('profileName').textContent = name;
-    document.getElementById('profilePhone').textContent = user.phone_number || 'የመለያ መረጃ';
+    document.getElementById('drawerName').textContent = name;
+    document.getElementById('profilePhone').textContent =
+        user.phone_number || user.email || profileT('የመለያ መረጃ');
+    const avatar = document.getElementById('profileAvatar');
+    avatar.dataset.defaultAvatar = name.charAt(0).toUpperCase() || 'W';
+    if (!avatar.querySelector('img')) avatar.textContent = avatar.dataset.defaultAvatar;
+    document.getElementById('removeProfileImageButton').hidden =
+        user.has_custom_profile_picture !== true;
+    document.getElementById('profileVerifiedStatus').hidden = !user.is_verified;
+    document.getElementById('profileMemberSince').textContent = user.created_at
+        ? `${profileT('አባል የሆኑበት ቀን፦ ')}${new Date(user.created_at).toLocaleDateString()}`
+        : '';
+    const roles = { admin: 'አስተዳዳሪ', vendor: 'ሻጭ', customer: 'ደንበኛ' };
+    document.getElementById('profileRole').textContent = profileT(roles[role] || roles.customer);
+    const accountStatus = String(user.status || 'active').toLowerCase();
+    const statusLabels = { active: '● ንቁ', pending: '◷ በጥበቃ ላይ', suspended: '● ታግዷል', inactive: '● ያልነቃ' };
+    const accountStatusBadge = document.getElementById('profileAccountStatus');
+    accountStatusBadge.textContent = profileT(statusLabels[accountStatus] || accountStatus);
+    accountStatusBadge.classList.toggle('is-inactive', accountStatus !== 'active');
+    document.getElementById('customerWishlistSection').hidden = role !== 'customer';
+    document.getElementById('customerWishlistShortcut').hidden = role !== 'customer';
+    document.getElementById('customerCouponsSection').hidden = role !== 'customer';
+    document.getElementById('customerCouponsShortcut').hidden = role !== 'customer';
+    document.getElementById('accountOverview').hidden = false;
+    document.getElementById('customerDashboardContent').hidden = role !== 'customer';
+    document.getElementById('vendorDashboardContent').hidden = role !== 'vendor';
+    document.getElementById('adminRoleDashboard').hidden = !user.is_admin;
+    loadAccountOverview(user).catch(error => {
+        setProfileMessage(document.getElementById('dashboardError'), error.message, true);
+    });
+    if (role === 'customer') {
+        loadCustomerWishlist().catch(error => {
+            setProfileMessage(document.getElementById('profileWishlistStatus'), error.message, true);
+        });
+        loadCustomerCoupons();
+    }
     document.getElementById('profileFirstName').value = user.first_name || '';
     document.getElementById('profileLastName').value = user.last_name || '';
     document.getElementById('profilePhoneInput').value = user.phone_number || '';
     document.getElementById('profileEmailInput').value = user.email || '';
-    const address = user.address || {};
-    document.getElementById('profileAddressLine1').value = address.address_line1 || '';
-    document.getElementById('profileAddressLine2').value = address.address_line2 || '';
-    document.getElementById('profileCity').value = address.city || '';
-    document.getElementById('profileSubcity').value = address.subcity || '';
-    document.getElementById('profileWoreda').value = address.woreda || '';
-    document.getElementById('profileHouseNumber').value = address.house_number || '';
-    document.getElementById('profileLandmark').value = address.landmark || '';
-    document.getElementById('removeAddressButton').hidden = !user.address;
+    document.getElementById('profileLanguage').value = PROFILE_LANGUAGE;
+    capturePreferencesState();
+    document.getElementById('passwordForm').hidden = !user.has_password;
+    if (!user.has_password) {
+        document.getElementById('securitySummary').textContent =
+            profileT('ይህ መለያ በTelegram መግቢያ ይጠቀማል። የይለፍ ቃል አልተቀመጠም።');
+    }
+    const vendorLink = document.getElementById('vendorProfileShortcut');
+    if (role === 'vendor') {
+        vendorLink.hidden = false;
+        const vendor = user.vendor;
+        document.getElementById('vendorProfileStatus').textContent = !vendor
+            ? profileT('የሻጭ መገለጫ በግምገማ ላይ ነው')
+            : vendor.is_approved
+                ? `${vendor.business_name} · ${profileT('ጸድቋል')}`
+                : vendor.is_rejected
+                    ? `${vendor.business_name} · ${profileT('ውድቅ ተደርጓል')}`
+                    : `${vendor.business_name} · ${profileT('በግምገማ ላይ')}`;
+    }
+    for (const link of document.querySelectorAll('.profile-section-nav a[href^="#customer"]')) {
+        link.hidden = role !== 'customer';
+    }
+    updateProfileEditingState(false);
+}
+
+function setupProfileImageControls() {
+    const input = document.getElementById('profileImageInput');
+    const uploadButton = document.getElementById('uploadProfileImageButton');
+    const removeButton = document.getElementById('removeProfileImageButton');
     const avatar = document.getElementById('profileAvatar');
-    if (!avatar.querySelector('img')) {
-        avatar.textContent = name.charAt(0).toUpperCase();
+    const progress = document.getElementById('profileImageProgress');
+    const status = document.getElementById('profileImageStatus');
+    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+    let selectedFile = null;
+    let previewUrl = null;
+
+    function clearPreviewUrl() {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewUrl = null;
     }
 
-    const form = document.getElementById('profileForm');
-    form.addEventListener('submit', async event => {
-        event.preventDefault();
-        const error = document.getElementById('profileError');
-        const success = document.getElementById('profileSuccess');
-        const saveButton = document.getElementById('saveProfileButton');
-        error.textContent = '';
-        success.hidden = true;
-        const formData = new FormData(form);
-        const payload = {
-            first_name: formData.get('first_name'),
-            last_name: formData.get('last_name'),
-            phone_number: formData.get('phone_number'),
-            email: formData.get('email'),
-        };
-        const addressValues = Object.fromEntries(
-            ['address_line1', 'address_line2', 'city', 'subcity', 'woreda', 'house_number', 'landmark']
-                .map(field => [field, String(formData.get(field) || '').trim()])
-        );
-        if (Object.values(addressValues).some(Boolean)) Object.assign(payload, addressValues);
+    input.addEventListener('change', () => {
+        const file = input.files?.[0];
+        setProfileMessage(status, '');
+        clearPreviewUrl();
+        selectedFile = null;
+        uploadButton.disabled = true;
+        if (!file) {
+            window.refreshUserProfileAvatars?.();
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            input.value = '';
+            window.refreshUserProfileAvatars?.();
+            setProfileMessage(status, 'ፎቶው ከ5 ሜባ መብለጥ የለበትም።', true);
+            return;
+        }
+        if (file.type && !allowedTypes.has(file.type)) {
+            input.value = '';
+            window.refreshUserProfileAvatars?.();
+            setProfileMessage(status, 'JPEG፣ PNG ወይም WebP ፎቶ ይምረጡ።', true);
+            return;
+        }
 
-        saveButton.disabled = true;
+        selectedFile = file;
+        previewUrl = URL.createObjectURL(file);
+        const preview = document.createElement('img');
+        preview.src = previewUrl;
+        preview.alt = profileT('የፎቶ ቅድመ እይታ');
+        avatar.replaceChildren(preview);
+        uploadButton.disabled = false;
+        setProfileMessage(status, 'ፎቶው ከመላኩ በፊት ቅድመ እይታ እያዩ ነው።');
+    });
+
+    uploadButton.addEventListener('click', async () => {
+        if (!selectedFile) return;
+        const file = selectedFile;
+        uploadButton.disabled = true;
+        input.disabled = true;
+        removeButton.disabled = true;
+        progress.hidden = false;
+        progress.value = 0;
+        setProfileMessage(status, 'የመገለጫ ፎቶው በመላክ ላይ ነው…');
         try {
-            let accessToken = await window.getWebAppAccessToken();
-            if (!accessToken) throw new Error('እባክዎ ዳግም ግብተው ይሞክሩ።');
-            let saveResponse = await fetch('/app/api/user/profile', {
-                method: 'PUT',
-                headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload),
+            const result = await window.uploadUserProfileImage(file, ratio => {
+                progress.value = ratio;
+                progress.setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
+                setProfileMessage(
+                    status,
+                    `የመገለጫ ፎቶው በመላክ ላይ ነው… ${Math.round(ratio * 100)}%`
+                );
             });
-            if (saveResponse.status === 401) {
-                accessToken = await window.getWebAppAccessToken(true);
-                if (!accessToken) throw new Error('እባክዎ ዳግም ግብተው ይሞክሩ።');
-                saveResponse = await fetch('/app/api/user/profile', {
-                    method: 'PUT',
-                    headers: {
-                        Authorization: `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(payload),
-                });
-            }
-            if (!saveResponse.ok) {
-                const result = await saveResponse.json().catch(() => ({}));
-                const detail = Array.isArray(result.detail)
-                    ? result.detail.map(item => item.msg).join(' ')
-                    : result.detail;
-                throw new Error(detail || 'የፕሮፋይል መረጃውን ማስቀመጥ አልተቻለም።');
-            }
-            const saved = await saveResponse.json();
-            document.getElementById('profileName').textContent =
-                [saved.first_name, saved.last_name].filter(Boolean).join(' ') || 'ወሎዮ ሱቅ ደንበኛ';
-            document.getElementById('profilePhone').textContent = saved.phone_number || 'የመለያ መረጃ';
-            document.getElementById('removeAddressButton').hidden = !saved.address;
-            success.textContent = 'የፕሮፋይል መረጃዎ ተቀምጧል።';
-            success.hidden = false;
-        } catch (saveError) {
-            error.textContent = saveError.message || 'ለውጦቹን ማስቀመጥ አልተቻለም።';
+            selectedFile = null;
+            input.value = '';
+            if (profileUserData) profileUserData.has_custom_profile_picture = true;
+            removeButton.hidden = false;
+            await window.refreshUserProfileAvatars();
+            clearPreviewUrl();
+            setProfileMessage(
+                status,
+                result.cleanup_pending
+                    ? 'ፎቶው ተቀይሯል፤ የቀድሞውን ፋይል ማጽዳት ግን ዘግይቷል።'
+                    : 'የመገለጫ ፎቶዎ ተቀይሯል።',
+                false
+            );
+        } catch (error) {
+            selectedFile = null;
+            input.value = '';
+            clearPreviewUrl();
+            window.resetUserProfileAvatars?.();
+            await window.refreshUserProfileAvatars();
+            setProfileMessage(status, error.message || 'የመገለጫ ፎቶውን መላክ አልተቻለም።', true);
         } finally {
-            saveButton.disabled = false;
+            progress.hidden = true;
+            input.disabled = false;
+            uploadButton.disabled = true;
+            removeButton.disabled = false;
         }
     });
 
-    document.getElementById('removeAddressButton').addEventListener('click', async event => {
-        const button = event.currentTarget;
-        const error = document.getElementById('profileError');
-        const success = document.getElementById('profileSuccess');
-        if (!window.confirm('የተመዘገበውን የመላኪያ አድራሻ ማስወገድ ይፈልጋሉ?')) return;
-        error.textContent = '';
-        success.hidden = true;
+    removeButton.addEventListener('click', async () => {
+        if (!window.confirm(profileT('የመገለጫ ፎቶውን ማስወገድ ይፈልጋሉ?'))) return;
+        removeButton.disabled = true;
+        uploadButton.disabled = true;
+        input.disabled = true;
+        setProfileMessage(status, '');
+        try {
+            const result = await window.removeUserProfileImage();
+            if (profileUserData) profileUserData.has_custom_profile_picture = false;
+            removeButton.hidden = true;
+            clearPreviewUrl();
+            window.resetUserProfileAvatars?.();
+            await window.refreshUserProfileAvatars();
+            setProfileMessage(
+                status,
+                result.cleanup_pending
+                    ? 'የፎቶው ፋይል ማጽዳት ዘግይቷል።'
+                    : 'የመገለጫ ፎቶዎ ተወግዷል።',
+                false
+            );
+        } catch (error) {
+            setProfileMessage(status, error.message || 'የመገለጫ ፎቶውን ማስወገድ አልተቻለም።', true);
+        } finally {
+            input.disabled = false;
+            uploadButton.disabled = !selectedFile;
+            removeButton.disabled = false;
+        }
+    });
+}
+
+function getPreferencesState() {
+    const form = document.getElementById('preferencesForm');
+    return JSON.stringify(Array.from(form.elements)
+        .filter(field => field.name)
+        .map(field => [field.name, field.type === 'checkbox' ? field.checked : field.value]));
+}
+
+function capturePreferencesState() {
+    savedPreferencesState = getPreferencesState();
+}
+
+function updateProfileEditingState(editing) {
+    document.getElementById('profileFirstName').readOnly = !editing;
+    document.getElementById('profileLastName').readOnly = !editing;
+    document.getElementById('editProfileButton').hidden = editing;
+    document.getElementById('saveProfileButton').hidden = !editing;
+    document.getElementById('cancelProfileButton').hidden = !editing;
+}
+
+function captureProfileName() {
+    profileSavedName = {
+        first_name: document.getElementById('profileFirstName').value,
+        last_name: document.getElementById('profileLastName').value
+    };
+    profileNameDirty = false;
+}
+
+function renderProfileAddresses() {
+    const container = document.getElementById('profileAddressList');
+    container.replaceChildren();
+    if (!profileAddresses.length) {
+        const empty = document.createElement('p');
+        empty.className = 'profile-wishlist-empty';
+        empty.textContent = profileT('የተቀመጠ አድራሻ የለም። ለመጀመር አዲስ አድራሻ ያክሉ።');
+        container.append(empty);
+        return;
+    }
+
+    const typeLabels = {
+        home: profileT('ቤት'),
+        work: profileT('ሥራ'),
+        other: profileT('ሌላ')
+    };
+    for (const address of profileAddresses) {
+        const card = document.createElement('article');
+        card.className = 'profile-address-card';
+        const details = document.createElement('div');
+        details.className = 'profile-address-details';
+        const title = document.createElement('strong');
+        title.textContent = address.recipient_name;
+        const type = document.createElement('span');
+        type.textContent = typeLabels[address.address_type] || typeLabels.other;
+        const destination = document.createElement('p');
+        destination.textContent = [
+            address.address_line1,
+            address.address_line2,
+            address.house_number,
+            address.woreda,
+            address.subcity,
+            address.city,
+            address.landmark
+        ].filter(Boolean).join(', ');
+        const phone = document.createElement('small');
+        phone.textContent = address.recipient_phone;
+        details.append(title, type, destination, phone);
+        if (address.is_default) {
+            const badge = document.createElement('span');
+            badge.className = 'profile-default-badge';
+            badge.textContent = profileT('ነባሪ');
+            details.append(badge);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'profile-address-actions';
+        for (const [action, label] of [
+            ['edit', 'አስተካክል'],
+            ['default', 'ነባሪ አድርግ'],
+            ['delete', 'አስወግድ']
+        ]) {
+            if (action === 'default' && address.is_default) continue;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'profile-address-action';
+            button.dataset.addressAction = action;
+            button.dataset.addressId = String(address.id);
+            button.textContent = profileT(label);
+            actions.append(button);
+        }
+        card.append(details, actions);
+        container.append(card);
+    }
+}
+
+async function loadProfileAddresses() {
+    const container = document.getElementById('profileAddressList');
+    try {
+        const response = await profileRequest('/app/api/user/addresses');
+        const result = await response.json();
+        profileAddresses = Array.isArray(result.items) ? result.items : [];
+        renderProfileAddresses();
+    } catch (error) {
+        container.textContent = profileT(error.message || 'አድራሻዎችን መጫን አልተቻለም።');
+    }
+}
+
+function openAddressForm(address = null) {
+    const form = document.getElementById('addressForm');
+    editingAddressId = address ? address.id : null;
+    document.getElementById('addressFormHeading').textContent =
+        profileT(address ? 'አድራሻን አስተካክል' : 'አዲስ አድራሻ');
+    document.getElementById('saveAddressButton').textContent =
+        profileT(address ? 'ለውጦችን አስቀምጥ' : 'አድራሻ አስቀምጥ');
+    for (const field of form.elements) {
+        if (field.name && field.type !== 'checkbox') {
+            field.value = address?.[field.name] ?? '';
+        }
+    }
+    form.elements.is_default.checked = Boolean(address?.is_default);
+    form.hidden = false;
+    document.getElementById('addAddressButton').hidden = true;
+    form.elements.recipient_name.focus();
+}
+
+function closeAddressForm() {
+    const form = document.getElementById('addressForm');
+    form.reset();
+    form.hidden = true;
+    document.getElementById('addAddressButton').hidden = false;
+    document.getElementById('addressStatus').hidden = true;
+    editingAddressId = null;
+}
+
+async function updateAddressAction(button) {
+    const addressId = Number(button.dataset.addressId);
+    const address = profileAddresses.find(item => item.id === addressId);
+    if (!address) return;
+
+    if (button.dataset.addressAction === 'edit') {
+        openAddressForm(address);
+        return;
+    }
+    if (button.dataset.addressAction === 'delete') {
+        if (!window.confirm(profileT('ይህን አድራሻ ማስወገድ ይፈልጋሉ?'))) return;
         button.disabled = true;
         try {
-            let accessToken = await window.getWebAppAccessToken();
-            if (!accessToken) throw new Error('ዳግም ይግቡና እንደገና ይሞክሩ።');
-            let removeResponse = await fetch('/app/api/user/profile', {
-                method: 'PUT',
-                headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ delete_address: true }),
-            });
-            if (removeResponse.status === 401) {
-                accessToken = await window.getWebAppAccessToken(true);
-                if (!accessToken) throw new Error('ዳግም ይግቡና እንደገና ይሞክሩ።');
-                removeResponse = await fetch('/app/api/user/profile', {
-                    method: 'PUT',
-                    headers: {
-                        Authorization: `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ delete_address: true }),
-                });
+            await profileRequest(`/app/api/user/addresses/${addressId}`, { method: 'DELETE' });
+            await loadProfileAddresses();
+        } catch (error) {
+            setProfileMessage(document.getElementById('addressStatus'), error.message, true);
+        } finally {
+            button.disabled = false;
+        }
+        return;
+    }
+
+    button.disabled = true;
+    try {
+        await profileRequest(`/app/api/user/addresses/${addressId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_default: true })
+        });
+        await loadProfileAddresses();
+    } catch (error) {
+        setProfileMessage(document.getElementById('addressStatus'), error.message, true);
+    } finally {
+        button.disabled = false;
+    }
+}
+
+function renderProfileWishlist() {
+    const container = document.getElementById('profileWishlistItems');
+    const items = profileWishlistItems;
+    container.replaceChildren();
+    if (!items.length) {
+        const empty = document.createElement('p');
+        empty.className = 'profile-wishlist-empty';
+        empty.textContent = profileT('እስካሁን የተወደደ ምርት የለም። ምርቶችን ሲያስሱ ♡ የሚለውን ይጫኑ።');
+        container.append(empty);
+        return;
+    }
+    for (const item of items) {
+        const row = document.createElement('article');
+        row.className = 'profile-wishlist-item';
+        const image = item.image ? document.createElement('img') : document.createElement('span');
+        image.className = item.image ? '' : 'profile-wishlist-placeholder';
+        image.alt = '';
+        if (item.image) {
+            image.loading = 'lazy';
+            image.src = safeUrl(item.image);
+        } else {
+            image.textContent = '📦';
+        }
+        const link = document.createElement('a');
+        link.href = `/app/product/${Number(item.id)}`;
+        link.className = 'profile-wishlist-info';
+        const name = document.createElement('strong');
+        const useAmharic = (profileUserData?.language || 'am') === 'am';
+        name.textContent = (useAmharic && item.name_am) || item.name || profileT('ምርት');
+        link.append(name);
+        if (item.price !== null && item.price !== undefined) {
+            const price = document.createElement('span');
+            price.textContent = `ETB ${Number(item.price).toLocaleString()}`;
+            link.append(price);
+        }
+        if (item.available === false) {
+            const availability = document.createElement('small');
+            availability.textContent = item.local_only
+                ? profileT('የዚህ ምርት የአሁኑ መረጃ አልተገኘም።')
+                : item.availability_reason === 'out_of_stock'
+                    ? profileT('ከክምችት ውጭ')
+                    : profileT('በአሁኑ ጊዜ አይገኝም');
+            link.append(availability);
+        }
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'profile-wishlist-remove';
+        remove.dataset.removeWishlist = String(item.id);
+        remove.textContent = profileT('አስወግድ');
+        remove.setAttribute(
+            'aria-label',
+            `${item.name || profileT('ምርት')} ${profileT('ከየምወዳቸው አስወግድ')}`
+        );
+        row.append(image, link, remove);
+        container.append(row);
+    }
+}
+
+async function loadCustomerWishlist() {
+    const localItems = productWishlist.items();
+    let result;
+    try {
+        result = await window.syncWishlistWithServer();
+    } catch (error) {
+        profileWishlistItems = localItems.map(item => ({
+            ...item,
+            available: false,
+            local_only: true,
+            price: null
+        }));
+        setProfileMessage(
+            document.getElementById('profileWishlistStatus'),
+            error.message || 'የተወደዱ ምርቶችን መጫን አልተቻለም።',
+            true
+        );
+        renderProfileWishlist();
+        return;
+    }
+    if (result) {
+        const serverIds = new Set(result.items.map(item => Number(item.id)));
+        profileWishlistItems = [
+            ...result.items,
+            ...localItems
+                .filter(item => !serverIds.has(Number(item.id)))
+                .map(item => ({ ...item, available: false, local_only: true, price: null }))
+        ];
+        setProfileMessage(
+            document.getElementById('profileWishlistStatus'),
+            result.skipped?.length
+                ? 'አንዳንድ ምርቶች ከሰርቨሩ ጋር አልተመሳሰሉም፤ በዚህ መሣሪያ ላይ ተጠብቀዋል።'
+                : ''
+        );
+    } else {
+        profileWishlistItems = localItems.map(item => ({
+            ...item,
+            available: false,
+            local_only: true,
+            price: null
+        }));
+    }
+    renderProfileWishlist();
+}
+
+async function loadCustomerCoupons() {
+    const container = document.getElementById('profileCouponList');
+    try {
+        const response = await fetch('/app/api/discounts/active', { cache: 'no-store' });
+        if (!response.ok) throw new Error(profileT('የኩፖን መረጃን ማምጣት አልተቻለም።'));
+        const data = await response.json();
+        container.replaceChildren();
+        const offers = Array.isArray(data.items) ? data.items : [];
+        if (!offers.length) {
+            const empty = document.createElement('p');
+            empty.className = 'profile-wishlist-empty';
+            empty.textContent = profileT('በአሁኑ ጊዜ ንቁ ኩፖኖች የሉም።');
+            container.append(empty);
+            return;
+        }
+        for (const offer of offers) {
+            const card = document.createElement('article');
+            card.className = 'profile-coupon-card';
+            const text = document.createElement('div');
+            text.className = 'profile-coupon-copy';
+            const title = document.createElement('strong');
+            title.textContent = offer.name || profileT('ልዩ ቅናሽ');
+            const details = document.createElement('span');
+            const value = Number(offer.discount_value || 0);
+            details.textContent = offer.discount_type === 'percentage'
+                ? `${value}% ${profileT('ቅናሽ')}`
+                : `${formatPrice(value)} ${profileT('ቅናሽ')}`;
+            const minOrder = offer.minimum_order_value
+                ? `${profileT(' · ቢያንስ ')}${formatPrice(offer.minimum_order_value)}`
+                : '';
+            details.textContent += minOrder;
+            if (offer.valid_to) {
+                const expiry = document.createElement('small');
+                expiry.textContent = `${profileT('እስከ ')}${new Date(offer.valid_to).toLocaleDateString()}`;
+                text.append(title, details, expiry);
+            } else {
+                text.append(title, details);
             }
-            if (!removeResponse.ok) throw new Error('አድራሻውን ማስወገድ አልተቻለም።');
-            ['profileAddressLine1', 'profileAddressLine2', 'profileCity', 'profileSubcity',
-                'profileWoreda', 'profileHouseNumber', 'profileLandmark']
-                .forEach(id => { document.getElementById(id).value = ''; });
-            button.hidden = true;
-            success.textContent = 'የመላኪያ አድራሻው ተወግዷል።';
-            success.hidden = false;
-        } catch (removeError) {
-            error.textContent = removeError.message || 'አድራሻውን ማስወገድ አልተቻለም።';
+            const code = document.createElement('code');
+            code.textContent = offer.code;
+            text.append(code);
+            if (offer.description) {
+                const description = document.createElement('small');
+                description.textContent = offer.description;
+                text.append(description);
+            }
+            const actions = document.createElement('div');
+            actions.className = 'profile-coupon-actions';
+            const copy = document.createElement('button');
+            copy.type = 'button';
+            copy.className = 'profile-coupon-copy-button';
+            copy.textContent = profileT('ኮድ ቅዳ');
+            copy.addEventListener('click', async () => {
+                try {
+                    if (!navigator.clipboard?.writeText) {
+                        throw new Error(profileT('የመቅዳት ባህሪው በዚህ አሳሽ አይደገፍም።'));
+                    }
+                    await navigator.clipboard.writeText(String(offer.code || ''));
+                    showToast(profileT('የኩፖን ኮዱ ተቀድቷል።'));
+                } catch (copyError) {
+                    setProfileMessage(
+                        document.getElementById('profileError'),
+                        profileT(copyError.message || 'የኩፖን ኮዱን መቅዳት አልተቻለም።'),
+                        true
+                    );
+                }
+            });
+            const apply = document.createElement('button');
+            apply.type = 'button';
+            apply.className = 'profile-coupon-apply';
+            apply.textContent = profileT('በክፍያ ላይ ተጠቀም');
+            apply.addEventListener('click', () => {
+                sessionStorage.setItem('wolloyewa_coupon_code', offer.code);
+                window.location.assign('/app/checkout');
+            });
+            actions.append(copy, apply);
+            card.append(text, actions);
+            container.append(card);
+        }
+    } catch (error) {
+        container.textContent = profileT(error.message || 'የኩፖን መረጃን ማምጣት አልተቻለም።');
+    }
+}
+
+async function loadProfile() {
+    const error = document.getElementById('profileError');
+    try {
+        const response = await profileRequest('/app/api/user/profile');
+        const user = await response.json();
+        const adminResponse = await authenticatedFetch('/app/api/admin/session').catch(() => null);
+        if (adminResponse?.ok) {
+            const adminSession = await adminResponse.json();
+            user.is_admin = adminSession.is_admin === true;
+        }
+        const requestedLanguage = new URLSearchParams(window.location.search).get('lang');
+        const preferredLanguage = ['am', 'en', 'om'].includes(user.language)
+            ? user.language
+            : 'am';
+        if (!requestedLanguage && preferredLanguage !== PROFILE_LANGUAGE) {
+            localStorage.setItem('wolloyewa_language', preferredLanguage);
+            window.location.replace(`/app/profile?lang=${preferredLanguage}`);
+            return;
+        }
+        setProfileUser(user);
+        document.getElementById('adminProfileShortcut').hidden = !user.is_admin;
+        document.getElementById('profileForm').hidden = false;
+        document.getElementById('profileLoading').hidden = true;
+        captureProfileName();
+    } catch (loadError) {
+        setProfileMessage(error, loadError.message || 'የመለያ መረጃ መጫን አልተቻለም።', true);
+        document.getElementById('profileLoading').hidden = true;
+        return;
+    }
+
+    const profileForm = document.getElementById('profileForm');
+    const firstName = document.getElementById('profileFirstName');
+    const lastName = document.getElementById('profileLastName');
+    document.getElementById('editProfileButton').addEventListener('click', () => {
+        updateProfileEditingState(true);
+        firstName.focus();
+    });
+    document.getElementById('cancelProfileButton').addEventListener('click', () => {
+        firstName.value = profileSavedName.first_name;
+        lastName.value = profileSavedName.last_name;
+        profileNameDirty = false;
+        updateProfileEditingState(false);
+    });
+    profileForm.addEventListener('input', () => {
+        profileNameDirty = firstName.value !== profileSavedName.first_name
+            || lastName.value !== profileSavedName.last_name;
+    });
+    window.addEventListener('beforeunload', event => {
+        if (!profileNameDirty) return;
+        event.preventDefault();
+        event.returnValue = '';
+    });
+    profileForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        const button = document.getElementById('saveProfileButton');
+        const values = new FormData(profileForm);
+        const payload = Object.fromEntries(
+            ['first_name', 'last_name']
+                .map(field => [field, String(values.get(field) || '').trim()])
+        );
+        button.disabled = true;
+        setProfileMessage(error, '');
+        try {
+            const response = await profileRequest('/app/api/user/profile', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            setProfileUser(await response.json());
+            captureProfileName();
+            updateProfileEditingState(false);
+            setProfileMessage(document.getElementById('profileSuccess'), 'የፕሮፋይል መረጃዎ ተቀምጧል።');
+        } catch (saveError) {
+            setProfileMessage(error, saveError.message || 'የፕሮፋይል መረጃውን ማስቀመጥ አልተቻለም።', true);
         } finally {
             button.disabled = false;
         }
     });
-})();
 
-(async function loadTelegramBotLink() {
+    document.getElementById('profileWishlistItems').addEventListener('click', async event => {
+        const button = event.target.closest('[data-remove-wishlist]');
+        if (!button) return;
+        const item = profileWishlistItems.find(
+            savedItem => Number(savedItem.id) === Number(button.dataset.removeWishlist)
+        );
+        if (!item) return;
+        button.disabled = true;
+        try {
+            productWishlist.toggle(item);
+            await window.updateWishlistOnServer(button.dataset.removeWishlist, false);
+            await loadCustomerWishlist();
+        } catch (error) {
+            productWishlist.toggle(item);
+            renderProfileWishlist();
+            setProfileMessage(
+                document.getElementById('profileWishlistStatus'),
+                error.message || 'የተወደዱ ምርቶችን ማዘመን አልተቻለም።',
+                true
+            );
+        } finally {
+            button.disabled = false;
+        }
+    });
+
+    document.getElementById('profileAddressList').addEventListener('click', event => {
+        const button = event.target.closest('[data-address-action]');
+        if (button) updateAddressAction(button);
+    });
+    document.getElementById('addAddressButton').addEventListener('click', () => openAddressForm());
+    document.getElementById('cancelAddressButton').addEventListener('click', closeAddressForm);
+    document.getElementById('addressForm').addEventListener('submit', async event => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        if (!form.reportValidity()) return;
+        const button = document.getElementById('saveAddressButton');
+        const values = new FormData(form);
+        const payload = Object.fromEntries(values.entries());
+        payload.is_default = values.get('is_default') === 'on';
+        button.disabled = true;
+        setProfileMessage(document.getElementById('addressStatus'), '');
+        try {
+            const url = editingAddressId
+                ? `/app/api/user/addresses/${editingAddressId}`
+                : '/app/api/user/addresses';
+            await profileRequest(url, {
+                method: editingAddressId ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            closeAddressForm();
+            await loadProfileAddresses();
+        } catch (saveError) {
+            setProfileMessage(
+                document.getElementById('addressStatus'),
+                saveError.message || 'አድራሻውን ማስቀመጥ አልተቻለም።',
+                true
+            );
+        } finally {
+            button.disabled = false;
+        }
+    });
+    loadProfileAddresses();
+}
+
+document.getElementById('preferencesForm').addEventListener('change', () => {
+    const dirty = getPreferencesState() !== savedPreferencesState;
+    setProfileMessage(
+        document.getElementById('preferencesStatus'),
+        dirty ? 'ያልተቀመጡ ለውጦች አሉ።' : ''
+    );
+});
+
+document.getElementById('preferencesForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = document.getElementById('savePreferencesButton');
+    const status = document.getElementById('preferencesStatus');
+    const formData = new FormData(event.currentTarget);
+    const language = String(formData.get('language') || 'am');
+    button.disabled = true;
+    setProfileMessage(status, '');
     try {
-        const response = await fetch('/app/api/bot-link');
-        if (!response.ok) return;
+        await profileRequest('/app/api/user/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                language
+            })
+        });
+        localStorage.setItem('wolloyewa_language', language);
+        capturePreferencesState();
+        setProfileMessage(status, 'የቅንብሮች ለውጦችዎ ተቀምጠዋል።');
+        const profileUrl = new URL(window.location.href);
+        profileUrl.searchParams.set('lang', language);
+        window.location.assign(profileUrl.toString());
+    } catch (saveError) {
+        setProfileMessage(status, saveError.message || 'ቅንብሮችን ማስቀመጥ አልተቻለም።', true);
+    } finally {
+        button.disabled = false;
+    }
+});
+
+document.querySelectorAll('[data-password-toggle]').forEach(button => {
+    button.addEventListener('click', () => {
+        const input = button.parentElement.querySelector('input');
+        const visible = input.type === 'password';
+        input.type = visible ? 'text' : 'password';
+        button.textContent = profileT(visible ? 'ደብቅ' : 'አሳይ');
+        button.setAttribute(
+            'aria-label',
+            profileT(visible ? 'የይለፍ ቃል ደብቅ' : 'የይለፍ ቃል አሳይ')
+        );
+    });
+});
+
+document.getElementById('passwordForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = document.getElementById('changePasswordButton');
+    const status = document.getElementById('securityStatus');
+    const values = Object.fromEntries(new FormData(form));
+    button.disabled = true;
+    setProfileMessage(status, '');
+    try {
+        const response = await profileRequest('/api/v1/users/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(values)
+        });
+        const result = await response.json();
+        form.reset();
+        setProfileMessage(status, result.message || 'የይለፍ ቃልዎ ተቀይሯል።');
+    } catch (changeError) {
+        setProfileMessage(status, changeError.message || 'የይለፍ ቃሉን መቀየር አልተቻለም።', true);
+    } finally {
+        button.disabled = false;
+    }
+});
+
+async function loadPaymentOptions() {
+    const container = document.getElementById('profilePaymentMethods');
+    try {
+        const response = await fetch('/app/api/store/announcement');
+        if (!response.ok) throw new Error(profileT('የክፍያ ዘዴዎችን ማግኘት አልተቻለም።'));
         const data = await response.json();
-        if (!data.url || !/^https:\/\/t\.me\/[A-Za-z0-9_]+$/.test(data.url)) return;
-        const link = document.getElementById('telegramBotLink');
+        const labels = {
+            chapa: 'Chapa',
+            telebirr: 'Telebirr',
+            cbe: 'CBE Birr',
+            cod: profileT('በማድረስ ጊዜ ክፍያ')
+        };
+        const methods = (data.enabled_payment_methods || []).filter(method => labels[method]);
+        container.replaceChildren();
+        if (!methods.length) {
+            container.textContent = profileT('በአሁኑ ጊዜ የክፍያ ዘዴዎች አልተገኙም።');
+            return;
+        }
+        for (const method of methods) {
+            const badge = document.createElement('span');
+            badge.className = 'profile-payment-method';
+            badge.textContent = labels[method];
+            container.append(badge);
+        }
+    } catch (error) {
+        container.textContent = profileT(error.message || 'የክፍያ ዘዴዎችን ማግኘት አልተቻለም።');
+    }
+}
+
+async function loadTelegramBotLink() {
+    const response = await fetch('/app/api/bot-link');
+    if (!response.ok) return;
+    const data = await response.json();
+    if (!data.url || !/^https:\/\/t\.me\/[A-Za-z0-9_]+$/.test(data.url)) return;
+    for (const id of ['telegramBotLink', 'accountBotLink']) {
+        const link = document.getElementById(id);
+        if (!link) continue;
         link.href = data.url;
         link.hidden = false;
-    } catch (error) {
-        console.warn('Could not load the Telegram bot link.', error);
     }
-})();
+}
+
+loadProfile().catch(error => {
+    setProfileMessage(document.getElementById('profileError'), error.message || 'የመለያ መረጃ መጫን አልተቻለም።', true);
+});
+window.setInterval(() => {
+    if (document.hidden || !profileUserData) return;
+    document.getElementById('statCart').textContent = dashboardNumber(cart.count());
+    loadAccountOverview(profileUserData).catch(error => {
+        setProfileMessage(document.getElementById('dashboardError'), error.message, true);
+    });
+}, 60000);
+setupProfileImageControls();
+document.querySelector('.profile-section-nav').addEventListener('click', event => {
+    const link = event.target.closest('a[href^="#"]');
+    if (!link) return;
+    const target = document.querySelector(link.getAttribute('href'));
+    const disclosure = target?.closest('details');
+    if (disclosure) disclosure.open = true;
+});
+const initialTarget = window.location.hash
+    ? document.getElementById(window.location.hash.slice(1))
+    : null;
+const initialDisclosure = initialTarget?.closest('details');
+if (initialDisclosure) initialDisclosure.open = true;
+loadPaymentOptions();
+loadTelegramBotLink().catch(error => console.warn('Could not load the Telegram bot link.', error));
 refreshAllBadges();
 </script>
 {% endblock %}

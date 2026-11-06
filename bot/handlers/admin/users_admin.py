@@ -4,10 +4,9 @@
 """Admin handlers for user management."""
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.helpers import escape_markdown
 from telegram.ext import ContextTypes
+from telegram.helpers import escape_markdown
 
-from apps.users.repository import UserRepository
 from apps.users.services import UserService, VendorService
 from core.config import settings
 from core.logger import logger
@@ -275,7 +274,7 @@ async def do_suspend_user(update: Update, context: ContextTypes.DEFAULT_TYPE, us
                 raise ValueError("Administrator accounts cannot be suspended here")
             if user.status == "suspended":
                 raise ValueError(f"User {user_id} is already suspended")
-            updated = await user_service.user_repo.update(user_id, {"status": "suspended"})
+            updated = await user_service.update_user(user_id, {"status": "suspended"})
             if not updated:
                 raise ValueError(f"User {user_id} could not be updated")
         await query.message.edit_text(
@@ -303,7 +302,7 @@ async def do_unsuspend_user(
                 raise ValueError(f"User {user_id} does not exist")
             if user.status != "suspended":
                 raise ValueError(f"User {user_id} is not suspended")
-            updated = await user_service.user_repo.update(user_id, {"status": "active"})
+            updated = await user_service.update_user(user_id, {"status": "active"})
             if not updated:
                 raise ValueError(f"User {user_id} could not be updated")
         await query.message.edit_text(
@@ -324,17 +323,10 @@ async def do_approve_vendor(
     """Approve a vendor by DB vendor ID."""
     query = update.callback_query
     admin_id = update.effective_user.id
-    telegram_id = None
     try:
         async with transaction_session() as db:
             vendor_service = VendorService(db)
-            vendor = await vendor_service.approve_vendor(vendor_id, admin_id)
-            user = await UserRepository(db).get_by_id(vendor.user_id)
-            telegram_id = user.telegram_id if user else None
-        if telegram_id:
-            from bot.handlers.vendor_registration import notify_applicant
-
-            await notify_applicant(context.bot, telegram_id, approved=True)
+            await vendor_service.approve_vendor(vendor_id, admin_id)
         await query.message.edit_text(
             f"✅ ሻጩ (ID: {vendor_id}) ፀድቋል!",
             reply_markup=_users_back_keyboard(),
@@ -351,17 +343,10 @@ async def do_reject_vendor(
 ) -> None:
     """Reject a vendor by DB vendor ID."""
     query = update.callback_query
-    telegram_id = None
     try:
         async with transaction_session() as db:
             vendor_service = VendorService(db)
-            vendor = await vendor_service.reject_vendor(vendor_id, reason="Admin rejection")
-            user = await UserRepository(db).get_by_id(vendor.user_id)
-            telegram_id = user.telegram_id if user else None
-        if telegram_id:
-            from bot.handlers.vendor_registration import notify_applicant
-
-            await notify_applicant(context.bot, telegram_id, approved=False)
+            await vendor_service.reject_vendor(vendor_id, reason="Admin rejection")
         await query.message.edit_text(
             f"❌ ሻጩ (ID: {vendor_id}) ውድቅ ሆኗል።",
             reply_markup=_users_back_keyboard(),

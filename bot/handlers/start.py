@@ -405,7 +405,7 @@ async def onboard_language_callback(update: Update, context: ContextTypes.DEFAUL
     remove_language_keyboard = InlineKeyboardMarkup(
         [], api_kwargs={"inline_keyboard": []}
     )
-    if query.message.photo:
+    if getattr(query.message, "photo", None):
         await query.edit_message_caption(
             caption=ack.get(lang, ack["am"]),
             parse_mode="Markdown",

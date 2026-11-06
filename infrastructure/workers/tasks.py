@@ -199,6 +199,133 @@ def send_telegram_task(self, chat_id: int, message: str) -> bool:
         return False
 
 
+@celery_app.task(name="send_lifecycle_notification", bind=True, max_retries=5)
+def send_lifecycle_notification_task(
+    self,
+    event_name: str,
+    event_data: dict[str, Any],
+) -> bool:
+    """Deliver a domain-event notification after its transaction has committed."""
+    try:
+        from infrastructure.notifications.lifecycle import dispatch_lifecycle_notification
+
+        _run_async(dispatch_lifecycle_notification(event_name, event_data))
+        return True
+    except Exception as exc:
+        logger.exception("Lifecycle notification task failed for %s", event_name)
+        raise self.retry(
+            exc=exc,
+            countdown=min(300, 15 * (2**self.request.retries)),
+        ) from exc
+
+
+@celery_app.task(name="send_user_broadcast", bind=True, max_retries=3)
+def send_user_broadcast_task(self, broadcast_type: str, message: str) -> dict[str, int]:
+    """Deliver an approved user broadcast outside the Telegram update handler."""
+    try:
+        return _run_async(_dispatch_user_broadcast(broadcast_type, message))
+    except Exception as exc:
+        logger.exception("Broadcast delivery failed")
+        raise self.retry(exc=exc, countdown=30) from exc
+
+
+@celery_app.task(name="send_vendor_application_review", bind=True, max_retries=5)
+def send_vendor_application_review_task(self, vendor_id: int) -> bool:
+    """Send the vendor application and license document to admins asynchronously."""
+    try:
+        return _run_async(_dispatch_vendor_application_review(vendor_id))
+    except Exception as exc:
+        logger.exception("Vendor application notification failed for vendor %s", vendor_id)
+        raise self.retry(exc=exc, countdown=min(300, 15 * (2**self.request.retries))) from exc
+
+
+async def _dispatch_vendor_application_review(vendor_id: int) -> bool:
+    from telegram import Bot
+
+    from apps.users.models import User, Vendor
+    from bot.handlers.vendor_registration import notify_admins
+    from core.config import settings
+    from infrastructure.database.session import transaction_session
+
+    async with transaction_session() as db:
+        vendor = await db.get(Vendor, vendor_id)
+        if vendor is None:
+            raise LookupError(f"Vendor application {vendor_id} is not available")
+        user = await db.get(User, vendor.user_id)
+        if user is None:
+            raise LookupError(f"Vendor applicant for application {vendor_id} is not available")
+        applicant = user.full_name
+        username = user.username
+        telegram_id = user.telegram_id
+        application = {
+            "business_name": vendor.business_name,
+            "business_license": vendor.business_license or "",
+            "tin_number": vendor.tin_number or "",
+            "license_document_type": vendor.license_document_type or "document",
+            "license_document_file_id": vendor.license_document_file_id,
+            "business_category": vendor.business_category or "",
+            "business_address": vendor.business_address or "",
+            "region": vendor.region or "",
+            "city": vendor.city or "",
+            "subcity": vendor.subcity or "",
+            "specific_location": vendor.specific_location or "",
+            "maps_link": vendor.maps_link,
+            "business_phone": vendor.business_phone or "",
+            "bank_name": vendor.bank_name or "",
+            "bank_account_name": vendor.bank_account_name or "",
+            "bank_account_number": vendor.bank_account_number or "",
+        }
+    async with Bot(token=settings.TELEGRAM_BOT_TOKEN) as bot:
+        delivered = await notify_admins(
+            bot,
+            vendor_id=vendor_id,
+            applicant=applicant,
+            telegram_username=username,
+            telegram_id=telegram_id,
+            application=application,
+        )
+    if not delivered:
+        raise RuntimeError("No administrators received the vendor application")
+    return True
+
+
+async def _dispatch_user_broadcast(broadcast_type: str, message: str) -> dict[str, int]:
+    """Resolve eligible users and send a rate-limited Telegram broadcast."""
+    from datetime import datetime, timedelta
+
+    from apps.users.services import UserService
+    from infrastructure.database.session import get_db_session
+    from infrastructure.notifications.telegram_notifier import TelegramNotifier
+
+    users = []
+    async for db in get_db_session():
+        user_service = UserService(db)
+        if broadcast_type == "all":
+            users = await user_service.user_repo.get_all(filters={"is_active": True})
+        elif broadcast_type == "active":
+            users = await user_service.user_repo.get_active_users(limit=10000)
+        elif broadcast_type == "new":
+            cutoff = datetime.utcnow() - timedelta(days=30)
+            users = await user_service.user_repo.get_all(filters={"created_at__gte": cutoff})
+        elif broadcast_type == "vendors":
+            users = await user_service.user_repo.get_all(
+                filters={"role": "vendor", "is_active": True}
+            )
+        break
+
+    telegram_ids = list(
+        dict.fromkeys(user.telegram_id for user in users if getattr(user, "telegram_id", None))
+    )
+    result = await TelegramNotifier().broadcast_to_users(telegram_ids, message)
+    logger.info(
+        "User broadcast completed: type=%s sent=%s failed=%s",
+        broadcast_type,
+        result["success"],
+        result["failed"],
+    )
+    return result
+
+
 # ============================
 # Payment Tasks
 # ============================

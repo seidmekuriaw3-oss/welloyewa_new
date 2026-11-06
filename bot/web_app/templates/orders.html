@@ -18,17 +18,17 @@
 <script>
 const STATUS_ICONS  = { pending:'⏳', confirmed:'✅', processing:'⚙️', shipped:'🚚', delivered:'📬', cancelled:'❌', refunded:'↩️' };
 const STATUS_AM     = { pending:'በጥበቃ ላይ', confirmed:'ተረጋግጧል', processing:'በሂደት ላይ', shipped:'ተልኳል', delivered:'ደርሷል', cancelled:'ተሰርዟል', refunded:'ተመልሷል' };
+const STATUS_EN     = { pending:'Pending', confirmed:'Confirmed', processing:'Processing', shipped:'Shipped', delivered:'Delivered', cancelled:'Cancelled', refunded:'Refunded' };
+let previousOrderStatuses = null;
 
 async function loadOrders() {
-    const tg = window.Telegram && window.Telegram.WebApp;
-    const init_data = tg ? tg.initData : '';
     const el = document.getElementById('ordersList');
     try {
-        const res = await fetch('/app/api/my-orders', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ init_data }),
-        });
+    const res = await authenticatedFetch('/app/api/my-orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+    });
         const data = await res.json();
         if (!res.ok) {
             el.innerHTML = `
@@ -39,6 +39,21 @@ async function loadOrders() {
             return;
         }
         const orders = data.orders || [];
+        const currentStatuses = new Map(
+            orders.map(order => [String(order.id), String(order.status || '').toLowerCase()])
+        );
+        if (previousOrderStatuses) {
+            orders.forEach(order => {
+                const id = String(order.id);
+                const current = currentStatuses.get(id);
+                const previous = previousOrderStatuses.get(id);
+                if (previous && current && previous !== current) {
+                    const labels = document.documentElement.lang.startsWith('am') ? STATUS_AM : STATUS_EN;
+                    showToast(`Order #${he(order.order_number)}: ${he(labels[current] || current)}`);
+                }
+            });
+        }
+        previousOrderStatuses = currentStatuses;
         if (!orders.length) {
             el.innerHTML = `
                 <div style="text-align:center;padding:56px 16px;color:var(--text-muted)">
@@ -65,7 +80,7 @@ async function loadOrders() {
                     <div class="order-right">
                         <div class="order-total">ETB ${Number(o.total).toLocaleString()}</div>
                         <span style="font-size:12px;background:var(--primary-light);color:var(--primary);border-radius:999px;padding:3px 10px;font-weight:600">
-                            ${icon} ${statusAm}
+                            ${icon} ${he(statusAm)}
                         </span>
                     </div>
                 </div>
@@ -80,5 +95,11 @@ async function loadOrders() {
 
 loadOrders();
 refreshAllBadges();
+window.setInterval(() => {
+    if (!document.hidden) loadOrders();
+}, 30000);
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadOrders();
+});
 </script>
 {% endblock %}

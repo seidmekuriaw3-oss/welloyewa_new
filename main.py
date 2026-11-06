@@ -64,6 +64,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             import apps.marketing.models
             import apps.orders.models
             import apps.products.models
+            import apps.store_settings.models
             import apps.support.models
             import apps.users.models  # noqa: F401
             from infrastructure.database.base import Base
@@ -81,6 +82,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.error("Database initialization failed (%s); refusing to start", type(e).__name__)
         raise RuntimeError("Database initialization failed; refusing to start") from e
+
+    try:
+        from core.events import event_bus
+        from infrastructure.notifications.lifecycle import register_notification_handlers
+
+        register_notification_handlers()
+        await event_bus.start()
+        logger.info("Lifecycle notification event dispatch started")
+    except Exception as e:
+        logger.warning("Notification event dispatch could not start (%s)", type(e).__name__)
 
     # Redis is optional in local development, but production rate limits must be shared.
     try:
@@ -190,6 +201,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Shutdown
     logger.info("Shutting down application...")
+
+    try:
+        from core.events import event_bus
+
+        await event_bus.wait_for_empty(timeout=5)
+        await event_bus.stop()
+    except Exception as e:
+        logger.warning("Notification event dispatch shutdown failed (%s)", type(e).__name__)
 
     if application_instance:
         try:

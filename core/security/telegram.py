@@ -10,11 +10,16 @@ from typing import Any
 
 def verify_telegram_init_data(init_data: str, bot_token: str) -> dict[str, Any] | None:
     """Verify signed Telegram Mini App data and reject missing or stale timestamps."""
-    if not init_data or not bot_token:
+    if not init_data or not bot_token or len(init_data) > 8192:
         return None
 
     try:
-        params = dict(urllib.parse.parse_qsl(init_data, strict_parsing=True))
+        pairs = urllib.parse.parse_qsl(init_data, strict_parsing=True, max_num_fields=100)
+        params: dict[str, str] = {}
+        for key, value in pairs:
+            if key in params:
+                return None
+            params[key] = value
         received_hash = params.pop("hash", None)
         auth_date = int(params["auth_date"])
     except (KeyError, TypeError, ValueError):
@@ -35,4 +40,11 @@ def verify_telegram_init_data(init_data: str, bot_token: str) -> dict[str, Any] 
         user = json.loads(params["user"])
     except (KeyError, TypeError, ValueError):
         return None
-    return user if isinstance(user, dict) else None
+    if (
+        not isinstance(user, dict)
+        or isinstance(user.get("id"), bool)
+        or not isinstance(user.get("id"), int)
+        or user["id"] <= 0
+    ):
+        return None
+    return user

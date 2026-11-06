@@ -16,14 +16,16 @@ from apps.orders.schemas import OrderCreate, OrderStatusUpdate
 from apps.products.services import ProductService
 from apps.users.repository import UserRepository
 from apps.users.services import UserService
-from core.constants import ProductStatus
-from core.constants import OrderStatus, PaymentStatus
+from core.constants import OrderStatus, PaymentStatus, ProductStatus
 from core.events import (
     ORDER_CANCELLED,
     ORDER_CONFIRMED,
     ORDER_CREATED,
     ORDER_DELIVERED,
+    ORDER_PROCESSING,
     ORDER_SHIPPED,
+    PAYMENT_COMPLETED,
+    PAYMENT_FAILED,
     emit_event,
 )
 from core.exceptions import (
@@ -48,7 +50,13 @@ class OrderService:
         self.inventory_service = InventoryService(db)
         self.user_service = UserService(db)
 
-    async def create_order(self, user_id: int, data: OrderCreate) -> Order:
+    async def create_order(
+        self,
+        user_id: int,
+        data: OrderCreate,
+        *,
+        coupon_code: str | None = None,
+    ) -> Order:
         """
         Create a new order.
 
@@ -59,6 +67,10 @@ class OrderService:
         Returns:
             Created order
         """
+        from apps.store_settings.checkout import validate_checkout_availability
+
+        await validate_checkout_availability(self.db, data.payment_method.value)
+
         # Get user
         user = await self.user_service.get_user(user_id)
         if not user:
@@ -67,6 +79,7 @@ class OrderService:
         # Calculate totals from items
         subtotal = Decimal("0")
         items_data = []
+        discount_items = []
         vendor_ids = set()
 
         for item in data.items:
@@ -94,6 +107,13 @@ class OrderService:
                     "quantity": item.quantity,
                     "unit_price": product.price,
                     "total_price": item_total,
+                }
+            )
+            discount_items.append(
+                {
+                    "product_id": item.product_id,
+                    "category_id": product.category_id,
+                    "amount": item_total,
                 }
             )
 
@@ -145,6 +165,22 @@ class OrderService:
                     product.stock_quantity,
                 )
 
+        if coupon_code:
+            from apps.marketing.coupons import CouponManager
+
+            discount_amount = await CouponManager(self.db).apply_coupon(
+                coupon_code,
+                user_id,
+                order.id,
+                subtotal,
+                eligible_items=discount_items,
+            )
+            order = await self.order_repo.update(
+                order.id,
+                {"discount": discount_amount, "total": total - discount_amount},
+                partial=False,
+            )
+
         # Add order history
         await self._add_history(order.id, None, OrderStatus.PENDING.value, user_id, "Order created")
 
@@ -155,7 +191,7 @@ class OrderService:
                 "order_id": order.id,
                 "order_number": order.order_number,
                 "user_id": user_id,
-                "total": float(total),
+                "total": float(order.total),
             },
             sync=False,
         )
@@ -226,6 +262,8 @@ class OrderService:
         # Emit event based on new status
         if data.status == OrderStatus.CONFIRMED.value:
             await emit_event(ORDER_CONFIRMED, {"order_id": order_id})
+        elif data.status == OrderStatus.PROCESSING.value:
+            await emit_event(ORDER_PROCESSING, {"order_id": order_id})
         elif data.status == OrderStatus.SHIPPED.value:
             await emit_event(ORDER_SHIPPED, {"order_id": order_id})
         elif data.status == OrderStatus.DELIVERED.value:
@@ -256,6 +294,23 @@ class OrderService:
 
         order = await self.order_repo.update(order_id, update_data)
 
+        if payment_status == PaymentStatus.PAID.value:
+            await emit_event(
+                PAYMENT_COMPLETED,
+                {
+                    "order_id": order_id,
+                    "transaction_id": transaction_id,
+                },
+            )
+        elif payment_status == PaymentStatus.FAILED.value:
+            await emit_event(
+                PAYMENT_FAILED,
+                {
+                    "order_id": order_id,
+                    "transaction_id": transaction_id,
+                },
+            )
+
         logger.info(f"Order {order.order_number} payment status: {payment_status}")
         return order
 
@@ -284,6 +339,7 @@ class OrderService:
     ) -> Order:
         """Update only this vendor's items in a shared customer order."""
         order = await self.get_order(order_id)
+        previous_order_status = order.status
         items = await self.order_item_repo.get_by_order(order_id)
         vendor_items = [item for item in items if item.vendor_id == vendor_id]
         if not vendor_items:
@@ -311,6 +367,25 @@ class OrderService:
         elif all_statuses == {OrderStatus.CANCELLED.value}:
             order.status = OrderStatus.CANCELLED.value
         await self.db.flush()
+        if order.status != previous_order_status:
+            event_by_status = {
+                OrderStatus.CONFIRMED.value: ORDER_CONFIRMED,
+                OrderStatus.PROCESSING.value: ORDER_PROCESSING,
+                OrderStatus.SHIPPED.value: ORDER_SHIPPED,
+                OrderStatus.DELIVERED.value: ORDER_DELIVERED,
+                OrderStatus.CANCELLED.value: ORDER_CANCELLED,
+            }
+            event_name = event_by_status.get(
+                str(getattr(order.status, "value", order.status))
+            )
+            if event_name:
+                await emit_event(
+                    event_name,
+                    {
+                        "order_id": order.id,
+                        "user_id": order.user_id,
+                    },
+                )
         return order
 
     async def cancel_order(self, order_id: int, user_id: int, reason: str | None = None) -> Order:

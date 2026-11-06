@@ -6,12 +6,14 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes, ConversationHandler
 
+from apps.products.schemas import ReviewCreate
+from apps.products.services import ReviewService
 from apps.support.services import TicketService
 from apps.users.services import UserService
 from bot.handlers.callback_utils import answer_callback_query
 from bot.handlers.text_routing import mark_text_message_handled
 from bot.localization import tr
-from core.exceptions import NotFoundError
+from core.exceptions import NotFoundError, ValidationError
 from core.logger import logger
 from infrastructure.database.session import transaction_session
 
@@ -25,6 +27,7 @@ async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     Starts the feedback conversation.
     """
+    context.user_data.pop("product_review_id", None)
     await update.effective_message.reply_text(
         tr(context, "feedback_thanks"), parse_mode="Markdown"
     )
@@ -60,6 +63,14 @@ async def start_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not await answer_callback_query(query):
         return ConversationHandler.END
 
+    context.user_data.pop("product_review_id", None)
+    if query.data.startswith("review_"):
+        raw_product_id = query.data.removeprefix("review_")
+        if not raw_product_id.isdecimal() or int(raw_product_id) < 1:
+            await query.message.reply_text(tr(context, "web_commerce_review_product_not_found"))
+            return ConversationHandler.END
+        context.user_data["product_review_id"] = int(raw_product_id)
+
     # Show rating buttons
     keyboard = [
         [
@@ -74,7 +85,11 @@ async def start_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    rating_prompt = tr(context, "feedback_rate_prompt")
+    rating_prompt = (
+        tr(context, "web_commerce_review_rating_prompt")
+        if context.user_data.get("product_review_id")
+        else tr(context, "feedback_rate_prompt")
+    )
     if query.message.text is not None:
         await query.message.edit_text(
             rating_prompt, parse_mode="Markdown", reply_markup=reply_markup
@@ -103,6 +118,8 @@ async def rating_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return WAITING_RATING
 
     if query.data == "feedback_cancel":
+        context.user_data.pop("product_review_id", None)
+        context.user_data.pop("feedback_rating", None)
         await query.message.edit_text(tr(context, "feedback_cancelled"))
         return ConversationHandler.END
 
@@ -114,9 +131,13 @@ async def rating_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     context.user_data["feedback_rating"] = rating
 
     # Show rating feedback
+    message_prompt = (
+        tr(context, "web_commerce_review_comment_prompt")
+        if context.user_data.get("product_review_id")
+        else tr(context, "feedback_message_prompt")
+    )
     await query.message.edit_text(
-        f"{tr(context, f'feedback_rating_{rating}')}\n\n"
-        f"{tr(context, 'feedback_message_prompt')}",
+        f"{tr(context, f'feedback_rating_{rating}')}\n\n{message_prompt}",
         parse_mode="Markdown",
     )
 
@@ -138,6 +159,54 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     message_text = update.effective_message.text
     rating = context.user_data.get("feedback_rating", 0)
     telegram_id = update.effective_user.id
+    product_review_id = context.user_data.get("product_review_id")
+
+    if product_review_id is not None:
+        review_comment = message_text.strip()
+        if len(review_comment) > 2000:
+            await update.effective_message.reply_text(
+                tr(context, "web_commerce_review_comment_too_long")
+            )
+            return WAITING_MESSAGE
+        try:
+            async with transaction_session() as db:
+                user = await UserService(db).get_user_by_telegram(telegram_id)
+                user_status = getattr(user, "status", "active") if user else None
+                if (
+                    not user
+                    or getattr(user_status, "value", user_status) != "active"
+                    or getattr(user, "is_deleted", False)
+                ):
+                    await update.effective_message.reply_text(
+                        tr(context, "web_commerce_review_login")
+                    )
+                    return ConversationHandler.END
+                await ReviewService(db).create_review(
+                    user_id=user.id,
+                    product_id=product_review_id,
+                    data=ReviewCreate(rating=rating, comment=review_comment),
+                )
+        except NotFoundError:
+            await update.effective_message.reply_text(
+                tr(context, "web_commerce_review_product_not_found")
+            )
+        except ValidationError:
+            await update.effective_message.reply_text(
+                tr(context, "web_commerce_review_submission_error")
+            )
+        else:
+            logger.info(
+                "Product review submitted by Telegram user %s for product %s",
+                telegram_id,
+                product_review_id,
+            )
+            await update.effective_message.reply_text(
+                tr(context, "web_commerce_review_submitted")
+            )
+        finally:
+            context.user_data.pop("product_review_id", None)
+            context.user_data.pop("feedback_rating", None)
+        return ConversationHandler.END
 
     # Create support ticket for feedback
     async with transaction_session() as db:

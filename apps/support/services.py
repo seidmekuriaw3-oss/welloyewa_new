@@ -18,6 +18,12 @@ from apps.support.schemas import (
     TicketUpdate,
 )
 from apps.users.services import UserService
+from core.events import (
+    TICKET_CREATED,
+    TICKET_MESSAGE_ADDED,
+    TICKET_STATUS_CHANGED,
+    emit_event,
+)
 from core.exceptions import NotFoundError, PermissionError, ValidationError
 from core.logger import logger
 from core.utils.string_utils import generate_random_string
@@ -62,6 +68,15 @@ class TicketService:
             }
         )
 
+        await emit_event(
+            TICKET_CREATED,
+            {
+                "ticket_id": ticket.id,
+                "ticket_number": ticket.ticket_number,
+                "user_id": user_id,
+                "subject": ticket.subject,
+            },
+        )
         logger.info(f"Ticket created: {ticket_number} by user {user_id}")
         return ticket
 
@@ -104,6 +119,17 @@ class TicketService:
             return ticket
 
         updated = await self.ticket_repo.update(ticket_id, update_data)
+        if "status" in update_data and ticket.status != updated.status:
+            await emit_event(
+                TICKET_STATUS_CHANGED,
+                {
+                    "ticket_id": ticket.id,
+                    "ticket_number": ticket.ticket_number,
+                    "user_id": ticket.user_id,
+                    "status": updated.status,
+                    "resolution_note": getattr(updated, "resolution_note", None),
+                },
+            )
         logger.info(f"Ticket {ticket.ticket_number} updated")
         return updated
 
@@ -115,7 +141,16 @@ class TicketService:
 
         # Update ticket status if closed
         if ticket.status == "closed":
-            await self.ticket_repo.update(ticket_id, {"status": "open"})
+            reopened = await self.ticket_repo.update(ticket_id, {"status": "open"})
+            await emit_event(
+                TICKET_STATUS_CHANGED,
+                {
+                    "ticket_id": ticket.id,
+                    "ticket_number": ticket.ticket_number,
+                    "user_id": ticket.user_id,
+                    "status": reopened.status,
+                },
+            )
 
         message = await self.message_repo.create(
             {
@@ -127,6 +162,17 @@ class TicketService:
             }
         )
 
+        await emit_event(
+            TICKET_MESSAGE_ADDED,
+            {
+                "ticket_id": ticket.id,
+                "ticket_number": ticket.ticket_number,
+                "user_id": ticket.user_id,
+                "message_id": message.id,
+                "sender_id": user_id,
+                "is_staff_reply": is_staff,
+            },
+        )
         logger.info(f"Message added to ticket {ticket.ticket_number} by user {user_id}")
         return message
 
@@ -142,6 +188,15 @@ class TicketService:
             },
         )
 
+        await emit_event(
+            TICKET_STATUS_CHANGED,
+            {
+                "ticket_id": ticket.id,
+                "ticket_number": ticket.ticket_number,
+                "user_id": ticket.user_id,
+                "status": updated.status,
+            },
+        )
         logger.info(
             f"Ticket {ticket.ticket_number} assigned to agent {assigned_to} by admin {admin_id}"
         )
@@ -162,6 +217,16 @@ class TicketService:
             },
         )
 
+        await emit_event(
+            TICKET_STATUS_CHANGED,
+            {
+                "ticket_id": ticket.id,
+                "ticket_number": ticket.ticket_number,
+                "user_id": ticket.user_id,
+                "status": updated.status,
+                "resolution_note": updated.resolution_note,
+            },
+        )
         logger.info(f"Ticket {ticket.ticket_number} resolved by {resolved_by}")
         return updated
 
@@ -181,6 +246,15 @@ class TicketService:
             },
         )
 
+        await emit_event(
+            TICKET_STATUS_CHANGED,
+            {
+                "ticket_id": ticket.id,
+                "ticket_number": ticket.ticket_number,
+                "user_id": ticket.user_id,
+                "status": updated.status,
+            },
+        )
         logger.info(f"Ticket {ticket.ticket_number} closed by {closed_by}")
         return updated
 
@@ -200,6 +274,15 @@ class TicketService:
             },
         )
 
+        await emit_event(
+            TICKET_STATUS_CHANGED,
+            {
+                "ticket_id": ticket.id,
+                "ticket_number": ticket.ticket_number,
+                "user_id": ticket.user_id,
+                "status": updated.status,
+            },
+        )
         logger.info(f"Ticket {ticket.ticket_number} reopened by user {user_id}")
         return updated
 

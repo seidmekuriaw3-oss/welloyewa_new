@@ -12,6 +12,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.marketing.models import Coupon
 from apps.marketing.repository import CouponRepository, CouponUsageRepository
 from apps.orders.models import Order
 from core.exceptions import NotFoundError, ValidationError
@@ -69,6 +70,8 @@ class CouponManager:
         user_id: int,
         order_amount: Decimal,
         user_order_count: int = 0,
+        eligible_items: list[dict[str, Any]] | None = None,
+        user_usage_count: int | None = None,
     ) -> dict[str, Any]:
         """
         Validate a coupon for use.
@@ -116,7 +119,7 @@ class CouponManager:
             }
 
         # Check usage limit
-        if coupon.usage_limit and coupon.used_count >= coupon.usage_limit:
+        if coupon.usage_limit is not None and coupon.used_count >= coupon.usage_limit:
             return {
                 "is_valid": False,
                 "message": "Coupon has reached its usage limit",
@@ -124,8 +127,12 @@ class CouponManager:
             }
 
         # Check per-user limit
-        if coupon.per_user_limit:
-            user_usage = await self.usage_repo.get_usage_count(coupon.id, user_id)
+        if coupon.per_user_limit is not None:
+            user_usage = (
+                user_usage_count
+                if user_usage_count is not None
+                else await self.usage_repo.get_usage_count(coupon.id, user_id)
+            )
             if user_usage >= coupon.per_user_limit:
                 return {
                     "is_valid": False,
@@ -157,8 +164,20 @@ class CouponManager:
                 "discount_amount": Decimal("0"),
             }
 
-        # Calculate discount
-        discount_amount = coupon.calculate_discount(order_amount)
+        eligible_amount = self._eligible_amount(coupon, order_amount, eligible_items)
+        if eligible_amount <= 0:
+            return {
+                "is_valid": False,
+                "message": "This coupon does not apply to the items in your cart",
+                "discount_amount": Decimal("0"),
+            }
+        discount_amount = coupon.calculate_discount(eligible_amount)
+        if discount_amount <= 0:
+            return {
+                "is_valid": False,
+                "message": "This coupon does not apply to the items in your cart",
+                "discount_amount": Decimal("0"),
+            }
 
         return {
             "is_valid": True,
@@ -167,12 +186,42 @@ class CouponManager:
             "coupon": coupon,
         }
 
+    @staticmethod
+    def _eligible_amount(
+        coupon,
+        order_amount: Decimal,
+        items: list[dict[str, Any]] | None,
+    ) -> Decimal:
+        products = {int(value) for value in (coupon.applicable_products or [])}
+        categories = {str(value) for value in (coupon.applicable_categories or [])}
+        excluded_products = {int(value) for value in (coupon.excluded_products or [])}
+        excluded_categories = {str(value) for value in (coupon.excluded_categories or [])}
+        if not any((products, categories, excluded_products, excluded_categories)):
+            return order_amount
+        if items is None:
+            return Decimal("0")
+
+        eligible = Decimal("0")
+        for item in items:
+            product_id = int(item["product_id"])
+            category_id = item.get("category_id")
+            category_key = str(category_id) if category_id is not None else ""
+            if product_id in excluded_products or category_key in excluded_categories:
+                continue
+            included = not products and not categories
+            if product_id in products or category_key in categories:
+                included = True
+            if included:
+                eligible += Decimal(str(item["amount"]))
+        return eligible
+
     async def apply_coupon(
         self,
         code: str,
         user_id: int,
         order_id: int,
         order_amount: Decimal,
+        eligible_items: list[dict[str, Any]] | None = None,
     ) -> Decimal:
         """
         Apply a coupon to an order.
@@ -186,14 +235,21 @@ class CouponManager:
         Returns:
             Discount amount applied
         """
+        coupon = await self.db.scalar(
+            select(Coupon).where(Coupon.code == code.upper()).with_for_update()
+        )
         user_order_count = await self.db.scalar(
-            select(func.count(Order.id)).where(Order.user_id == user_id)
+            select(func.count(Order.id)).where(
+                Order.user_id == user_id,
+                Order.id != order_id,
+            )
         )
         validation = await self.validate_coupon(
             code,
             user_id,
             order_amount,
             user_order_count=user_order_count or 0,
+            eligible_items=eligible_items,
         )
 
         if not validation["is_valid"]:
@@ -215,7 +271,7 @@ class CouponManager:
 
         # Update coupon usage count
         coupon.use()
-        await self.coupon_repo.update(coupon.id, {"used_count": coupon.used_count})
+        await self.db.flush()
 
         logger.info(
             f"Coupon {code} applied to order {order_id} for user {user_id}. Discount: {discount_amount}"

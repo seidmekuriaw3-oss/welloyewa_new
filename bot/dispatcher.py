@@ -332,6 +332,32 @@ def setup_dispatcher(application: Application) -> Application:
                     conversation_navigation.invalid_conversation_input,
                 ),
             ],
+            checkout.SELECT_COUPON: [
+                CallbackQueryHandler(
+                    conversation_navigation.cancel_to_menu,
+                    pattern=conversation_navigation.MENU_BACK_CALLBACK,
+                ),
+                MessageHandler(
+                    conversation_navigation.CANCEL_TEXT_FILTER,
+                    conversation_navigation.cancel_to_menu,
+                ),
+                MessageHandler(
+                    main_reply_filter,
+                    conversation_navigation.cancel_to_menu,
+                ),
+                CallbackQueryHandler(
+                    checkout.coupon_skip_callback,
+                    pattern="^checkout_coupon_skip$",
+                ),
+                MessageHandler(
+                    non_text_message_filter,
+                    conversation_navigation.invalid_conversation_input,
+                ),
+                MessageHandler(
+                    text_message_filter,
+                    checkout.coupon_message_handler,
+                ),
+            ],
             checkout.SELECT_PAYMENT: [
                 CallbackQueryHandler(
                     conversation_navigation.cancel_to_menu,

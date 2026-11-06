@@ -22,8 +22,10 @@ from apps.products.schemas import (
 )
 from core.constants import ProductStatus
 from core.events import (
+    PRODUCT_APPROVED,
     PRODUCT_CREATED,
     PRODUCT_DELETED,
+    PRODUCT_REJECTED,
     PRODUCT_STOCK_LOW,
     PRODUCT_UPDATED,
     emit_event,
@@ -58,6 +60,8 @@ class ProductService:
 
         Returns:
             Created product
+
+        Vendor submissions are always held for admin review before publication.
         """
         vendor_allowed_statuses = {ProductStatus.DRAFT, ProductStatus.PENDING}
         if not admin_approved and data.status not in vendor_allowed_statuses:
@@ -76,8 +80,10 @@ class ProductService:
             data.slug = slug
 
         # Create product
-        product_data = data.dict()
+        product_data = data.model_dump()
         product_data["vendor_id"] = vendor_id
+        if not admin_approved:
+            product_data["status"] = ProductStatus.PENDING
         if data.category_id is not None:
             if not await self.category_repo.get_by_id(data.category_id):
                 raise NotFoundError("Category", data.category_id)
@@ -100,12 +106,53 @@ class ProductService:
                 "vendor_id": vendor_id,
                 "name": product.name,
                 "price": float(product.price),
+                "status": str(getattr(product.status, "value", product.status)),
             },
             sync=False,
         )
 
         logger.info(f"Product created: {product.id} by vendor {vendor_id}")
         return product
+
+    async def review_product(
+        self,
+        product_id: int,
+        *,
+        approved: bool,
+        reason: str | None = None,
+    ) -> Product:
+        """Approve or reject a pending product and emit its lifecycle event."""
+        product = await self.get_product(product_id)
+        current_status = str(getattr(product.status, "value", product.status))
+        if current_status != ProductStatus.PENDING.value:
+            raise ValidationError("Only pending products can be reviewed")
+
+        status = ProductStatus.ACTIVE if approved else ProductStatus.REJECTED
+        updated = await self.product_repo.update(
+            product_id,
+            {"status": status},
+            partial=False,
+        )
+        if updated is None:
+            raise NotFoundError("Product", product_id)
+
+        event_name = PRODUCT_APPROVED if approved else PRODUCT_REJECTED
+        event_data = {
+            "product_id": product_id,
+            "vendor_id": updated.vendor_id,
+        }
+        if reason:
+            event_data["reason"] = reason.strip()
+        await emit_event(event_name, event_data, sync=False)
+        if updated.category_id is not None:
+            await self.category_repo.update_product_count(updated.category_id)
+
+        logger.info(
+            "Product %s %s by admin review",
+            product_id,
+            "approved" if approved else "rejected",
+        )
+        return updated
 
     async def get_product(self, product_id: int) -> Product:
         """Get product by ID."""
@@ -188,6 +235,7 @@ class ProductService:
             update_data["slug"] = slug
 
         previous_category_id = product.category_id
+        previous_status = str(getattr(product.status, "value", product.status))
         # Update product
         updated = await self.product_repo.update(product_id, update_data, partial=False)
         if updated is None:
@@ -231,6 +279,18 @@ class ProductService:
             },
             sync=False,
         )
+        current_status = str(getattr(updated.status, "value", updated.status))
+        if current_status != previous_status:
+            if current_status == ProductStatus.ACTIVE.value:
+                await emit_event(
+                    PRODUCT_APPROVED,
+                    {"product_id": product_id, "vendor_id": updated.vendor_id},
+                )
+            elif current_status == ProductStatus.REJECTED.value:
+                await emit_event(
+                    PRODUCT_REJECTED,
+                    {"product_id": product_id, "vendor_id": updated.vendor_id},
+                )
 
         logger.info(f"Product updated: {product_id}")
         if previous_category_id != updated.category_id:

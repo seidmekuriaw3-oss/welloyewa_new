@@ -269,6 +269,8 @@ PAYMENT_REFUNDED = "payment.refunded"
 PRODUCT_CREATED = "product.created"
 PRODUCT_UPDATED = "product.updated"
 PRODUCT_DELETED = "product.deleted"
+PRODUCT_APPROVED = "product.approved"
+PRODUCT_REJECTED = "product.rejected"
 PRODUCT_STOCK_LOW = "product.stock_low"
 PRODUCT_STOCK_OUT = "product.stock_out"
 PRODUCT_RESTOCKED = "product.restocked"
@@ -279,57 +281,14 @@ VENDOR_APPROVED = "vendor.approved"
 VENDOR_REJECTED = "vendor.rejected"
 VENDOR_SUSPENDED = "vendor.suspended"
 
+# Support Events
+TICKET_CREATED = "support.ticket_created"
+TICKET_STATUS_CHANGED = "support.ticket_status_changed"
+TICKET_MESSAGE_ADDED = "support.ticket_message_added"
+
 # Notification Events
 NOTIFICATION_SENT = "notification.sent"
 NOTIFICATION_FAILED = "notification.failed"
-
-
-# ============================
-# Example Event Handlers
-# ============================
-
-
-@event_listener(ORDER_CREATED, priority=EventPriority.HIGH)
-async def on_order_created(event: Event) -> None:
-    """Handle order created event."""
-    order_id = event.data.get("order_id")
-    user_id = event.data.get("user_id")
-
-    logger.info(f"Order {order_id} created for user {user_id}")
-
-    # Send confirmation notification
-    from infrastructure.notifications.telegram_notifier import send_order_confirmation
-
-    await send_order_confirmation(order_id, user_id)
-
-
-@event_listener(PAYMENT_COMPLETED, priority=EventPriority.CRITICAL)
-async def on_payment_completed(event: Event) -> None:
-    """Handle payment completed event."""
-    order_id = event.data.get("order_id")
-    transaction_id = event.data.get("transaction_id")
-
-    logger.info(f"Payment completed for order {order_id}, transaction: {transaction_id}")
-
-    # Update order status
-    from apps.orders.services import OrderService
-
-    await OrderService.confirm_order(order_id)
-
-
-@event_listener(PRODUCT_STOCK_LOW)
-async def on_product_stock_low(event: Event) -> None:
-    """Handle low stock event."""
-    product_id = event.data.get("product_id")
-    current_stock = event.data.get("current_stock")
-    threshold = event.data.get("threshold")
-
-    logger.warning(f"Product {product_id} has low stock: {current_stock} (threshold: {threshold})")
-
-    # Notify vendor
-    from infrastructure.notifications.email_service import send_low_stock_alert
-
-    await send_low_stock_alert(product_id, current_stock)
 
 
 # ============================
@@ -381,12 +340,17 @@ __all__ = [
     "PAYMENT_FAILED",
     "PAYMENT_INITIATED",
     "PAYMENT_REFUNDED",
+    "PRODUCT_APPROVED",
     "PRODUCT_CREATED",
     "PRODUCT_DELETED",
+    "PRODUCT_REJECTED",
     "PRODUCT_RESTOCKED",
     "PRODUCT_STOCK_LOW",
     "PRODUCT_STOCK_OUT",
     "PRODUCT_UPDATED",
+    "TICKET_CREATED",
+    "TICKET_MESSAGE_ADDED",
+    "TICKET_STATUS_CHANGED",
     "USER_DELETED",
     "USER_LOGIN",
     "USER_LOGOUT",

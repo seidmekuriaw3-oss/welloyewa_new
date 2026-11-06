@@ -5,6 +5,7 @@
 
 from decimal import Decimal
 
+from sqlalchemy import func, select
 from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -16,9 +17,12 @@ from telegram import (
 from telegram.ext import ContextTypes, ConversationHandler
 from telegram.helpers import escape_markdown
 
+from apps.marketing.coupons import CouponManager
+from apps.orders.models import Order
 from apps.orders.schemas import OrderCreate, OrderItemCreate
 from apps.orders.services import OrderService
 from apps.products.services import ProductService
+from apps.store_settings.checkout import get_checkout_availability
 from apps.users.models import UserAddress
 from apps.users.services import UserService
 from bot.handlers.callback_utils import answer_callback_query
@@ -28,6 +32,7 @@ from bot.handlers.text_routing import mark_text_message_handled
 from bot.keyboards.reply import main_reply_keyboard
 from bot.localization import get_language, tr
 from core.constants import PaymentStatus
+from core.exceptions import ValidationError
 from core.logger import logger
 from core.utils.currency import format_etb
 from core.utils.location import format_delivery_address
@@ -38,6 +43,7 @@ from infrastructure.payments.factory import process_payment
 # Conversation states
 SELECT_ADDRESS, SELECT_PAYMENT, CONFIRM_ORDER = range(3)
 SELECT_RECIPIENT_NAME, SELECT_RECIPIENT_PHONE = range(3, 5)
+SELECT_COUPON = 5
 
 
 async def _prompt_new_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -127,9 +133,20 @@ async def start_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     context.user_data.pop("checkout_resume_confirmation", None)
     context.user_data.pop("checkout_payment_method", None)
     context.user_data.pop("checkout_order_id", None)
+    context.user_data.pop("checkout_coupon_code", None)
+    context.user_data.pop("checkout_coupon_discount", None)
+    context.user_data["checkout_coupon_checked"] = False
+
+    cart = await get_user_cart(user_id, context)
+    if not cart:
+        await target_message.reply_text(tr(context, "cart_empty"))
+        _clear_checkout_state(context)
+        await _restore_main_reply_keyboard(update, context)
+        return ConversationHandler.END
 
     # Get user's saved addresses
     async for db in get_db_session():
+        checkout_options = await get_checkout_availability(db)
         user_service = UserService(db)
         user = await user_service.get_user_by_telegram(user_id)
 
@@ -138,6 +155,23 @@ async def start_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         else:
             addresses = []
         break
+
+    if not checkout_options.store_open:
+        await target_message.reply_text(
+            tr(
+                context,
+                "store_closed",
+                message=checkout_options.maintenance_message or "",
+            )
+        )
+        _clear_checkout_state(context)
+        await _restore_main_reply_keyboard(update, context)
+        return ConversationHandler.END
+    if not checkout_options.enabled_payment_methods:
+        await target_message.reply_text(tr(context, "checkout_payment_unavailable"))
+        _clear_checkout_state(context)
+        await _restore_main_reply_keyboard(update, context)
+        return ConversationHandler.END
 
     if addresses:
         # Show address selection
@@ -364,6 +398,8 @@ async def recipient_phone_handler(
     )
     if context.user_data.pop("checkout_resume_confirmation", False):
         return await show_order_confirmation(update, context)
+    if not context.user_data.get("checkout_coupon_checked"):
+        return await _prompt_coupon(update, context)
     return await show_payment_methods(update, context)
 
 
@@ -372,14 +408,42 @@ async def show_payment_methods(
     context: ContextTypes.DEFAULT_TYPE,
 ) -> int:
     """Show available payment methods."""
+    async for db in get_db_session():
+        availability = await get_checkout_availability(db)
+        break
+    if not availability.store_open:
+        message = availability.maintenance_message or ""
+        await update.effective_message.reply_text(
+            tr(context, "store_closed", message=message)
+        )
+        _clear_checkout_state(context)
+        await _restore_main_reply_keyboard(update, context)
+        return ConversationHandler.END
+
+    payment_options = (
+        ("chapa", "💳 Chapa", "pay_chapa"),
+        ("telebirr", "📱 Telebirr", "pay_telebirr"),
+        ("cbe", "🏦 CBE Birr", "pay_cbe_birr"),
+        ("cod", tr(context, "pay_cash"), "pay_cod"),
+    )
     keyboard = [
-        [InlineKeyboardButton("💳 Chapa", callback_data="pay_chapa")],
-        [InlineKeyboardButton("📱 Telebirr", callback_data="pay_telebirr")],
-        [InlineKeyboardButton("🏦 CBE Birr", callback_data="pay_cbe_birr")],
-        [InlineKeyboardButton(tr(context, "pay_cash"), callback_data="pay_cod")],
-        [InlineKeyboardButton(tr(context, "back"), callback_data="pay_back")],
-        [InlineKeyboardButton(tr(context, "cancel"), callback_data="checkout_cancel")],
+        [InlineKeyboardButton(label, callback_data=callback)]
+        for key, label, callback in payment_options
+        if key in availability.enabled_payment_methods
     ]
+    if not keyboard:
+        await update.effective_message.reply_text(
+            tr(context, "checkout_payment_unavailable")
+        )
+        _clear_checkout_state(context)
+        await _restore_main_reply_keyboard(update, context)
+        return ConversationHandler.END
+    keyboard.extend(
+        [
+            [InlineKeyboardButton(tr(context, "back"), callback_data="pay_back")],
+            [InlineKeyboardButton(tr(context, "cancel"), callback_data="checkout_cancel")],
+        ]
+    )
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -397,6 +461,112 @@ async def show_payment_methods(
         )
 
     return SELECT_PAYMENT
+
+
+async def _prompt_coupon(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Offer an optional coupon before selecting a payment method."""
+    skip_button = InlineKeyboardButton(
+        tr(context, "checkout_coupon_skip"),
+        callback_data="checkout_coupon_skip",
+    )
+    await update.effective_message.reply_text(
+        tr(context, "checkout_coupon_prompt"),
+        reply_markup=InlineKeyboardMarkup([[skip_button]]),
+    )
+    return SELECT_COUPON
+
+
+async def _validate_checkout_coupon(
+    code: str,
+    telegram_user_id: int,
+    cart: list[dict],
+) -> dict:
+    async for db in get_db_session():
+        user = await UserService(db).get_user_by_telegram(telegram_user_id)
+        if user is None:
+            return {"is_valid": False, "message": "Your account could not be found."}
+
+        product_service = ProductService(db)
+        eligible_items = []
+        subtotal = Decimal("0")
+        for item in cart:
+            product = await product_service.get_product(item["product_id"])
+            if product is None:
+                return {"is_valid": False, "message": "A cart item is no longer available."}
+            status = getattr(product.status, "value", product.status)
+            if status != "active":
+                return {"is_valid": False, "message": "A cart item is no longer available."}
+            amount = product.price * item["quantity"]
+            subtotal += amount
+            eligible_items.append(
+                {
+                    "product_id": product.id,
+                    "category_id": product.category_id,
+                    "amount": amount,
+                }
+            )
+
+        order_count = await db.scalar(
+            select(func.count(Order.id)).where(Order.user_id == user.id)
+        )
+        return await CouponManager(db).validate_coupon(
+            code,
+            user.id,
+            subtotal,
+            user_order_count=order_count or 0,
+            eligible_items=eligible_items,
+        )
+    raise RuntimeError("No database session was available for coupon validation.")
+
+
+async def coupon_message_handler(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Validate a Telegram customer's coupon against current cart prices."""
+    message = update.effective_message
+    mark_text_message_handled(update, context)
+    code = (message.text or "").strip().upper()
+    cart = await get_user_cart(update.effective_user.id, context)
+    validation = await _validate_checkout_coupon(code, update.effective_user.id, cart)
+    if not validation.get("is_valid"):
+        await message.reply_text(
+            f"{tr(context, 'checkout_coupon_invalid')}\n{validation.get('message', '')}",
+            reply_markup=InlineKeyboardMarkup(
+                [[
+                    InlineKeyboardButton(
+                        tr(context, "checkout_coupon_skip"),
+                        callback_data="checkout_coupon_skip",
+                    )
+                ]]
+            ),
+        )
+        return SELECT_COUPON
+
+    discount = validation["discount_amount"]
+    context.user_data["checkout_coupon_code"] = code
+    context.user_data["checkout_coupon_discount"] = discount
+    context.user_data["checkout_coupon_checked"] = True
+    await message.reply_text(
+        tr(context, "checkout_coupon_applied", amount=format_etb(discount))
+    )
+    return await show_payment_methods(update, context)
+
+
+async def coupon_skip_callback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Continue without a coupon."""
+    if not await answer_callback_query(update.callback_query):
+        return SELECT_COUPON
+    context.user_data.pop("checkout_coupon_code", None)
+    context.user_data.pop("checkout_coupon_discount", None)
+    context.user_data["checkout_coupon_checked"] = True
+    return await show_payment_methods(update, context)
 
 
 async def payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -482,9 +652,28 @@ async def show_order_confirmation(
                 items_text.append(f"• {name} x{item['quantity']} = {format_etb(item_total)}")
         break
 
+    discount = Decimal("0")
+    coupon_code = context.user_data.get("checkout_coupon_code")
+    if coupon_code:
+        validation = await _validate_checkout_coupon(
+            coupon_code,
+            user_id,
+            cart,
+        )
+        if validation.get("is_valid"):
+            discount = validation["discount_amount"]
+            context.user_data["checkout_coupon_discount"] = discount
+        else:
+            context.user_data.pop("checkout_coupon_code", None)
+            context.user_data.pop("checkout_coupon_discount", None)
+            await update.effective_message.reply_text(
+                f"{tr(context, 'checkout_coupon_invalid')}\n"
+                f"{validation.get('message', '')}"
+            )
+
     shipping_fee = Decimal("0") if subtotal >= 1000 else Decimal("50")
     tax = subtotal * Decimal("0.15")
-    total = subtotal + shipping_fee + tax
+    total = max(Decimal("0"), subtotal + shipping_fee + tax - discount)
 
     payment_method = context.user_data.get("checkout_payment_method", "N/A")
     if payment_method == "cash_on_delivery":
@@ -494,13 +683,19 @@ async def show_order_confirmation(
     recipient_name = context.user_data.get("checkout_recipient_name")
     recipient_phone = context.user_data.get("checkout_recipient_phone")
     if not recipient_name or not recipient_phone or not delivery_address:
-        await update.callback_query.message.edit_text(tr(context, "checkout_missing"))
+        await update.effective_message.reply_text(tr(context, "checkout_missing"))
         _clear_checkout_state(context)
         await _restore_main_reply_keyboard(update, context)
         return ConversationHandler.END
 
     recipient_name = escape_markdown(recipient_name, version=1)
     delivery_address = escape_markdown(delivery_address, version=1)
+    discount_summary = (
+        f"{tr(context, 'checkout_discount')} "
+        f"{escape_markdown(coupon_code, version=1)} — {format_etb(discount)}\n"
+        if coupon_code and discount > 0
+        else ""
+    )
     confirmation_text = (
         f"{tr(context, 'checkout_confirm_title')}\n\n"
         f"{tr(context, 'checkout_delivery_to')} {recipient_name}\n"
@@ -511,10 +706,11 @@ async def show_order_confirmation(
         f"{tr(context, 'checkout_subtotal')} {format_etb(subtotal)}\n"
         f"{tr(context, 'checkout_shipping')} {format_etb(shipping_fee)}\n"
         f"{tr(context, 'checkout_tax')} {format_etb(tax)}\n"
-        "─────────────────\n"
-        f"{tr(context, 'checkout_total')} {format_etb(total)}\n\n"
-        f"{tr(context, 'checkout_method')} {payment_label}\n\n"
-        f"{tr(context, 'checkout_confirm_prompt')}"
+        + discount_summary
+        + "─────────────────\n"
+        + f"{tr(context, 'checkout_total')} {format_etb(total)}\n\n"
+        + f"{tr(context, 'checkout_method')} {payment_label}\n\n"
+        + tr(context, "checkout_confirm_prompt")
     )
 
     keyboard = [
@@ -651,7 +847,18 @@ async def _create_and_process_order(
             customer_notes=f"Delivery recipient: {recipient_name}",
         )
 
-        order = await order_service.create_order(user.id, order_create)
+        try:
+            order = await order_service.create_order(
+                user.id,
+                order_create,
+                coupon_code=context.user_data.get("checkout_coupon_code"),
+            )
+        except ValidationError as exc:
+            logger.info("Telegram checkout rejected for user %s: %s", user.id, exc)
+            await query.message.edit_text(f"❌ {exc}")
+            _clear_checkout_state(context)
+            await _restore_main_reply_keyboard(update, context)
+            return ConversationHandler.END
 
     context.user_data["checkout_order_id"] = order.id
     return await _process_order_payment(update, context, order, user, payment_method)
@@ -753,6 +960,9 @@ def _clear_checkout_state(context: ContextTypes.DEFAULT_TYPE) -> None:
         "checkout_resume_confirmation",
         "checkout_payment_method",
         "checkout_order_id",
+        "checkout_coupon_code",
+        "checkout_coupon_discount",
+        "checkout_coupon_checked",
     ):
         context.user_data.pop(key, None)
 

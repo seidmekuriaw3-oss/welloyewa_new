@@ -4,8 +4,8 @@
 """Admin handlers for product management."""
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.helpers import escape_markdown
 from telegram.ext import ContextTypes
+from telegram.helpers import escape_markdown
 
 from apps.products.schemas import ProductCreate
 from apps.products.services import CategoryService, ProductService
@@ -331,14 +331,7 @@ async def do_approve_product(
     try:
         async with transaction_session() as db:
             product_service = ProductService(db)
-            product = await product_service.get_product(product_id)
-            if product.status != ProductStatus.PENDING:
-                raise ValueError(f"Product {product_id} is not pending approval")
-            await product_service.product_repo.update(
-                product_id, {"status": ProductStatus.ACTIVE}
-            )
-            if product.category_id is not None:
-                await product_service.category_repo.update_product_count(product.category_id)
+            await product_service.review_product(product_id, approved=True)
         await query.message.edit_text(
             f"✅ ምርቱ (ID: {product_id}) ፀድቋል!",
             reply_markup=InlineKeyboardMarkup(
@@ -362,12 +355,7 @@ async def do_reject_product(
     try:
         async with transaction_session() as db:
             product_service = ProductService(db)
-            product = await product_service.get_product(product_id)
-            if product.status != ProductStatus.PENDING:
-                raise ValueError(f"Product {product_id} is not pending review")
-            await product_service.product_repo.update(
-                product_id, {"status": ProductStatus.REJECTED}
-            )
+            await product_service.review_product(product_id, approved=False)
         await query.message.edit_text(
             f"❌ ምርቱ (ID: {product_id}) ውድቅ ሆኗል።",
             reply_markup=InlineKeyboardMarkup(

@@ -16,6 +16,10 @@
 
 {% block scripts %}
 <script>
+let checkoutDiscount = null;
+let checkoutPromoLoaded = false;
+let checkoutCouponCode = sessionStorage.getItem('wolloyewa_coupon_code') || '';
+
 function renderCheckout() {
     const page = document.getElementById('checkoutPage');
     const items = cart.items;
@@ -33,7 +37,8 @@ function renderCheckout() {
     const subtotal = cart.total();
     const shipping = subtotal >= 1000 ? 0 : 50;
     const tax      = subtotal * 0.15;
-    const total    = subtotal + shipping + tax;
+    const discount = Number(checkoutDiscount?.discount_amount || 0);
+    const total    = subtotal + shipping + tax - discount;
 
     page.innerHTML = `
         <div class="form-card">
@@ -53,13 +58,33 @@ function renderCheckout() {
             <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:14px;color:var(--text-muted)">
                 <span>ታክስ (15% VAT)</span><span>ETB ${Number(tax).toLocaleString()}</span>
             </div>
-            <div style="display:flex;justify-content:space-between;padding:10px 0 0;font-size:17px;font-weight:800;border-top:1px solid var(--border);margin-top:6px">
-                <span>ጠቅላላ</span><span style="color:var(--primary)">ETB ${Number(total).toLocaleString()}</span>
+            <div id="checkoutDiscountRow" style="display:${discount > 0 ? 'flex' : 'none'};justify-content:space-between;padding:4px 0;font-size:14px;color:var(--primary)">
+                <span>የኩፖን ቅናሽ</span><strong id="checkoutDiscountAmount">− ETB ${discount.toLocaleString()}</strong>
             </div>
+            <div style="display:flex;justify-content:space-between;padding:10px 0 0;font-size:17px;font-weight:800;border-top:1px solid var(--border);margin-top:6px">
+                <span>ጠቅላላ</span><span id="checkoutTotal" style="color:var(--primary)">ETB ${Number(total).toLocaleString()}</span>
+            </div>
+        </div>
+
+        <div class="form-card checkout-promo-card">
+            <h2>🎟️ የቅናሽ ኮድ</h2>
+            <div class="checkout-coupon-row">
+                <input id="checkoutCouponCode" value="${he(checkoutCouponCode)}" maxlength="50" autocomplete="off" placeholder="ለምሳሌ WOLO10" aria-label="የቅናሽ ኮድ">
+                <button type="button" class="btn-primary" id="checkoutApplyCoupon" onclick="validateCheckoutCoupon()">አረጋግጥ</button>
+            </div>
+            <p id="checkoutCouponMessage" class="checkout-coupon-message" role="status" aria-live="polite"></p>
+            <div id="checkoutPromoBanners" class="checkout-promo-banners" aria-live="polite"></div>
         </div>
 
         <div class="form-card">
             <h2>📍 የማድረሻ መረጃ</h2>
+            <div class="form-group" id="savedDeliveryAddressGroup" hidden>
+                <label for="savedDeliveryAddress">የተቀመጠ አድራሻ ይምረጡ</label>
+                <select id="savedDeliveryAddress">
+                    <option value="">አድራሻ ይምረጡ</option>
+                </select>
+                <p id="savedDeliveryAddressStatus" role="status" class="profile-setting-note"></p>
+            </div>
             <div class="form-group">
                 <label>ሙሉ ስም</label>
                 <input type="text" id="fullName" placeholder="ስምዎን ያስገቡ">
@@ -111,10 +136,190 @@ function renderCheckout() {
 
         <div id="orderError" class="alert alert-error" style="display:none"></div>
 
-        <button id="placeOrderBtn" onclick="placeOrder(${total})" class="btn-primary" style="margin-bottom:16px">
+        <button id="placeOrderBtn" onclick="placeOrder()" class="btn-primary" style="margin-bottom:16px">
             ✅ ትዕዛዝ አረጋግጥ — ETB ${Number(total).toLocaleString()}
         </button>
     `;
+    loadCheckoutPaymentMethods();
+    loadCheckoutAddresses();
+    document.getElementById('checkoutCouponCode').addEventListener('input', () => {
+        checkoutDiscount = null;
+        updateCheckoutTotals(0);
+        document.getElementById('checkoutCouponMessage').textContent = '';
+        sessionStorage.removeItem('wolloyewa_coupon_code');
+    });
+    if (!checkoutPromoLoaded) loadCheckoutPromotions();
+    if (checkoutCouponCode && !checkoutDiscount) validateCheckoutCoupon();
+}
+
+async function loadCheckoutAddresses() {
+    const group = document.getElementById('savedDeliveryAddressGroup');
+    const select = document.getElementById('savedDeliveryAddress');
+    const status = document.getElementById('savedDeliveryAddressStatus');
+    try {
+        const token = await getWebAppAccessToken();
+        if (!token) return;
+        const response = await authenticatedFetch('/app/api/user/addresses');
+        if (!response.ok) {
+            throw new Error('የተቀመጡ አድራሻዎችን ማግኘት አልተቻለም።');
+        }
+        const result = await response.json();
+        const addresses = Array.isArray(result.items) ? result.items : [];
+        if (!addresses.length) return;
+
+        const typeLabels = { home: 'ቤት', work: 'ሥራ', other: 'ሌላ' };
+        for (const address of addresses) {
+            const option = document.createElement('option');
+            option.value = String(address.id);
+            option.textContent = [
+                typeLabels[address.address_type] || typeLabels.other,
+                address.address_line1,
+                address.city,
+                address.is_default ? '— ነባሪ' : ''
+            ].filter(Boolean).join(' · ');
+            select.append(option);
+        }
+        group.hidden = false;
+        select.addEventListener('change', () => {
+            const address = addresses.find(item => String(item.id) === select.value);
+            if (!address) return;
+            document.getElementById('fullName').value = address.recipient_name || '';
+            document.getElementById('phone').value = address.recipient_phone || '';
+            document.getElementById('city').value = address.city || '';
+            document.getElementById('address').value = [
+                address.address_line1,
+                address.address_line2,
+                address.subcity,
+                address.woreda,
+                address.house_number,
+                address.landmark
+            ].filter(Boolean).join(', ');
+        });
+        const defaultAddress = addresses.find(address => address.is_default);
+        if (defaultAddress) {
+            select.value = String(defaultAddress.id);
+            select.dispatchEvent(new Event('change'));
+        }
+    } catch (error) {
+        group.hidden = false;
+        status.textContent = error.message || 'የተቀመጡ አድራሻዎችን መጫን አልተቻለም።';
+        console.error('Could not load saved checkout addresses.', error);
+    }
+}
+
+async function loadCheckoutPaymentMethods() {
+    try {
+        const response = await fetch('/app/api/store/announcement', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Checkout settings could not be loaded');
+        const data = await response.json();
+        const available = new Set(data.enabled_payment_methods || []);
+        const options = [...document.querySelectorAll('input[name="pay"]')];
+        options.forEach(input => {
+            const label = input.closest('.payment-option');
+            const enabled = available.has(input.value);
+            label.style.display = enabled ? '' : 'none';
+            input.disabled = !enabled;
+            if (!enabled) {
+                input.checked = false;
+                label.classList.remove('selected');
+            }
+        });
+        const selected = options.find(input => input.checked && !input.disabled);
+        const firstAvailable = options.find(input => !input.disabled);
+        if (!selected && firstAvailable) {
+            firstAvailable.checked = true;
+            firstAvailable.closest('.payment-option').classList.add('selected');
+        }
+    } catch (error) {
+        console.warn('Enabled checkout payment methods could not be loaded', error);
+    }
+}
+
+function updateCheckoutTotals(discount) {
+    const subtotal = cart.total();
+    const shipping = subtotal >= 1000 ? 0 : 50;
+    const tax = subtotal * 0.15;
+    const total = Math.max(0, subtotal + shipping + tax - discount);
+    const row = document.getElementById('checkoutDiscountRow');
+    if (row) row.style.display = discount > 0 ? 'flex' : 'none';
+    const amount = document.getElementById('checkoutDiscountAmount');
+    if (amount) amount.textContent = `− ETB ${Number(discount).toLocaleString()}`;
+    const totalEl = document.getElementById('checkoutTotal');
+    if (totalEl) totalEl.textContent = `ETB ${Number(total).toLocaleString()}`;
+    const button = document.getElementById('placeOrderBtn');
+    if (button) button.textContent = `✅ ትዕዛዝ አረጋግጥ — ETB ${Number(total).toLocaleString()}`;
+}
+
+async function validateCheckoutCoupon() {
+    const input = document.getElementById('checkoutCouponCode');
+    const message = document.getElementById('checkoutCouponMessage');
+    const button = document.getElementById('checkoutApplyCoupon');
+    const code = input.value.trim().toUpperCase();
+    if (!code) {
+        checkoutDiscount = null;
+        checkoutCouponCode = '';
+        sessionStorage.removeItem('wolloyewa_coupon_code');
+        updateCheckoutTotals(0);
+        message.textContent = 'እባክዎ የቅናሽ ኮድ ያስገቡ።';
+        return;
+    }
+    button.disabled = true;
+    message.textContent = 'ኮዱን እያረጋገጥን ነው…';
+    try {
+        const response = await authenticatedFetch('/app/api/discounts/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                code,
+                items: cart.items.map(item => ({
+                    id: item.id, name: item.name, price: item.price, qty: item.qty
+                }))
+            })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'የቅናሽ ኮዱ አልተቀበለም።');
+        checkoutDiscount = data;
+        checkoutCouponCode = data.code;
+        input.value = data.code;
+        sessionStorage.setItem('wolloyewa_coupon_code', data.code);
+        updateCheckoutTotals(Number(data.discount_amount));
+        message.textContent = `✅ ${data.code} ተተግብሯል፤ ${Number(data.discount_amount).toLocaleString()} ETB ቆጥበዋል።`;
+    } catch (error) {
+        checkoutDiscount = null;
+        checkoutCouponCode = '';
+        sessionStorage.removeItem('wolloyewa_coupon_code');
+        updateCheckoutTotals(0);
+        message.textContent = error.message || 'የቅናሽ ኮዱን ማረጋገጥ አልተቻለም።';
+    } finally {
+        button.disabled = false;
+    }
+}
+
+async function loadCheckoutPromotions() {
+    checkoutPromoLoaded = true;
+    const container = document.getElementById('checkoutPromoBanners');
+    try {
+        const response = await fetch('/app/api/discounts/active', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Promotions could not be loaded');
+        const data = await response.json();
+        const promotions = Array.isArray(data.items) ? data.items : [];
+        container.innerHTML = promotions.map(promo => {
+            const value = promo.discount_type === 'percentage'
+                ? `${Number(promo.discount_value)}%`
+                : `ETB ${Number(promo.discount_value).toLocaleString()}`;
+            return `<button type="button" class="checkout-promo-chip" data-promo-code="${he(promo.code)}">
+                <strong>${he(value)} OFF</strong><span>${he(promo.name)} · ${he(promo.code)}</span>
+            </button>`;
+        }).join('');
+        container.querySelectorAll('[data-promo-code]').forEach(button => {
+            button.addEventListener('click', () => {
+                document.getElementById('checkoutCouponCode').value = button.dataset.promoCode;
+                validateCheckoutCoupon();
+            });
+        });
+    } catch (error) {
+        console.warn('Active discount banners could not be loaded', error);
+    }
 }
 
 let deliveryCoordinates = null;
@@ -160,7 +365,7 @@ function selectPay(el) {
     el.classList.add('selected');
 }
 
-async function placeOrder(total) {
+async function placeOrder() {
     const btn   = document.getElementById('placeOrderBtn');
     const errEl = document.getElementById('orderError');
     errEl.style.display = 'none';
@@ -172,7 +377,7 @@ async function placeOrder(total) {
     const payEl          = document.querySelector('input[name="pay"]:checked');
     const payment_method = payEl ? payEl.value : 'cod';
 
-    if (!fullName || !phone || !address) {
+    if (!fullName || !phone || !city || !address) {
         errEl.textContent   = 'እባክዎ ሁሉም መስኮቸን ይሙሉ።';
         errEl.style.display = 'block';
         return;
@@ -185,7 +390,7 @@ async function placeOrder(total) {
     const init_data = tg ? tg.initData : '';
 
     try {
-        const res = await fetch('/app/api/checkout', {
+        const res = await authenticatedFetch('/app/api/checkout', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({
@@ -193,13 +398,20 @@ async function placeOrder(total) {
                 items: cart.items.map(i => ({ id: i.id, name: i.name, price: i.price, qty: i.qty })),
                 full_name: fullName,
                 phone, city, address, payment_method,
+                coupon_code: checkoutDiscount?.code || null,
                 ...(deliveryCoordinates || {}),
             }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'ስህተት ተከስቷል');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const detail = Array.isArray(data.detail)
+                ? data.detail.map(item => item.msg).join(' ')
+                : data.detail;
+            throw new Error(detail || 'ስህተት ተከስቷል');
+        }
 
         cart.clear();
+        sessionStorage.removeItem('wolloyewa_coupon_code');
         refreshAllBadges();
         if (data.payment_url) {
             window.location.assign(data.payment_url);

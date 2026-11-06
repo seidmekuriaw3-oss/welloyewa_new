@@ -98,7 +98,10 @@ async def test_password_reset_code_is_hashed_and_single_use(monkeypatch):
     assert redis.values[code_key] != code
 
     await service.reset_password("0912345678", code, "new-password")
-    service.user_repo.update.assert_awaited_once_with(7, {"password_hash": "hashed:new-password"})
+    service.user_repo.update.assert_awaited_once_with(
+        7,
+        {"password_hash": "hashed:new-password", "token_version": 1},
+    )
     with pytest.raises(AuthenticationError):
         await service.reset_password("0912345678", code, "another-password")
 

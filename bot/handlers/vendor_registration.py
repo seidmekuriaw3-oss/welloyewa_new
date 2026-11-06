@@ -1,5 +1,6 @@
 """Step-by-step Telegram vendor application and admin review notifications."""
 
+import asyncio
 from urllib.parse import urlsplit
 
 from pydantic import ValidationError as SchemaValidationError
@@ -19,6 +20,7 @@ from infrastructure.database.session import transaction_session
 
 _STATE_KEY = "vendor_application_step"
 _DRAFT_KEY = "vendor_application_draft"
+_notification_fallback_tasks: set[asyncio.Task[None]] = set()
 _SKIP = {"skip", "алгасах", "дар"}
 _CATEGORIES = {
     "furniture": "Furniture",
@@ -91,9 +93,7 @@ def _step_keyboard(step_index: int) -> InlineKeyboardMarkup:
         ]
         keyboard.extend([choices[index : index + 2] for index in range(0, len(choices), 2)])
     elif step_index == 9:
-        keyboard.append(
-            [InlineKeyboardButton("⏭ Skip", callback_data="vendor_choice_maps_skip")]
-        )
+        keyboard.append([InlineKeyboardButton("⏭ Skip", callback_data="vendor_choice_maps_skip")])
     elif step_index == 10:
         choices = [
             InlineKeyboardButton(
@@ -112,12 +112,8 @@ def _step_keyboard(step_index: int) -> InlineKeyboardMarkup:
 
     navigation = []
     if step_index > 0:
-        navigation.append(
-            InlineKeyboardButton("⬅️ Back", callback_data="vendor_application_back")
-        )
-    navigation.append(
-        InlineKeyboardButton("❌ Cancel", callback_data="vendor_application_cancel")
-    )
+        navigation.append(InlineKeyboardButton("⬅️ Back", callback_data="vendor_application_back"))
+    navigation.append(InlineKeyboardButton("❌ Cancel", callback_data="vendor_application_cancel"))
     keyboard.append(navigation)
     return InlineKeyboardMarkup(keyboard)
 
@@ -125,8 +121,8 @@ def _step_keyboard(step_index: int) -> InlineKeyboardMarkup:
 def _prompt(step_index: int) -> str:
     key, label, _, _ = _STEPS[step_index]
     prompts = {
-        "business_name": "🏪 Send your business / store name (2–200 characters).\nየንግድ ወይም የሱቅ ስም ይላኩ።",
-        "business_license": "📄 Send the business license number (6–20 letters or digits).\nየንግድ ፈቃድ ቁጥር ይላኩ።",
+        "business_name": "🏪 Send your business / store name (2-200 characters).\nየንግድ ወይም የሱቅ ስም ይላኩ።",
+        "business_license": "📄 Send the business license number (6-20 letters or digits).\nየንግድ ፈቃድ ቁጥር ይላኩ።",
         "license_document": "📎 Upload a clear license photo or a PDF document (up to 10 MB).\nየፈቃዱን ግልጽ ፎቶ ወይም PDF ይላኩ።",
         "tin_number": "🧾 Send the 10-digit TIN.\nየግብር መለያ ቁጥሩን (10 አሃዝ) ይላኩ።",
         "business_category": "🛍️ Choose a category: Furniture, Electronics, Clothing, Food & Beverage, Beauty & Personal Care, Home & Kitchen, or Other.\nየንግድ ዘርፉን ይምረጡ።",
@@ -137,7 +133,7 @@ def _prompt(step_index: int) -> str:
         "maps_link": "🗺️ Send a Google Maps link, or type SKIP if you do not have one.\nየGoogle Maps አገናኝ ይላኩ ወይም ከሌለ  SKIP ይጻፉ።",
         "bank_name": "🏦 Send the bank name for payouts.\nየባንክ ስም ይላኩ።",
         "bank_account_name": "👤 Send the account holder name exactly as registered at the bank.\nበባንክ የተመዘገበውን የአካውንት ባለቤት ስም ይላኩ።",
-        "bank_account_number": "🔢 Send the bank account number (6–34 digits; spaces and dashes are okay).\nየባንክ አካውንት ቁጥር ይላኩ።",
+        "bank_account_number": "🔢 Send the bank account number (6-34 digits; spaces and dashes are okay).\nየባንክ አካውንት ቁጥር ይላኩ።",
         "business_phone": "📞 Send a valid Ethiopian phone number (09…, 07…, or +251…).\nትክክለኛ የኢትዮጵያ ስልክ ቁጥር ይላኩ።",
     }
     return (
@@ -150,9 +146,7 @@ def _first_missing_step(draft: dict) -> int | None:
     """Return the earliest application step whose data is absent."""
     for step_index, (key, _, _, _) in enumerate(_STEPS):
         if key == "license_document":
-            if not draft.get("license_document_file_id") or not draft.get(
-                "license_document_type"
-            ):
+            if not draft.get("license_document_file_id") or not draft.get("license_document_type"):
                 return step_index
         else:
             value = draft.get(key)
@@ -198,9 +192,7 @@ async def _resume_missing_step(
     return step_index
 
 
-async def start_application(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
+async def start_application(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Begin or resume a vendor application for the current Telegram account."""
     if update.callback_query and not await answer_callback_query(update.callback_query):
         return ConversationHandler.END
@@ -231,8 +223,8 @@ async def start_application(
     context.user_data[_STATE_KEY] = 0
     await update.effective_message.reply_text(
         "✨ Vendor application · Vendor onboarding\n"
-        "We’ll collect your business, location, document, and payout details one step at a time.\n"
-        "Мэдээллийг нэг нэг алхмаар бүртгэнэ. Дуусаагүй үед Cancel товчийг дарна уу.\n\n"
+        "We'll collect your business, location, document, and payout details one step at a time.\n"
+        "Мэдээллийг нэг нэг алхмаар бүртгэнэ. Дуусаагүй үед Cancel товчийг дарна уу.\n\n"  # noqa: RUF001
         + _prompt(0),
         reply_markup=_step_keyboard(0),
     )
@@ -279,7 +271,7 @@ async def handle_text(
     elif key == "business_license":
         value = text.upper()
         if not validate_business_license(value):
-            error = "License number must contain 6–20 letters or digits."
+            error = "License number must contain 6-20 letters or digits."
     elif key == "business_category":
         value = _CATEGORIES.get(text.casefold())
         if not value:
@@ -291,7 +283,7 @@ async def handle_text(
     elif key == "bank_account_number":
         value = "".join(text.split()).replace("-", "")
         if not value.isdigit() or not 6 <= len(value) <= 34:
-            error = "The account number must contain 6–34 digits."
+            error = "The account number must contain 6-34 digits."
     elif key == "business_phone":
         try:
             value = Validator.phone(text, normalize=True)
@@ -366,9 +358,7 @@ async def handle_document(
     return 3
 
 
-async def application_choice_callback(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
+async def application_choice_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Save an inline application choice and continue to the following field."""
     query = update.callback_query
     step_index = context.user_data.get(_STATE_KEY)
@@ -473,7 +463,11 @@ async def _show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
     keyboard = InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("✅ Submit application", callback_data="vendor_application_confirm")],
+            [
+                InlineKeyboardButton(
+                    "✅ Submit application", callback_data="vendor_application_confirm"
+                )
+            ],
             [InlineKeyboardButton("⬅️ Back", callback_data="vendor_application_back")],
             [InlineKeyboardButton("❌ Cancel", callback_data="vendor_application_cancel")],
         ]
@@ -520,10 +514,14 @@ async def notify_admins(
         f"Account number: {application['bank_account_number']}"
     )
     keyboard = InlineKeyboardMarkup(
-        [[
-            InlineKeyboardButton("✅ Approve", callback_data=f"admin_approve_vendor_{vendor_id}"),
-            InlineKeyboardButton("❌ Reject", callback_data=f"admin_reject_vendor_{vendor_id}"),
-        ]]
+        [
+            [
+                InlineKeyboardButton(
+                    "✅ Approve", callback_data=f"admin_approve_vendor_{vendor_id}"
+                ),
+                InlineKeyboardButton("❌ Reject", callback_data=f"admin_reject_vendor_{vendor_id}"),
+            ]
+        ]
     )
     notified = False
     for admin_id in settings.admin_ids_list:
@@ -582,7 +580,9 @@ async def application_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.edit_message_text("Vendor application cancelled.")
         return ConversationHandler.END
     if context.user_data.get(_STATE_KEY) != "confirm":
-        await query.edit_message_text("This application has expired. Please start again from Profile.")
+        await query.edit_message_text(
+            "This application has expired. Please start again from Profile."
+        )
         return ConversationHandler.END
 
     tg_user = update.effective_user
@@ -609,13 +609,19 @@ async def application_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             user = await UserRepository(db).get_by_telegram(tg_user.id)
             if not user:
                 raise ValueError("The Telegram account is not registered")
-            vendor = await VendorService(db).create_vendor(user.id, validated)
+            vendor = await VendorService(db).create_vendor(
+                user.id,
+                validated,
+                notify_admins_on_event=False,
+            )
             vendor_id = vendor.id
             applicant = user.full_name
             telegram_username = user.username
             telegram_id = user.telegram_id
     except (SchemaValidationError, ValueError) as exc:
-        logger.warning("Vendor application validation failed for Telegram user %s: %s", tg_user.id, exc)
+        logger.warning(
+            "Vendor application validation failed for Telegram user %s: %s", tg_user.id, exc
+        )
         await query.edit_message_text(
             "❌ Some details could not be validated. Please cancel and submit the application again."
         )
@@ -625,22 +631,42 @@ async def application_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
     context.user_data.pop(_DRAFT_KEY, None)
     context.user_data.pop(_STATE_KEY, None)
-    await query.edit_message_text("✅ Application submitted. We’ll notify you after admin review.")
+    await query.edit_message_text("✅ Application submitted. We'll notify you after admin review.")
 
-    await notify_admins(
-        context.bot,
-        vendor_id=vendor_id,
-        applicant=applicant,
-        telegram_username=telegram_username,
-        telegram_id=telegram_id,
-        application=application_data,
-    )
+    try:
+        from infrastructure.workers.tasks import send_vendor_application_review_task
+
+        send_vendor_application_review_task.delay(vendor_id)
+    except Exception as exc:
+        logger.warning(
+            "Could not queue vendor review notification %s (%s); scheduling local delivery",
+            vendor_id,
+            type(exc).__name__,
+        )
+
+        async def send_review_fallback() -> None:
+            try:
+                await notify_admins(
+                    context.bot,
+                    vendor_id=vendor_id,
+                    applicant=applicant,
+                    telegram_username=telegram_username,
+                    telegram_id=telegram_id,
+                    application=application_data,
+                )
+            except Exception:
+                logger.exception("Could not send vendor review notification %s", vendor_id)
+
+        task = asyncio.create_task(
+            send_review_fallback(),
+            name=f"vendor-review-{vendor_id}",
+        )
+        _notification_fallback_tasks.add(task)
+        task.add_done_callback(_notification_fallback_tasks.discard)
     return ConversationHandler.END
 
 
-async def cancel_application(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
+async def cancel_application(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Cancel a vendor application from the /cancel command."""
     context.user_data.pop(_DRAFT_KEY, None)
     context.user_data.pop(_STATE_KEY, None)
@@ -649,6 +675,8 @@ async def cancel_application(
 
 
 __all__ = [
+    "VENDOR_CONFIRM_STATE",
+    "VENDOR_STEP_COUNT",
     "application_callback",
     "application_choice_callback",
     "application_navigation_callback",
@@ -658,6 +686,4 @@ __all__ = [
     "notify_admins",
     "notify_applicant",
     "start_application",
-    "VENDOR_CONFIRM_STATE",
-    "VENDOR_STEP_COUNT",
 ]

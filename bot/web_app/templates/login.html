@@ -1,49 +1,243 @@
 {% extends "base.html" %}
-{% block title %}ግባ — ወሎዮ ሱቅ{% endblock %}
+{% block title %}{{ login_text.page_title }}{% endblock %}
 
 {% block content %}
-<main class="auth-page">
-    <section class="auth-card">
-        <h1>ወደ መለያዎ ይግቡ</h1>
-        <p class="auth-subtitle">ትዕዛዞችዎን ለመከታተል ይግቡ።</p>
-        <form id="loginForm">
-            <label for="loginPhone">ስልክ ቁጥር</label>
-            <input id="loginPhone" name="phone" type="tel" inputmode="tel" required autocomplete="tel" placeholder="0912345678">
-            <label for="loginPassword">የይለፍ ቃል</label>
-            <input id="loginPassword" name="password" type="password" required autocomplete="current-password">
-            <p class="auth-link auth-forgot"><a href="/app/forgot-password">የይለፍ ቃል ረሱ?</a></p>
-            <p id="loginError" class="form-error" role="alert"></p>
-            <button class="btn-primary" type="submit">ግባ</button>
+<header class="login-header">
+    <a class="login-brand" href="/app/" aria-label="{{ login_text.brand_home }}">
+        <img src="/app/static/images/welloyewa_brand_assets/svg/welloyewa_logo_website_header.svg" alt="">
+    </a>
+    <div class="login-header-actions">
+        <nav class="login-language-switch" aria-label="ቋንቋ / Language">
+            <a href="/app/login?lang=am" aria-label="አማርኛ"
+               {% if login_language == 'am' %}aria-current="page"{% endif %}>አማ</a>
+            <a href="/app/login?lang=en" aria-label="English"
+               {% if login_language == 'en' %}aria-current="page"{% endif %}>EN</a>
+            <a href="/app/login?lang=om" aria-label="Afaan Oromoo"
+               {% if login_language == 'om' %}aria-current="page"{% endif %}>OM</a>
+        </nav>
+        <a class="login-header-support" href="https://t.me/wolloyewa_support">{{ login_text.support }}</a>
+    </div>
+</header>
+
+<main class="login-main">
+    <section class="login-welcome" aria-labelledby="loginHeading">
+        <p class="login-eyebrow">{{ login_text.welcome_eyebrow }}</p>
+        <h1 id="loginHeading">{{ login_text.welcome_line1 }}<br>{{ login_text.welcome_line2 }}</h1>
+        <p class="login-intro">{{ login_text.welcome_intro }}</p>
+        <span class="login-welcome-rule" aria-hidden="true"></span>
+        <p class="login-welcome-english">{{ login_text.welcome_tagline }}</p>
+    </section>
+
+    <section class="login-card" aria-labelledby="loginFormHeading">
+        <div class="login-card-heading">
+            <p class="login-card-kicker">{{ login_text.card_kicker }}</p>
+            <h2 id="loginFormHeading">{{ login_text.heading }}</h2>
+            <p>{{ login_text.prompt }}</p>
+        </div>
+
+        <p id="logoutNotice" class="login-notice" role="status" hidden>{{ login_text.logout_notice }}</p>
+        <button id="telegramLoginButton" class="login-telegram-button" type="button" hidden>
+            {{ login_text.telegram_button }}
+        </button>
+        <p id="telegramLoginError" class="login-message login-message-error" role="alert" hidden></p>
+
+        <form id="loginForm" class="login-form" novalidate>
+            <div class="login-field">
+                <label for="loginPhone">{{ login_text.phone_label }}</label>
+                <input id="loginPhone" name="phone" type="tel" inputmode="tel"
+                       autocomplete="tel" maxlength="20" placeholder="0912345678"
+                       aria-describedby="loginPhoneHint loginError" required>
+                <span id="loginPhoneHint" class="login-field-hint">{{ login_text.phone_hint }}</span>
+            </div>
+            <div class="login-field">
+                <label for="loginPassword">{{ login_text.password_label }}</label>
+                <div class="login-password-wrap">
+                    <input id="loginPassword" name="password" type="password"
+                           autocomplete="current-password" maxlength="256"
+                           aria-describedby="loginError" required>
+                    <button id="togglePassword" class="login-password-toggle" type="button"
+                            aria-label="{{ login_text.show_password }}" aria-pressed="false">
+                        <span aria-hidden="true">{{ login_text.show_password }}</span>
+                    </button>
+                </div>
+            </div>
+            <div class="login-form-options">
+                <a href="/app/forgot-password">{{ login_text.forgot_password }}</a>
+            </div>
+            <p id="loginError" class="login-message login-message-error" role="alert"
+               aria-live="assertive" hidden></p>
+            <button id="loginSubmit" class="login-submit" type="submit">
+                <span class="login-submit-spinner" aria-hidden="true" hidden></span>
+                <span class="login-submit-label">{{ login_text.submit }}</span>
+            </button>
         </form>
-        <p class="auth-link">መለያ የለዎትም? <a href="/app/register">ይመዝገቡ</a></p>
+
+        <p class="login-register">{{ login_text.register_prompt }} <a href="/app/register">{{ login_text.register_link }}</a></p>
+        <p class="login-security-note"><span aria-hidden="true">●</span> {{ login_text.security_note }}</p>
     </section>
 </main>
+
+<footer class="login-footer">
+    <span>© {{ current_year|default(2026) }} Wolloyewa · ወሎዮ ሱቅ</span>
+    <nav aria-label="Legal and support links">
+        <a href="https://wolloyewa.com/privacy-policy">{{ login_text.footer_privacy }}</a>
+        <a href="https://wolloyewa.com/terms">{{ login_text.footer_terms }}</a>
+        <a href="https://t.me/wolloyewa_support">{{ login_text.footer_support }}</a>
+    </nav>
+</footer>
 {% endblock %}
 
 {% block scripts %}
 <script>
-document.getElementById('loginForm').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
+(() => {
+    const form = document.getElementById('loginForm');
+    const phoneInput = document.getElementById('loginPhone');
+    const passwordInput = document.getElementById('loginPassword');
+    const passwordToggle = document.getElementById('togglePassword');
     const error = document.getElementById('loginError');
-    error.textContent = '';
-    try {
-        const response = await fetch('/app/api/web/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone: form.phone.value, password: form.password.value }),
+    const submitButton = document.getElementById('loginSubmit');
+    const submitLabel = submitButton.querySelector('.login-submit-label');
+    const spinner = submitButton.querySelector('.login-submit-spinner');
+    const copy = {{ login_text | tojson }};
+
+    function normalizePhone(value) {
+        let phone = value.trim().replace(/[\s\-()]/g, '');
+        if (phone.startsWith('00251')) phone = `0${phone.slice(5)}`;
+        else if (phone.startsWith('+251')) phone = `0${phone.slice(4)}`;
+        else if (phone.startsWith('251')) phone = `0${phone.slice(3)}`;
+        return phone;
+    }
+
+    function showError(message, input) {
+        error.textContent = message;
+        error.hidden = false;
+        if (input) {
+            input.setAttribute('aria-invalid', 'true');
+            input.focus();
+        }
+    }
+
+    [phoneInput, passwordInput].forEach((input) => {
+        input.addEventListener('input', () => {
+            input.removeAttribute('aria-invalid');
+            error.hidden = true;
+            error.textContent = '';
         });
-        if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
-            error.textContent = data.detail || 'መግባት አልተቻለም።';
+    });
+
+    passwordToggle.addEventListener('click', () => {
+        const isVisible = passwordInput.type === 'text';
+        passwordInput.type = isVisible ? 'password' : 'text';
+        passwordToggle.setAttribute('aria-pressed', String(!isVisible));
+        passwordToggle.setAttribute(
+            'aria-label',
+            isVisible ? copy.show_password : copy.hide_password
+        );
+        passwordToggle.querySelector('span').textContent = isVisible ? copy.show_password : copy.hide_password;
+    });
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (submitButton.disabled) return;
+
+        error.hidden = true;
+        error.textContent = '';
+        const phone = normalizePhone(phoneInput.value);
+        const password = passwordInput.value;
+
+        if (!phone) {
+            showError(copy.empty_phone, phoneInput);
             return;
         }
-        const data = await response.json();
-        localStorage.setItem('wolloyewa_access_token', data.access_token);
-        window.location.href = '/app/dashboard';
-    } catch {
-        error.textContent = 'ከአገልጋዩ ጋር መገናኘት አልተቻለም። እንደገና ይሞክሩ።';
+        if (!/^(09|07)\d{8}$/.test(phone)) {
+            showError(copy.invalid_phone, phoneInput);
+            return;
+        }
+        if (!password) {
+            showError(copy.empty_password, passwordInput);
+            return;
+        }
+
+        submitButton.disabled = true;
+        submitButton.setAttribute('aria-busy', 'true');
+        submitLabel.textContent = copy.submitting;
+        spinner.hidden = false;
+
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 12000);
+        try {
+            const response = await fetch('/app/api/web/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone, password }),
+                signal: controller.signal,
+            });
+
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    showError(copy.credentials_error);
+                } else if (response.status === 429) {
+                    showError(copy.rate_limit_error);
+                } else if (response.status >= 500) {
+                    showError(copy.server_error);
+                } else {
+                    showError(copy.other_error);
+                }
+                return;
+            }
+
+            let data;
+            try {
+                data = await response.json();
+            } catch {
+                showError(copy.invalid_response);
+                return;
+            }
+            if (typeof data.access_token !== 'string' || !data.access_token) {
+                showError(copy.invalid_response);
+                return;
+            }
+            sessionStorage.removeItem('wolloyewa_logged_out');
+            localStorage.setItem('wolloyewa_access_token', data.access_token);
+            window.location.assign('/app/profile');
+        } catch (loginError) {
+            if (loginError.name === 'AbortError') {
+                showError(copy.timeout_error);
+            } else {
+                showError(copy.network_error);
+            }
+        } finally {
+            window.clearTimeout(timeout);
+            submitButton.disabled = false;
+            submitButton.removeAttribute('aria-busy');
+            submitLabel.textContent = copy.submit;
+            spinner.hidden = true;
+        }
+    });
+
+    const telegramApp = window.Telegram && window.Telegram.WebApp;
+    const telegramLoginButton = document.getElementById('telegramLoginButton');
+    const telegramLoginError = document.getElementById('telegramLoginError');
+    if (telegramApp && telegramApp.initData) telegramLoginButton.hidden = false;
+    if (new URLSearchParams(window.location.search).has('logged_out')) {
+        document.getElementById('logoutNotice').hidden = false;
     }
-});
+
+    telegramLoginButton.addEventListener('click', async () => {
+        telegramLoginError.hidden = true;
+        telegramLoginButton.disabled = true;
+        sessionStorage.removeItem('wolloyewa_logged_out');
+        try {
+            const token = await window.getWebAppAccessToken(true);
+            if (!token) throw new Error(copy.telegram_error);
+            window.location.assign('/app/profile');
+        } catch (loginError) {
+            telegramLoginError.textContent = loginError.message || copy.telegram_error;
+            telegramLoginError.hidden = false;
+        } finally {
+            telegramLoginButton.disabled = false;
+        }
+    });
+})();
 </script>
 {% endblock %}

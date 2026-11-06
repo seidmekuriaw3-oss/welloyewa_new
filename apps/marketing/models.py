@@ -4,7 +4,7 @@
 """Marketing, promotions, coupons, and loyalty program database models."""
 
 from datetime import datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
@@ -98,17 +98,14 @@ class Coupon(BaseModel, TimestampMixin):
 
     def calculate_discount(self, amount: Decimal) -> Decimal:
         """Calculate discount amount for a given purchase amount."""
-        if self.min_purchase_amount and amount < self.min_purchase_amount:
-            return Decimal("0")
-
         if self.discount_type == "percentage":
             discount = amount * (self.discount_value / 100)
-            if self.max_discount_amount:
+            if self.max_discount_amount is not None:
                 discount = min(discount, self.max_discount_amount)
         else:
             discount = self.discount_value
 
-        return min(discount, amount)
+        return min(discount, amount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     def can_use_by_user(self, user_id: int, user_order_count: int = 0) -> bool:
         """Check if coupon can be used by a specific user."""

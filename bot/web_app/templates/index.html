@@ -1,72 +1,57 @@
 {% extends "base.html" %}
-{% block title %}ወሎዮ ሱቅ 🇪🇹{% endblock %}
+{% block title %}{{ profile_text.get('Wolloyewa Store', 'ወሎዮ ሱቅ') }} 🇪🇹{% endblock %}
 
 {% block content %}
+<main class="home-main">
+    <section class="home-hero" aria-labelledby="homeHeroTitle">
+        <div class="home-hero-copy">
+            <p class="home-hero-eyebrow">{{ profile_text.get('WOLLOYEWA STORE', 'WOLLOYEWA STORE') }}</p>
+            <h1 id="homeHeroTitle">{{ profile_text.get('የሚፈልጉትን ምርት ያግኙ', 'Find products you are looking for') }}</h1>
+            <p class="home-hero-description">{{ profile_text.get('የሱቁን ምርቶች ያስሱ፣ የሚፈልጉትንም ይምረጡ።', 'Browse the products available in the store and choose what you need.') }}</p>
+            <div class="home-hero-actions">
+                <a class="home-hero-primary" href="#productsSection">{{ profile_text.get('ምርቶችን ያስሱ', 'Browse products') }} <span aria-hidden="true">→</span></a>
+                <a class="home-hero-secondary" href="/app/categories?lang={{ page_language|default('am') }}">{{ profile_text.get('ምድቦችን ይመልከቱ', 'Explore categories') }}</a>
+            </div>
+        </div>
+        <div class="home-hero-art" aria-hidden="true">
+            <span class="hero-orbit hero-orbit-one"></span>
+            <span class="hero-orbit hero-orbit-two"></span>
+            <span class="hero-art-mark">ወ</span>
+            <span class="hero-art-dot hero-art-dot-one"></span>
+            <span class="hero-art-dot hero-art-dot-two"></span>
+        </div>
+    </section>
 
-<!-- ── Promo Banners ───────────────────────────────────────────── -->
-<div class="promo-scroll">
-    <div class="promo-card" style="min-height:128px;background:linear-gradient(90deg,rgba(18,24,32,.88),rgba(18,24,32,.20)),url('https://images.pexels.com/photos/13844013/pexels-photo-13844013.jpeg?auto=compress&amp;cs=tinysrgb&amp;w=720') center/cover">
-        <div class="promo-text">
-            <h3>አዲስ ምርቶች</h3>
-            <p>የወሎየዋን ምርጫ ይመልከቱ</p>
+    <section class="section home-section home-categories" aria-labelledby="homeCategoriesTitle">
+        <div class="section-heading">
+            <div>
+                <p class="section-kicker">01 · {{ profile_text.get('Shop', 'Shop') }}</p>
+                <h2 class="section-title" id="homeCategoriesTitle">{{ profile_text.get('ምድቦችን ያስሱ', 'Explore categories') }}</h2>
+            </div>
+            <a class="section-link" href="/app/categories?lang={{ page_language|default('am') }}">{{ profile_text.get('ሁሉንም ምድቦች →', 'All categories →') }}</a>
         </div>
-        <a href="/app/categories" class="promo-btn">ዳሰሳ →</a>
-    </div>
-    <div class="promo-card promo-gold" style="min-height:128px;background:linear-gradient(90deg,rgba(18,24,32,.88),rgba(18,24,32,.20)),url('https://images.pexels.com/photos/18158250/pexels-photo-18158250.jpeg?auto=compress&amp;cs=tinysrgb&amp;w=720') center/cover">
-        <div class="promo-text">
-            <h3>የሀበሻ ባህላዊ አልባሳት</h3>
-            <p>ባህላዊ ውበትን ያስሱ</p>
+        <div class="category-grid" id="homeCatGrid" aria-live="polite">
+            <div class="home-grid-message" role="status">{{ profile_text.get('ምድቦች በመጫን ላይ…', 'Loading categories…') }}</div>
         </div>
-        <a href="/app/categories" class="promo-btn">ይመልከቱ →</a>
-    </div>
-    <div class="promo-card" style="min-height:128px;background:linear-gradient(90deg,rgba(18,24,32,.88),rgba(18,24,32,.20)),url('https://images.pexels.com/photos/6742970/pexels-photo-6742970.jpeg?auto=compress&amp;cs=tinysrgb&amp;w=720') center/cover">
-        <div class="promo-text">
-            <h3>የኢትዮጵያ ቡና</h3>
-            <p>የቡና ምርቶቻችንን ያግኙ</p>
-        </div>
-        <a href="/app/categories" class="promo-btn">ይመልከቱ →</a>
-    </div>
-    <div class="promo-card" style="min-height:128px;background:linear-gradient(90deg,rgba(18,24,32,.88),rgba(18,24,32,.20)),url('https://images.pexels.com/photos/34561170/pexels-photo-34561170.jpeg?auto=compress&amp;cs=tinysrgb&amp;w=720') center/cover">
-        <div class="promo-text">
-            <h3>ቅመማ ቅመሞች</h3>
-            <p>ለምግብዎ ጣዕም የሚጨምሩ ምርቶች</p>
-        </div>
-        <a href="/app/categories" class="promo-btn">ይመልከቱ →</a>
-    </div>
-    <div class="promo-card" style="min-height:128px;background:linear-gradient(90deg,rgba(18,24,32,.88),rgba(18,24,32,.20)),url('https://images.pexels.com/photos/4735904/pexels-photo-4735904.jpeg?auto=compress&amp;cs=tinysrgb&amp;w=720') center/cover">
-        <div class="promo-text">
-            <h3>የዕለት ተዕለት እንክብካቤ</h3>
-            <p>የውበት እና እንክብካቤ ምርቶችን ያስሱ</p>
-        </div>
-        <a href="/app/categories" class="promo-btn">ይመልከቱ →</a>
-    </div>
-</div>
+    </section>
 
-<!-- ── Categories Row ─────────────────────────────────────────── -->
-<div class="section" style="padding-bottom:0">
-    <div class="section-title">
-        📦 ምድቦች
-        <a href="/app/categories" style="margin-left:auto;font-size:13px;font-weight:600;color:var(--primary);text-decoration:none">ሁሉንም ምድቦች →</a>
-    </div>
-    <div class="category-grid" id="homeCatGrid">
-        <div style="grid-column:1/-1;text-align:center;padding:12px;color:var(--text-muted);font-size:13px">እየጫናን…</div>
-    </div>
-</div>
-
-<!-- ── Products ───────────────────────────────────────────────── -->
-<div class="section">
-    <div class="section-title" id="productsSectionTitle">🛒 ምርቶቸ</div>
-    <div class="products-grid" id="productsGrid" style="grid-template-columns:repeat(2,1fr);gap:12px">
-        <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">
-            ምርቶቸ እየጫናን ነው…
+    <section class="section home-section home-products" id="productsSection" aria-labelledby="productsSectionTitle">
+        <div class="section-heading">
+            <div>
+                <p class="section-kicker">02 · {{ profile_text.get('Shop', 'Shop') }}</p>
+                <h2 class="section-title" id="productsSectionTitle">{{ profile_text.get('ሁሉም ምርቶች', 'All products') }}</h2>
+            </div>
         </div>
-    </div>
-    <div id="loadMoreWrap" style="text-align:center;margin-top:18px;display:none">
-        <button id="loadMoreBtn" onclick="loadMoreProds()" class="btn-primary" style="width:auto;padding:12px 36px">
-            ተጨማሪ ምርቶቸ
-        </button>
-    </div>
-</div>
+        <div class="products-grid" id="productsGrid">
+            <div class="home-grid-message" role="status">{{ profile_text.get('ምርቶች በመጫን ላይ…', 'Loading products…') }}</div>
+        </div>
+        <div id="loadMoreWrap" class="load-more-wrap" hidden>
+            <button id="loadMoreBtn" onclick="loadMoreProds()" class="btn-primary">
+                {{ profile_text.get('ተጨማሪ ምርቶች', 'Load more products') }}
+            </button>
+        </div>
+    </section>
+</main>
 
 {% endblock %}
 
@@ -77,6 +62,8 @@ const CAT_ICONS = {
     books: '📚', beauty: '💄', health: '💊', home: '🏠', 'home & living': '🏠',
     sports: '⚽', toys: '🧸', automotive: '🚗', agriculture: '🌾',
 };
+const PAGE_LANGUAGE = {{ page_language | tojson }};
+const pageText = value => window.localizeWebAppText ? window.localizeWebAppText(value) : value;
 const PAGE_SIZE = 20;
 const urlParams = new URLSearchParams(window.location.search);
 const initialQuery = (urlParams.get('q') || '').trim();
@@ -126,9 +113,9 @@ function syncBrowseUrl() {
 function updateProductsTitle() {
     const title = document.getElementById('productsSectionTitle');
     if (!title) return;
-    if (currentSearch) title.textContent = `🔍 "${currentSearch}" የፍለጋ ውጤቶች`;
-    else if (activeCatId !== null) title.textContent = '🛒 በምድብ የተመረጡ ምርቶች';
-    else title.textContent = '🛒 ሁሉም ምርቶች';
+    if (currentSearch) title.textContent = `${pageText('Search results')}: "${currentSearch}"`;
+    else if (activeCatId !== null) title.textContent = pageText('Category products');
+    else title.textContent = pageText('All products');
 }
 
 function renderProds() {
@@ -138,17 +125,17 @@ function renderProds() {
 
     if (!filteredProds.length) {
         const message = currentSearch
-            ? `ለ “${he(currentSearch)}” ምርት አልተገኘም`
+            ? `${pageText('No products found')}: “${he(currentSearch)}”`
             : activeCatId !== null
-                ? 'በዚህ ምድብ ውስጥ ምርት አልተገኘም'
-                : 'ገና ምርት አልተጨመረም';
+                ? pageText('No products in this category')
+                : pageText('No products have been added yet');
         grid.innerHTML = `
-            <div style="grid-column:1/-1;text-align:center;padding:56px 16px;color:var(--text-muted)" role="status">
-                <div style="font-size:56px;margin-bottom:12px">🔍</div>
-                <p style="font-size:15px;font-weight:600;color:var(--text)">${message}</p>
-                ${currentSearch ? '<p style="font-size:13px;margin-top:6px">ሌላ የፍለጋ ቃል ይሞክሩ</p>' : ''}
+            <div class="home-empty-state" role="status">
+                <span aria-hidden="true">⌕</span>
+                <p>${message}</p>
+                ${currentSearch ? `<small>${pageText('Try another search term')}</small>` : ''}
             </div>`;
-        loadMoreWrap.style.display = 'none';
+        loadMoreWrap.hidden = true;
         return;
     }
 
@@ -157,41 +144,61 @@ function renderProds() {
             ? safeUrl(product.images[0])
             : '';
         const thumb = imageUrl
-            ? `<img src="${he(imageUrl)}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">`
+            ? `<img src="${he(imageUrl)}" alt="${he(product.name)}" loading="lazy">`
             : '<span style="font-size:52px" aria-hidden="true">📦</span>';
         const outOfStock = Number(product.stock_quantity) <= 0;
-        const nameAm = product.name_am
+        const nameAm = product.name_am && PAGE_LANGUAGE !== 'am'
             ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">${he(product.name_am)}</div>`
             : '';
         const id = Number(product.id);
         const price = Number(product.price) || 0;
+        const comparePrice = Number(product.compare_price) || 0;
+        const discount = comparePrice > price
+            ? `<span class="product-discount">-${Math.round((comparePrice - price) / comparePrice * 100)}%</span>`
+            : '';
+        const rating = Number(product.average_rating ?? product.rating);
+        const reviewCount = Number(product.review_count);
+        const ratingLabel = Number.isFinite(rating) && rating > 0 && reviewCount > 0
+            ? `<span class="product-rating" aria-label="${rating.toFixed(1)} / 5">★ ${rating.toFixed(1)} <small>(${reviewCount})</small></span>`
+            : '';
+        const saved = productWishlist.has(id);
+        const wishlistLabel = saved ? pageText('Remove from wishlist') : pageText('Add to wishlist');
 
         return `
         <div class="product-card" data-product-card="${id}">
-            <a class="product-image" href="/app/product/${id}" aria-label="${he(product.name)}"
-               style="height:140px;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;text-decoration:none;color:inherit">
+            <button type="button" class="product-wishlist-toggle${saved ? ' is-saved' : ''}"
+                    data-wishlist-toggle data-product-id="${id}" data-product-name="${he(product.name)}"
+                    data-product-price="${price}" data-product-image="${he(imageUrl)}"
+                    aria-label="${he(wishlistLabel)}" aria-pressed="${saved}">♡</button>
+            ${discount}
+            <a class="product-image" href="/app/product/${id}?lang=${PAGE_LANGUAGE}" aria-label="${he(product.name)}">
                 ${thumb}
             </a>
-            <div class="product-info" style="padding:10px 10px 12px">
+            <div class="product-info">
                 ${nameAm}
-                <a class="product-name" href="/app/product/${id}" style="font-size:13px;line-height:1.35;margin-bottom:6px;color:inherit;text-decoration:none">${he(product.name)}</a>
-                <div class="product-footer" style="gap:6px">
-                    <span class="product-price" style="font-size:14px">ETB ${price.toLocaleString()}</span>
+                <a class="product-name" href="/app/product/${id}?lang=${PAGE_LANGUAGE}">${he(product.name)}</a>
+                ${ratingLabel}
+                <div class="product-footer">
+                    <span class="product-price">ETB ${price.toLocaleString()}
+                        ${comparePrice > price ? `<small>ETB ${comparePrice.toLocaleString()}</small>` : ''}
+                    </span>
                     ${outOfStock
-                        ? '<span style="font-size:10px;color:var(--danger);font-weight:600">አልቋል</span>'
-                        : `<button class="btn-add" style="padding:5px 10px;font-size:11px"
+                        ? `<span class="product-stock-out">${pageText('Out of stock')}</span>`
+                        : `<button class="btn-add"
                               data-add-product data-product-id="${id}"
                               data-product-name="${he(product.name)}" data-product-price="${price}">
-                              🛒 ጨምር
+                              ${pageText('Add')}
                            </button>`}
                 </div>
             </div>
         </div>`;
     }).join('');
 
-    loadMoreWrap.style.display = hasMoreProducts ? 'block' : 'none';
+    loadMoreWrap.hidden = !hasMoreProducts;
     loadMoreButton.disabled = loadingMoreProducts;
-    loadMoreButton.textContent = loadingMoreProducts ? 'እየጫነ ነው…' : 'ተጨማሪ ምርቶች';
+    loadMoreButton.textContent = loadingMoreProducts
+        ? pageText('Loading…')
+        : pageText('Load more products');
 }
 
 function addCard(id, name, price) {
@@ -211,7 +218,7 @@ async function loadHomeProds(append = false) {
     if (append) {
         loadingMoreProducts = true;
         loadMoreButton.disabled = true;
-        loadMoreButton.textContent = 'እየጫነ ነው…';
+        loadMoreButton.textContent = pageText('Loading…');
     } else {
         loadingMoreProducts = false;
         displayedPage = 0;
@@ -219,8 +226,8 @@ async function loadHomeProds(append = false) {
         hasMoreProducts = false;
         allProds = [];
         filteredProds = [];
-        loadMoreWrap.style.display = 'none';
-        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)" role="status">ምርቶች እየተጫኑ ነው…</div>';
+        loadMoreWrap.hidden = true;
+        grid.innerHTML = `<div class="home-grid-message" role="status">${pageText('Loading products…')}</div>`;
     }
 
     const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
@@ -243,14 +250,14 @@ async function loadHomeProds(append = false) {
     } catch (error) {
         if (requestId !== productRequestId) return;
         if (append) {
-            showToast('ተጨማሪ ምርቶችን መጫን አልተቻለም። እንደገና ይሞክሩ።');
+            showToast(`${pageText('Could not load products')}. ${pageText('Try again')}.`);
         } else {
             grid.innerHTML = `
-                <div style="grid-column:1/-1;text-align:center;padding:40px 16px;color:var(--text-muted)" role="alert">
-                    <div style="font-size:48px;margin-bottom:12px">⚠️</div>
-                    <p style="font-size:14px;font-weight:600">ምርቶችን መጫን አልተቻለም</p>
-                    <button type="button" onclick="loadHomeProds()" class="btn-primary" style="margin-top:16px;width:auto;padding:10px 24px;font-size:14px">
-                        እንደገና ሞክር
+                <div class="home-empty-state" role="alert">
+                    <span aria-hidden="true">⚠</span>
+                    <p>${pageText('Could not load products')}</p>
+                    <button type="button" onclick="loadHomeProds()" class="btn-primary">
+                        ${pageText('Try again')}
                     </button>
                 </div>`;
         }
@@ -258,8 +265,8 @@ async function loadHomeProds(append = false) {
         if (requestId === productRequestId) {
             loadingMoreProducts = false;
             loadMoreButton.disabled = false;
-            loadMoreButton.textContent = 'ተጨማሪ ምርቶች';
-            if (append) loadMoreWrap.style.display = hasMoreProducts ? 'block' : 'none';
+            loadMoreButton.textContent = pageText('Load more products');
+            if (append) loadMoreWrap.hidden = !hasMoreProducts;
         }
     }
 }
@@ -280,6 +287,7 @@ function filterByCat(catId) {
     document.querySelectorAll('#homeCatGrid .category-card').forEach(card => {
         const cardId = card.dataset.categoryId === '' ? null : Number(card.dataset.categoryId);
         card.classList.toggle('active', cardId === activeCatId);
+        card.setAttribute('aria-pressed', String(cardId === activeCatId));
     });
     updateProductsTitle();
     loadHomeProds();
@@ -316,31 +324,65 @@ async function loadHomeCats() {
         grid.innerHTML = items.map(category => {
             const isAll = category.id === null;
             const isActive = isAll ? activeCatId === null : Number(category.id) === activeCatId;
-            const label = isAll ? 'ሁሉም' : `${category.depth ? '↳ ' : ''}${he(category.name_am || category.name)}`;
+            const categoryName = PAGE_LANGUAGE === 'am'
+                ? (category.name_am || category.name)
+                : (category.name || category.name_am);
+            const label = isAll ? pageText('All categories') : `${category.depth ? '↳ ' : ''}${he(categoryName)}`;
             const icon = isAll ? '🛍️' : catIcon(category.name);
             const id = isAll ? '' : Number(category.id);
             return `
-                <div class="category-card${isActive ? ' active' : ''}"
-                     data-category-id="${id}" role="button" tabindex="0"
-                     onclick="filterByCat(${isAll ? 'null' : id})"
-                     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();filterByCat(${isAll ? 'null' : id})}">
-                    <div class="icon" aria-hidden="true">${icon}</div>
-                    <div class="label">${label}</div>
-                </div>`;
+                <button type="button" class="category-card${isActive ? ' active' : ''}"
+                        data-category-id="${id}" aria-pressed="${isActive}"
+                        onclick="filterByCat(${isAll ? 'null' : id})">
+                    <span class="icon" aria-hidden="true">${icon}</span>
+                    <span class="label">${label}</span>
+                </button>`;
         }).join('');
     } catch (error) {
         grid.innerHTML = `
-            <div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text-muted)" role="alert">
-                <span>ምድቦችን መጫን አልተቻለም።</span>
-                <button type="button" onclick="loadHomeCats()" class="btn-primary" style="margin-left:8px;width:auto;padding:8px 16px;font-size:12px">
-                    እንደገና ሞክር
+            <div class="home-empty-state" role="alert">
+                <p>${pageText('Could not load categories')}</p>
+                <button type="button" onclick="loadHomeCats()" class="btn-primary">
+                    ${pageText('Try again')}
                 </button>
             </div>`;
     }
 }
 
 const productsGrid = document.getElementById('productsGrid');
-productsGrid.addEventListener('click', event => {
+productsGrid.addEventListener('click', async event => {
+    const wishlistButton = event.target.closest('[data-wishlist-toggle]');
+    if (wishlistButton) {
+        event.stopPropagation();
+        const product = {
+            id: wishlistButton.dataset.productId,
+            name: wishlistButton.dataset.productName,
+            price: wishlistButton.dataset.productPrice,
+            image: wishlistButton.dataset.productImage
+        };
+        let saved;
+        try {
+            saved = productWishlist.toggle(product);
+            wishlistButton.disabled = true;
+            await window.updateWishlistOnServer(product.id, saved);
+            wishlistButton.classList.toggle('is-saved', saved);
+            wishlistButton.setAttribute('aria-pressed', String(saved));
+            wishlistButton.setAttribute(
+                'aria-label',
+                pageText(saved ? 'Add to wishlist' : 'Remove from wishlist')
+            );
+            showToast(pageText(saved ? 'Product added to your wishlist.' : 'Product removed from your wishlist.'));
+        } catch (error) {
+            if (saved !== undefined) productWishlist.toggle(product);
+            wishlistButton.classList.toggle('is-saved', productWishlist.has(product.id));
+            wishlistButton.setAttribute('aria-pressed', String(productWishlist.has(product.id)));
+            showToast(error.message || pageText('Could not update your wishlist.'));
+            console.error('Could not update saved products.', error);
+        } finally {
+            wishlistButton.disabled = false;
+        }
+        return;
+    }
     const button = event.target.closest('[data-add-product]');
     if (button) {
         event.stopPropagation();
@@ -353,7 +395,7 @@ productsGrid.addEventListener('click', event => {
     }
     const card = event.target.closest('[data-product-card]');
     if (card && !event.target.closest('a')) {
-        window.location.href = `/app/product/${Number(card.dataset.productCard)}`;
+        window.location.href = `/app/product/${Number(card.dataset.productCard)}?lang=${PAGE_LANGUAGE}`;
     }
 });
 

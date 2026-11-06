@@ -1,23 +1,23 @@
 {% extends "base.html" %}
-{% block title %}ምድቦች — ወሎዮ ሱቅ{% endblock %}
+{% block title %}{{ profile_text.get('Categories', 'Categories') }} — {{ profile_text.get('Wolloyewa Store', 'Wolloyewa Store') }}{% endblock %}
 
 {% block content %}
 <header class="categories-hero">
-    <h1>📦 ምድቦች</h1>
-    <p>በምድብ በመምረጥ የሚፈልጉትን ምርት ያግኙ</p>
+    <h1>📦 {{ profile_text.get('Categories', 'Categories') }}</h1>
+    <p>{{ profile_text.get('Choose a category to find the products you need', 'Choose a category to find the products you need') }}</p>
 </header>
 
 <div class="categories-tools" id="categoryTools" hidden>
     <label class="category-search">
         <span aria-hidden="true">🔍</span>
-        <input id="categorySearch" type="search" placeholder="ምድብ ፈልግ…" autocomplete="off">
+        <input id="categorySearch" type="search" placeholder="{{ profile_text.get('Search categories…', 'Search categories…') }}" autocomplete="off">
     </label>
 </div>
 
 <div class="cat-grid-full" id="catGridFull" aria-live="polite">
     <div class="cat-empty" role="status">
         <span class="cat-empty-icon" aria-hidden="true">⏳</span>
-        <span>ምድቦች እየተጫኑ ነው…</span>
+        <span>{{ profile_text.get('Loading categories…', 'Loading categories…') }}</span>
     </div>
 </div>
 {% endblock %}
@@ -29,6 +29,8 @@ const CAT_ICONS = {
     books: '📚', beauty: '💄', health: '💊', home: '🏠', 'home & living': '🏠',
     sports: '⚽', toys: '🧸', automotive: '🚗', agriculture: '🌾',
 };
+const PAGE_LANGUAGE = {{ page_language | tojson }};
+const pageText = value => window.localizeWebAppText ? window.localizeWebAppText(value) : value;
 let categoryTree = [];
 
 function catIcon(name) {
@@ -39,16 +41,16 @@ function catIcon(name) {
 
 function allProductsCard() {
     return `
-        <a href="/app/" class="cat-card-full cat-card-all">
+        <a href="/app/?lang=${PAGE_LANGUAGE}" class="cat-card-full cat-card-all">
             <span class="ci" aria-hidden="true">🛍️</span>
-            <span class="cl">ሁሉም ምርቶች</span>
-            <span class="cc">ሁሉንም ምድቦች ይመልከቱ</span>
+            <span class="cl">${pageText('All products')}</span>
+            <span class="cc">${pageText('Browse all products')}</span>
         </a>`;
 }
 
 function categoryCountLabel(value) {
     const count = Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0;
-    return `${count.toLocaleString()} ${count === 1 ? 'ምርት' : 'ምርቶች'}`;
+    return `${count.toLocaleString()} ${pageText(count === 1 ? 'product' : 'products')}`;
 }
 
 function renderCategoryNode(category, depth = 0) {
@@ -58,12 +60,15 @@ function renderCategoryNode(category, depth = 0) {
         ? `<img class="ci" src="${he(imageUrl)}" alt="" loading="lazy">`
         : `<span class="ci" aria-hidden="true">${catIcon(category.name)}</span>`;
     const children = Array.isArray(category.children) ? category.children : [];
+    const categoryName = PAGE_LANGUAGE === 'am'
+        ? (category.name_am || category.name || category.slug)
+        : (category.name || category.name_am || category.slug);
     const card = `
-        <a href="/app/?category=${encodeURIComponent(id)}"
+        <a href="/app/?category=${encodeURIComponent(id)}&amp;lang=${PAGE_LANGUAGE}"
            class="cat-card-full${depth ? ' cat-card-child' : ''}"
-           aria-label="${he(category.name_am || category.name)} — ${categoryCountLabel(category.product_count)}">
+           aria-label="${he(categoryName)} — ${categoryCountLabel(category.product_count)}">
             ${visual}
-            <span class="cl">${he(category.name_am || category.name || category.slug)}</span>
+            <span class="cl">${he(categoryName)}</span>
             <span class="cc">${he(category.name || category.slug)} · ${categoryCountLabel(category.product_count)}</span>
         </a>`;
     const childCards = children.length
@@ -107,15 +112,15 @@ function renderCategories() {
         message = `
             <div class="cat-empty" role="status">
                 <span class="cat-empty-icon" aria-hidden="true">📂</span>
-                <strong>ገና ምድብ አልተጨመረም</strong>
-                <span>ሱቁ ምርቶችን ሲያክል እዚህ ይታያሉ።</span>
+                <strong>${pageText('No categories yet')}</strong>
+                <span>${pageText('Categories will appear here when products are added to the store.')}</span>
             </div>`;
     } else if (!visible.length) {
         message = `
             <div class="cat-empty" role="status">
                 <span class="cat-empty-icon" aria-hidden="true">🔎</span>
-                <strong>የሚዛመድ ምድብ አልተገኘም</strong>
-                <span>የፍለጋ ቃሉን ይቀይሩ ወይም ያጥፉት።</span>
+                <strong>${pageText('No matching categories')}</strong>
+                <span>${pageText('Try a different search term or clear the search.')}</span>
             </div>`;
     }
 
@@ -138,15 +143,15 @@ async function loadCategories() {
     } catch (error) {
         tools.hidden = true;
         grid.innerHTML = `
-            <a href="/app/" class="cat-card-full cat-card-all">
+            <a href="/app/?lang=${PAGE_LANGUAGE}" class="cat-card-full cat-card-all">
                 <span class="ci" aria-hidden="true">🛍️</span>
-                <span class="cl">ሁሉም ምርቶች</span>
-                <span class="cc">ወደ ሱቁ ይመለሱ</span>
+                <span class="cl">${pageText('All products')}</span>
+                <span class="cc">${pageText('Return to the store')}</span>
             </a>
             <div class="cat-empty" role="alert">
                 <span class="cat-empty-icon" aria-hidden="true">⚠️</span>
-                <strong>ምድቦችን መጫን አልተቻለም</strong>
-                <button type="button" class="cat-retry" onclick="loadCategories()">እንደገና ሞክር</button>
+                <strong>${pageText('Could not load categories')}</strong>
+                <button type="button" class="cat-retry" onclick="loadCategories()">${pageText('Try again')}</button>
             </div>`;
     }
 }
